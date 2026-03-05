@@ -12,5 +12,8 @@ pub mod events;
 pub mod framing;
 pub mod handshake;
 pub mod header;
+pub mod intent_fingerprint;
+pub mod server;
 pub mod session;
+pub mod session_dna;
 pub mod transport;

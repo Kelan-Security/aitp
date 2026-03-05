@@ -8,3 +8,4 @@
 pub mod identity;
 pub mod resolver;
 pub mod token;
+pub mod verification;
