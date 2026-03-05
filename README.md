@@ -55,6 +55,16 @@ Open Grafana: [http://localhost:3000](http://localhost:3000) (admin / aitp_admin
 
 ![AITP Architecture Diagram](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/architecture.png)
 
+## AITP Web Dashboard
+
+The official AITP Web Dashboard provides real-time observability, control plane identity management, and node visualization.
+
+![AITP Dashboard Overview](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/dashboard_overview.png)
+*Live Network Graph, Trust Distribution, and Active Sessions.*
+
+![Test Lab Simulation](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/dashboard_testlab.png)
+*Defense verification test lab simulating inbound malicious intent.*
+
 ## Documentation
 - [Quick Start Guide](docs/quickstart.md)
 - [Protocol Specification](docs/spec.md)
