@@ -6,16 +6,18 @@
 /// aitp-client --server 127.0.0.1:9999 --no-identity     # test anonymous rejection
 /// aitp-client --server 127.0.0.1:9999 --run-tests       # automated test suite
 /// ```
-use aitp_core::header::{IntentCode, DEFAULT_UDP_PORT};
+use aitp_core::header::{flags, AitpHeader, IntentCode, DEFAULT_UDP_PORT};
 use aitp_identity::identity::{AitpIdentity, Capability, EntityType};
 use clap::Parser;
 use colored::Colorize;
+use rand::RngCore;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::time::sleep;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::net::UdpSocket;
+use tokio::time::{sleep, timeout};
 
 // ────────────────────────── CLI ──────────────────────────
 
@@ -62,6 +64,8 @@ struct ClientSession {
     trust_score: u8,
     intent: IntentCode,
     server_addr: SocketAddr,
+    socket: Arc<UdpSocket>,
+    identity: Arc<AitpIdentity>,
     packets_sent: u64,
     bytes_sent: u64,
     bytes_received: u64,
@@ -248,46 +252,18 @@ async fn cmd_connect(
 ) -> Option<ClientSession> {
     println!("{} Resolving {}…", "◈".cyan(), addr.cyan());
 
-    let phases = [
-        (
-            "AITP_HELLO          ",
-            "Sending version negotiation + identity",
-        ),
-        (
-            "AITP_IDENTITY_EXCHANGE",
-            "Exchanging cryptographic identities",
-        ),
-        ("AITP_INTENT_DECLARE ", "Declaring session intent"),
-        (
-            "AITP_TRUST_EVAL     ",
-            "AI trust evaluation (rules + Gemini)",
-        ),
-        ("AITP_SESSION_GRANT  ", "Receiving permit token"),
-    ];
-    for (phase, desc) in &phases {
-        sleep(Duration::from_millis(150)).await;
-        println!("  {}  {}  {}", "→".dimmed(), phase.cyan(), desc.dimmed());
-    }
-
     let server_addr: SocketAddr = match addr.parse() {
         Ok(a) => a,
-        Err(_) => {
-            // Try adding default port.
-            match format!("{addr}:{DEFAULT_UDP_PORT}").parse() {
-                Ok(a) => a,
-                Err(e) => {
-                    println!("{} Invalid address: {e}", "✗".red().bold());
-                    return None;
-                }
+        Err(_) => match format!("{addr}:{DEFAULT_UDP_PORT}").parse() {
+            Ok(a) => a,
+            Err(e) => {
+                println!("{} Invalid address: {e}", "✗".red().bold());
+                return None;
             }
-        }
+        },
     };
 
-    // Simulate connection result.
-    let id_ref = identity.as_ref();
-    let has_identity = id_ref.is_some();
-
-    if !has_identity {
+    let Some(id) = identity else {
         sleep(Duration::from_millis(200)).await;
         println!(
             "{} Server responded: {}",
@@ -295,32 +271,124 @@ async fn cmd_connect(
             "AITP_REJECT(ANONYMOUS_IDENTITY)".red()
         );
         return None;
-    }
+    };
 
-    // Simulate a successful handshake with a realistic trust score.
-    let trust_score: u8 = 187;
-    let session_id: u64 = 0xDEAD_BEEF_1234_5678;
-    let permit_ttl = 300u32;
+    let socket = match UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => Arc::new(s),
+        Err(e) => {
+            println!("{} Failed to bind socket: {e}", "✗".red().bold());
+            return None;
+        }
+    };
 
-    let trust_colored = format!("{trust_score}").green().bold();
+    // Construct SYN packet
+    let mut nonce = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce);
+    let session_id = rand::rngs::OsRng.next_u64();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+
+    let source_id = id.entity_id;
+    let dest_id = [0u8; 32]; // Not strictly verified by server yet if unknown
+
+    let mut header = AitpHeader::new(
+        flags::SYN,
+        intent,
+        session_id,
+        source_id,
+        dest_id,
+        0, // Initial trust score 0
+        0,
+        timestamp,
+        nonce,
+    );
+    header.sign(&id.signing_key());
+
     println!(
-        "{} Connected  session: {}  trust: {}  ttl: {}s",
-        "✓".green().bold(),
-        format!("{session_id:#018x}").cyan(),
-        trust_colored,
-        permit_ttl
+        "  {}  {}  {}",
+        "→".dimmed(),
+        "AITP_HELLO          ".cyan(),
+        "Sending version negotiation + identity".dimmed()
     );
 
-    Some(ClientSession {
-        id: session_id,
-        trust_score,
-        intent,
-        server_addr,
-        packets_sent: 0,
-        bytes_sent: 0,
-        bytes_received: 0,
-        connected_at: Instant::now(),
-    })
+    let packet = header.to_bytes();
+    if let Err(e) = socket.send_to(&packet, server_addr).await {
+        println!("{} Failed to send SYN: {e}", "✗".red().bold());
+        return None;
+    }
+
+    println!(
+        "  {}  {}  {}",
+        "→".dimmed(),
+        "AITP_IDENTITY_EXCHANGE".cyan(),
+        "Exchanging cryptographic identities".dimmed()
+    );
+    println!(
+        "  {}  {}  {}",
+        "→".dimmed(),
+        "AITP_INTENT_DECLARE ".cyan(),
+        "Declaring session intent".dimmed()
+    );
+    println!(
+        "  {}  {}  {}",
+        "→".dimmed(),
+        "AITP_TRUST_EVAL     ".cyan(),
+        "AI trust evaluation (rules + Gemini)".dimmed()
+    );
+
+    // Wait for SYN-ACK
+    let mut buf = vec![0u8; 2048];
+    match timeout(Duration::from_secs(3), socket.recv_from(&mut buf)).await {
+        Ok(Ok((len, _))) => {
+            if let Ok(resp_header) = AitpHeader::from_bytes(&buf[..len]) {
+                if resp_header.is_ack() {
+                    println!(
+                        "  {}  {}  {}",
+                        "→".dimmed(),
+                        "AITP_SESSION_GRANT  ".cyan(),
+                        "Receiving permit token".dimmed()
+                    );
+                    let trust_colored = format!("{}", resp_header.trust_score).green().bold();
+                    println!(
+                        "{} Connected  session: {}  trust: {}  ttl: 300s",
+                        "✓".green().bold(),
+                        format!("{session_id:#018x}").cyan(),
+                        trust_colored,
+                    );
+
+                    return Some(ClientSession {
+                        id: session_id,
+                        trust_score: resp_header.trust_score,
+                        intent,
+                        server_addr,
+                        socket,
+                        identity: id,
+                        packets_sent: 1,
+                        bytes_sent: packet.len() as u64,
+                        bytes_received: len as u64,
+                        connected_at: Instant::now(),
+                    });
+                } else if resp_header.has_flag(flags::REVOKE) {
+                    println!(
+                        "{} Handshake REJECTED (Trust Score: {})",
+                        "✗".red().bold(),
+                        resp_header.trust_score
+                    );
+                    return None;
+                }
+            }
+        }
+        Ok(Err(e)) => {
+            println!("{} UDP receive error: {e}", "✗".red().bold());
+        }
+        Err(_) => {
+            println!("{} Handshake timed out", "✗".red().bold());
+        }
+    }
+
+    None
 }
 
 async fn cmd_connect_anon(_addr: &str) {
@@ -342,34 +410,78 @@ async fn cmd_connect_anon(_addr: &str) {
 }
 
 async fn cmd_send(session: &mut ClientSession, msg: &str) {
-    let bytes = msg.as_bytes().len();
+    let payload = msg.as_bytes();
+    let mut nonce = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce);
+
+    let mut header = AitpHeader::new(
+        0, // No specific flags for normal data
+        session.intent,
+        session.id,
+        session.identity.entity_id,
+        [0u8; 32], // Dest ID
+        session.trust_score,
+        payload.len() as u16,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64,
+        nonce,
+    );
+    header.sign(&session.identity.signing_key());
+
+    let mut buf = header.to_bytes();
+    buf.extend_from_slice(payload);
+
+    let start = Instant::now();
+    let req_bytes = buf.len();
+
+    if let Err(e) = session.socket.send_to(&buf, session.server_addr).await {
+        println!("{} Failed to send packet: {e}", "✗".red().bold());
+        return;
+    }
+
     session.packets_sent += 1;
-    session.bytes_sent += bytes as u64;
+    session.bytes_sent += req_bytes as u64;
 
     println!(
-        "{} Sending {} bytes  intent: {}  encrypted: {}",
+        "{} Sent {} bytes (payload: {})  intent: {}  encrypted: {}",
         "→".dimmed(),
-        bytes.to_string().cyan(),
+        req_bytes.to_string().cyan(),
+        payload.len().to_string().yellow(),
         session.intent.as_str().cyan(),
         "AES-256-GCM".dimmed()
     );
-    sleep(Duration::from_millis(50)).await;
 
-    // Simulate response + trust update.
-    let rtt_ms = 8.0 + (rand_jitter() as f64 * 0.1);
-    let trust_delta: i8 = if session.trust_score < 230 { 2 } else { 0 };
-    session.trust_score = session.trust_score.saturating_add(trust_delta as u8);
-    session.bytes_received += 12;
+    // Wait for empty ACK or any response
+    let mut recv_buf = vec![0u8; 2048];
+    if let Ok(Ok((len, _))) = timeout(
+        Duration::from_millis(500),
+        session.socket.recv_from(&mut recv_buf),
+    )
+    .await
+    {
+        let rtt = start.elapsed();
+        session.bytes_received += len as u64;
 
-    let trust_colored = format_trust(session.trust_score);
-    println!(
-        "{} Received {} bytes  rtt: {:.1}ms  trust: {} (+{})",
-        "✓".green().bold(),
-        "12".cyan(),
-        rtt_ms,
-        trust_colored,
-        trust_delta
-    );
+        if let Ok(resp_header) = AitpHeader::from_bytes(&recv_buf[..len]) {
+            session.trust_score = resp_header.trust_score; // Update trust
+
+            let trust_colored = format_trust(session.trust_score);
+            println!(
+                "{} Received {} bytes  rtt: {:.1}ms  trust: {}  (session: {:016x})",
+                "✓".green().bold(),
+                len.to_string().cyan(),
+                rtt.as_secs_f64() * 1000.0,
+                trust_colored,
+                resp_header.session_id
+            );
+        } else {
+            println!("{} Received malformed packet ({} bytes)", "⚠".yellow(), len);
+        }
+    } else {
+        println!("{} No ACK received (timeout)", "⚠".yellow());
+    }
 }
 
 async fn cmd_switch_intent(session: &mut Option<ClientSession>, new_intent: IntentCode) {
@@ -467,7 +579,30 @@ async fn cmd_revoke(session: &ClientSession) {
         "→".dimmed(),
         format!("{:#018x}", session.id).cyan()
     );
-    sleep(Duration::from_millis(100)).await;
+
+    let mut nonce = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce);
+    let mut header = AitpHeader::new(
+        flags::REVOKE,
+        session.intent,
+        session.id,
+        session.identity.entity_id,
+        [0u8; 32],
+        session.trust_score,
+        0,
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64,
+        nonce,
+    );
+    header.sign(&session.identity.signing_key());
+
+    let _ = session
+        .socket
+        .send_to(&header.to_bytes(), session.server_addr)
+        .await;
+
     println!("{} Session revoked. Goodbye.", "✓".green().bold());
 }
 
@@ -721,14 +856,4 @@ fn offline_warn() {
         "!".red(),
         "connect".cyan()
     );
-}
-
-fn rand_jitter() -> u8 {
-    // Simple deterministic pseudo-jitter for display.
-    use std::time::{SystemTime, UNIX_EPOCH};
-    (SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos()
-        % 50) as u8
 }

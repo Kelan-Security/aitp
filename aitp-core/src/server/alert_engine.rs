@@ -10,9 +10,18 @@ use tokio::sync::broadcast;
 /// Subscribes to events from the AITP EventBus and populates `ServerState`.
 ///
 /// Run this in a background task alongside the transport:
-/// ```ignore
+/// ```no_run
+/// # use std::sync::Arc;
+/// # use aitp_core::server::alert_engine::AlertEngine;
+/// # use aitp_core::server::state::ServerState;
+/// # use aitp_core::events::EventBus;
+/// # #[tokio::main]
+/// # async fn main() {
+/// # let state = Arc::new(ServerState::new());
+/// # let event_bus = EventBus::new();
 /// let alert_engine = AlertEngine::new(state.clone(), event_bus.subscribe());
 /// tokio::spawn(async move { alert_engine.run().await });
+/// # }
 /// ```
 pub struct AlertEngine {
     state: Arc<ServerState>,

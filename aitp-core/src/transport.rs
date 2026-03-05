@@ -507,7 +507,16 @@ impl HandshakeCoordinator {
 ///
 /// # Usage
 ///
-/// ```ignore
+/// ```no_run
+/// # use std::sync::Arc;
+/// # use aitp_core::transport::{AitpTransport, TransportConfig};
+/// # use aitp_identity::identity::AitpIdentity;
+/// # use aitp_ai_engine::engine::TrustEngine;
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let config = TransportConfig::default();
+/// # let identity: Arc<AitpIdentity> = unimplemented!();
+/// # let trust_engine: Arc<TrustEngine> = unimplemented!();
 /// let (transport, mut events) = AitpTransport::bind_with_coordinator(
 ///     config, identity, trust_engine,
 /// ).await?;
@@ -515,6 +524,8 @@ impl HandshakeCoordinator {
 /// while let Some(event) = events.recv().await {
 ///     // Handle session events
 /// }
+/// # Ok(())
+/// # }
 /// ```
 pub struct AitpTransport {
     /// The bound UDP socket.

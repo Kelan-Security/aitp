@@ -19,7 +19,7 @@ async function handleLogin() {
     rotate: 360,
     ease: 'expo.in',
     onComplete: () => {
-      router.push('/dashboard')
+      router.push('/terminal')
     }
   })
 }
