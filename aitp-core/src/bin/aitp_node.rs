@@ -202,6 +202,7 @@ async fn main() {
         bind_addr,
         max_sessions: config.transport.max_concurrent_sessions,
         max_datagram_size: config.transport.max_packet_size_bytes,
+        ddos: Default::default(),
     };
 
     // Bind transport

@@ -59,11 +59,13 @@ async fn test_full_two_node_handshake_and_data_transfer() {
         bind_addr: "127.0.0.1:9997".parse().unwrap(),
         max_sessions: 1024,
         max_datagram_size: 65535,
+        ddos: Default::default(),
     };
     let config_b = TransportConfig {
         bind_addr: "127.0.0.1:9998".parse().unwrap(),
         max_sessions: 1024,
         max_datagram_size: 65535,
+        ddos: Default::default(),
     };
 
     let (transport_a, _events_a) =

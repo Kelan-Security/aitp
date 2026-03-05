@@ -32,9 +32,11 @@ use aitp_ai_engine::engine::{TrustContext, TrustEngine};
 use aitp_ai_engine::scorer::Verdict;
 use aitp_identity::identity::AitpIdentity;
 use dashmap::DashMap;
-use std::net::SocketAddr;
+use sha2::{Digest, Sha256};
+use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
@@ -56,6 +58,8 @@ pub struct TransportConfig {
     pub max_sessions: usize,
     /// Maximum datagram size.
     pub max_datagram_size: usize,
+    /// DDoS protection configuration.
+    pub ddos: DDoSConfig,
 }
 
 impl Default for TransportConfig {
@@ -64,6 +68,7 @@ impl Default for TransportConfig {
             bind_addr: SocketAddr::from(([0, 0, 0, 0], DEFAULT_UDP_PORT)),
             max_sessions: 65536,
             max_datagram_size: MAX_DATAGRAM_SIZE,
+            ddos: DDoSConfig::default(),
         }
     }
 }
@@ -198,6 +203,8 @@ pub struct HandshakeCoordinator {
     /// Handshake configuration (reserved for future timeout/retry tuning).
     #[allow(dead_code)]
     config: HandshakeConfig,
+    /// DDoS guard — filters incoming SYNs before trust evaluation.
+    ddos_guard: Arc<DDoSGuard>,
 }
 
 impl HandshakeCoordinator {
@@ -210,6 +217,27 @@ impl HandshakeCoordinator {
         event_tx: mpsc::Sender<TransportEvent>,
         event_bus: EventBus,
     ) -> Self {
+        Self::with_ddos(
+            session_table,
+            identity,
+            trust_engine,
+            socket,
+            event_tx,
+            event_bus,
+            Arc::new(DDoSGuard::new(DDoSConfig::default())),
+        )
+    }
+
+    /// Create a coordinator with a custom DDoS guard.
+    pub fn with_ddos(
+        session_table: Arc<SessionTable>,
+        identity: Arc<AitpIdentity>,
+        trust_engine: Arc<TrustEngine>,
+        socket: Arc<UdpSocket>,
+        event_tx: mpsc::Sender<TransportEvent>,
+        event_bus: EventBus,
+        ddos_guard: Arc<DDoSGuard>,
+    ) -> Self {
         Self {
             pending: Arc::new(DashMap::new()),
             session_table,
@@ -219,6 +247,7 @@ impl HandshakeCoordinator {
             event_tx,
             event_bus,
             config: HandshakeConfig::default(),
+            ddos_guard,
         }
     }
 
@@ -229,6 +258,35 @@ impl HandshakeCoordinator {
     pub async fn handle_syn(&self, header: AitpHeader, _payload: Vec<u8>, peer_addr: SocketAddr) {
         let session_id = header.session_id;
         let source_id = header.source_id;
+        let src_ip = peer_addr.ip();
+
+        // ── DDoS guard (runs before any state is created) ──
+        match self.ddos_guard.check_incoming(src_ip) {
+            DDoSVerdict::Allow => {}
+            verdict => {
+                let reason = match &verdict {
+                    DDoSVerdict::RateLimit => "ddos: ip rate limit".to_string(),
+                    DDoSVerdict::SynFloodProtection => {
+                        "ddos: global syn budget exhausted".to_string()
+                    }
+                    DDoSVerdict::Blacklisted => "ddos: ip blacklisted".to_string(),
+                    DDoSVerdict::RequirePoW(_) => "ddos: pow challenge required".to_string(),
+                    DDoSVerdict::Allow => unreachable!(),
+                };
+                tracing::warn!(
+                    peer = %peer_addr,
+                    reason = %reason,
+                    "DDoS guard rejected SYN"
+                );
+                self.event_bus
+                    .packet_dropped(DropReason::OrphanPacket { session_id }, src_ip);
+                let _ = self
+                    .event_tx
+                    .send(TransportEvent::PacketDropped { peer_addr, reason })
+                    .await;
+                return;
+            }
+        }
 
         // Check if we already have a pending handshake for this session
         if self.pending.contains_key(&session_id) {
@@ -827,6 +885,278 @@ fn hex_short(bytes: &[u8]) -> String {
         .map(|b| format!("{b:02x}"))
         .collect::<String>()
         + "..."
+}
+
+// ────────────────────────── DDoS Guard ──────────────────────────
+
+/// Configuration for the DDoS protection layer.
+#[derive(Debug, Clone)]
+pub struct DDoSConfig {
+    /// Maximum new sessions per minute per source IP (token-bucket refill rate).
+    pub max_new_sessions_per_min: u32,
+    /// Global SYN budget — total simultaneous new sessions allowed. Replenished
+    /// by a background task or when a session completes. Zero triggers flood protection.
+    pub global_syn_budget: u32,
+    /// How many leading zero bits a PoW solution must have (difficulty). Each
+    /// extra bit doubles CPU cost. 16 bits ≈ 1 ms on a modern CPU.
+    pub pow_difficulty: u8,
+}
+
+impl Default for DDoSConfig {
+    fn default() -> Self {
+        Self {
+            max_new_sessions_per_min: 100,
+            global_syn_budget: 5_000,
+            pow_difficulty: 16,
+        }
+    }
+}
+
+/// A token-bucket rate-limiter state per source IP.
+#[derive(Debug)]
+pub struct RateBucket {
+    /// Number of tokens currently available.
+    tokens: u32,
+    /// When the bucket was last refilled.
+    last_refill: Instant,
+    /// Bucket capacity (max tokens, == max_new_sessions_per_min).
+    capacity: u32,
+}
+
+impl RateBucket {
+    fn new(capacity: u32) -> Self {
+        Self {
+            tokens: capacity,
+            last_refill: Instant::now(),
+            capacity,
+        }
+    }
+
+    /// Try to consume one token. Returns `true` if a token was available.
+    fn try_consume(&mut self) -> bool {
+        // Refill proportionally to time elapsed (1-minute window).
+        let elapsed = self.last_refill.elapsed();
+        if elapsed >= Duration::from_secs(60) {
+            self.tokens = self.capacity;
+            self.last_refill = Instant::now();
+        } else {
+            let refill = ((elapsed.as_secs_f64() / 60.0) * self.capacity as f64) as u32;
+            self.tokens = (self.tokens + refill).min(self.capacity);
+            if refill > 0 {
+                self.last_refill = Instant::now();
+            }
+        }
+
+        if self.tokens > 0 {
+            self.tokens -= 1;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// A Proof-of-Work challenge issued to a suspicious source IP.
+#[derive(Debug, Clone)]
+pub struct PowChallenge {
+    /// Random 32-byte nonce the client must hash against.
+    pub nonce: [u8; 32],
+    /// The number of leading zero bits the solution hash must have.
+    pub difficulty: u8,
+    /// When this challenge expires.
+    pub expires_at: Instant,
+}
+
+impl PowChallenge {
+    fn new(difficulty: u8) -> Self {
+        use rand::RngCore;
+        let mut nonce = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut nonce);
+        Self {
+            nonce,
+            difficulty,
+            expires_at: Instant::now() + Duration::from_secs(30),
+        }
+    }
+
+    /// Check whether the client-supplied `solution` satisfies the PoW.
+    /// Solution = SHA-256(challenge_nonce || solution_nonce). The hash must
+    /// have at least `difficulty` leading zero bits.
+    pub fn verify(&self, solution: &[u8; 32]) -> bool {
+        if Instant::now() > self.expires_at {
+            return false; // expired
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(self.nonce);
+        hasher.update(solution);
+        let hash: [u8; 32] = hasher.finalize().into();
+        leading_zero_bits(&hash) >= self.difficulty
+    }
+}
+
+/// Count the number of leading zero bits in a byte slice.
+fn leading_zero_bits(hash: &[u8; 32]) -> u8 {
+    let mut count = 0u8;
+    for byte in hash {
+        if *byte == 0 {
+            count += 8;
+        } else {
+            count += byte.leading_zeros() as u8;
+            break;
+        }
+    }
+    count
+}
+
+/// The verdict returned by [`DDoSGuard::check_incoming`].
+#[derive(Debug)]
+pub enum DDoSVerdict {
+    /// Packet is allowed — proceed with processing.
+    Allow,
+    /// Source IP has exceeded the per-IP new-session rate limit.
+    RateLimit,
+    /// Global SYN budget exhausted — server is under flood attack.
+    SynFloodProtection,
+    /// Source IP is on the blacklist.
+    Blacklisted,
+    /// A PoW challenge has been issued; the client must solve it.
+    RequirePoW(PowChallenge),
+}
+
+/// Protocol-level DDoS protection guard.
+///
+/// Implements four layered rules checked in order:
+/// 1. IP blacklist (O(1) hash lookup)
+/// 2. Global SYN budget (atomic counter)
+/// 3. Per-IP token-bucket rate limit (100 new sessions/min default)
+/// 4. Proof-of-Work for new IPs not yet seen (hashcash-style)
+///
+/// All state is behind `Arc`, so the guard can be cheaply cloned and
+/// shared across the coordinator and any background replenishment tasks.
+pub struct DDoSGuard {
+    /// Per-IP token bucket state.
+    ip_rates: Arc<DashMap<IpAddr, RateBucket>>,
+    /// Remaining global SYN slots before flood-protection kicks in.
+    syn_budget: Arc<AtomicU32>,
+    /// Outstanding PoW challenges keyed by source IP.
+    pow_challenges: Arc<DashMap<IpAddr, PowChallenge>>,
+    /// Guard configuration.
+    config: DDoSConfig,
+    /// IPs permanently blacklisted (updated by control plane).
+    blacklist: Arc<DashMap<IpAddr, ()>>,
+}
+
+impl DDoSGuard {
+    /// Create a new guard from the given configuration.
+    pub fn new(config: DDoSConfig) -> Self {
+        Self {
+            ip_rates: Arc::new(DashMap::new()),
+            syn_budget: Arc::new(AtomicU32::new(config.global_syn_budget)),
+            pow_challenges: Arc::new(DashMap::new()),
+            config,
+            blacklist: Arc::new(DashMap::new()),
+        }
+    }
+
+    /// Evaluate an incoming SYN from `src_ip` and return the verdict.
+    ///
+    /// Rules are checked cheapest-first:
+    /// 1. Blacklist
+    /// 2. Global SYN budget
+    /// 3. Per-IP rate limit
+    /// 4. Outstanding PoW challenge (if any)
+    pub fn check_incoming(&self, src_ip: IpAddr) -> DDoSVerdict {
+        // Rule 1: blacklist (fastest check)
+        if self.blacklist.contains_key(&src_ip) {
+            return DDoSVerdict::Blacklisted;
+        }
+
+        // Rule 2: global SYN budget
+        let budget = self.syn_budget.load(Ordering::Relaxed);
+        if budget == 0 {
+            return DDoSVerdict::SynFloodProtection;
+        }
+
+        // Rule 3: per-IP rate limit
+        let mut allowed_by_rate = false;
+        {
+            let capacity = self.config.max_new_sessions_per_min;
+            let mut entry = self
+                .ip_rates
+                .entry(src_ip)
+                .or_insert_with(|| RateBucket::new(capacity));
+            if entry.try_consume() {
+                allowed_by_rate = true;
+            }
+        }
+        if !allowed_by_rate {
+            return DDoSVerdict::RateLimit;
+        }
+
+        // Rule 4: PoW for IPs that have an outstanding challenge
+        if let Some(challenge) = self.pow_challenges.get(&src_ip) {
+            // Challenge exists but no solution submitted yet → require PoW
+            return DDoSVerdict::RequirePoW(challenge.clone());
+        }
+
+        // Decrement global budget
+        self.syn_budget.fetch_sub(1, Ordering::Relaxed);
+
+        DDoSVerdict::Allow
+    }
+
+    /// Issue a fresh PoW challenge for the given IP and return it.
+    pub fn issue_challenge(&self, src_ip: IpAddr) -> PowChallenge {
+        let challenge = PowChallenge::new(self.config.pow_difficulty);
+        self.pow_challenges.insert(src_ip, challenge.clone());
+        challenge
+    }
+
+    /// Verify a PoW solution submitted by `src_ip`.
+    /// Returns `true` and removes the challenge if valid.
+    pub fn verify_pow(&self, src_ip: IpAddr, solution: &[u8; 32]) -> bool {
+        if let Some(entry) = self.pow_challenges.get(&src_ip) {
+            if entry.verify(solution) {
+                drop(entry);
+                self.pow_challenges.remove(&src_ip);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Add an IP to the blacklist (called by the control plane).
+    pub fn blacklist_ip(&self, ip: IpAddr) {
+        self.blacklist.insert(ip, ());
+    }
+
+    /// Remove an IP from the blacklist.
+    pub fn unblacklist_ip(&self, ip: &IpAddr) {
+        self.blacklist.remove(ip);
+    }
+
+    /// Refill the global SYN budget by `amount` (called when sessions close).
+    pub fn replenish_budget(&self, amount: u32) {
+        let cap = self.config.global_syn_budget;
+        let current = self.syn_budget.load(Ordering::Relaxed);
+        let next = (current + amount).min(cap);
+        self.syn_budget.store(next, Ordering::Relaxed);
+    }
+
+    /// Remaining global SYN budget.
+    pub fn syn_budget(&self) -> u32 {
+        self.syn_budget.load(Ordering::Relaxed)
+    }
+
+    /// Current per-IP rate bucket token count (for testing/metrics).
+    pub fn ip_token_count(&self, ip: &IpAddr) -> Option<u32> {
+        self.ip_rates.get(ip).map(|b| b.tokens)
+    }
+
+    /// Whether an IP is blacklisted.
+    pub fn is_blacklisted(&self, ip: &IpAddr) -> bool {
+        self.blacklist.contains_key(ip)
+    }
 }
 
 // ────────────────────────── Tests ──────────────────────────
