@@ -28,7 +28,7 @@ dashmap = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
-clap = { workspace = true }
+clap = { workspace = true, features = ["env"] }
 toml = { workspace = true }
 
 aitp-identity = { path = "../aitp-identity" }
@@ -39,6 +39,7 @@ crossterm = { workspace = true }
 colored = { workspace = true }
 rustyline = { workspace = true }
 chrono = { workspace = true }
+anyhow = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
