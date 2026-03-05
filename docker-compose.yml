@@ -1,0 +1,147 @@
+####################################################################
+#  AITP — Full Stack Docker Compose
+#  Usage:
+#    cp .env.example .env   # Edit AITP_GEMINI_API_KEY
+#    docker compose up --build -d
+#    ./scripts/validate_stack.sh
+####################################################################
+
+networks:
+  aitp-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  aitp-keys:
+  prometheus-data:
+  grafana-data:
+
+
+services:
+
+  # ────────────────────── Control Plane ──────────────────────
+  aitp-control-plane:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.control-plane
+    container_name: aitp-control-plane
+    networks:
+      aitp-net:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "8080:8080" # Control plane API
+      - "9102:9102" # Prometheus metrics
+    environment:
+      - AITP_LOG_LEVEL=debug
+      - AITP_LOG_FORMAT=json
+      - AITP_IDENTITY_KEY_PATH=/keys/control.key
+    volumes:
+      - aitp-keys:/keys
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:8080/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ────────────────────── Node Alpha ──────────────────────
+  aitp-node-alpha:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.core
+    container_name: aitp-node-alpha
+    networks:
+      aitp-net:
+        ipv4_address: 172.20.0.20
+    ports:
+      - "9999:9999/udp" # AITP protocol
+      - "9100:9100" # Prometheus metrics
+    privileged: true
+    cap_add: [ NET_ADMIN, SYS_ADMIN ]
+    environment:
+      - AITP_NODE_NAME=alpha
+      - AITP_NODE_LISTEN_PORT=9999
+      - AITP_CONTROL_PLANE_ADDRESS=http://172.20.0.10:8080
+      - AITP_AI_ENGINE_MODE=hybrid
+      - AITP_AI_ENGINE_GEMINI_API_KEY=${AITP_GEMINI_API_KEY}
+      - AITP_TRUST_DEFAULT_POLICY=deny
+      - AITP_LOG_LEVEL=debug
+      - AITP_LOG_FORMAT=json
+      - AITP_IDENTITY_KEY_PATH=/keys/alpha.key
+    volumes:
+      - aitp-keys:/keys
+    depends_on:
+      aitp-control-plane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ────────────────────── Node Beta ──────────────────────
+  aitp-node-beta:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.core
+    container_name: aitp-node-beta
+    networks:
+      aitp-net:
+        ipv4_address: 172.20.0.21
+    ports:
+      - "9998:9998/udp" # AITP protocol
+      - "9101:9100" # Prometheus metrics (different host port)
+    privileged: true
+    cap_add: [ NET_ADMIN, SYS_ADMIN ]
+    environment:
+      - AITP_NODE_NAME=beta
+      - AITP_NODE_LISTEN_PORT=9998
+      - AITP_CONTROL_PLANE_ADDRESS=http://172.20.0.10:8080
+      - AITP_AI_ENGINE_MODE=hybrid
+      - AITP_AI_ENGINE_GEMINI_API_KEY=${AITP_GEMINI_API_KEY}
+      - AITP_TRUST_DEFAULT_POLICY=deny
+      - AITP_LOG_LEVEL=debug
+      - AITP_LOG_FORMAT=json
+      - AITP_IDENTITY_KEY_PATH=/keys/beta.key
+    volumes:
+      - aitp-keys:/keys
+    depends_on:
+      aitp-control-plane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ────────────────────── Prometheus ──────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: aitp-prometheus
+    networks: [ aitp-net ]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # ────────────────────── Grafana ──────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: aitp-grafana
+    networks: [ aitp-net ]
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=aitp_admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/aitp-overview.json
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped

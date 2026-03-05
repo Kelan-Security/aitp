@@ -1,0 +1,19 @@
+[package]
+name = "aitp-control-plane"
+version.workspace = true
+edition.workspace = true
+description = "AITP control plane server — identity registry, revocation, HTTP API"
+
+[dependencies]
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = { workspace = true }
+dashmap = { workspace = true }
+
+aitp-identity = { path = "../aitp-identity" }
+aitp-ai-engine = { path = "../aitp-ai-engine" }
+aitp-observability = { path = "../aitp-observability" }
