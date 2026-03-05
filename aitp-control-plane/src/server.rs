@@ -101,10 +101,22 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
         started_at: Instant::now(),
     };
 
-    let app = build_router(state);
+    // Setup Socket.IO
+    let (layer, io) = socketioxide::SocketIo::new_layer();
+    crate::websocket::init_socket_handlers(io.clone());
+
+    // Start Event Bridge (mocked source for now, would be aitp-core EventBus)
+    let event_bus = aitp_core::events::EventBus::new();
+    let rx = event_bus.subscribe();
+    tokio::spawn(crate::websocket::bridge_events(io, rx));
+
+    // Build router with Socket.IO and CORS
+    let app = build_router(state)
+        .layer(layer)
+        .layer(tower_http::cors::CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-    tracing::info!("Control plane listening on 0.0.0.0:8080");
+    tracing::info!("Control plane listening on 0.0.0.0:8080 (HTTP + Socket.IO)");
 
     axum::serve(listener, app).await?;
 
