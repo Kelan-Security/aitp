@@ -6,6 +6,7 @@
 mod registry;
 mod revocation;
 mod server;
+mod websocket;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

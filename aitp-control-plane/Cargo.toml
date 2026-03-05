@@ -13,7 +13,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 axum = { workspace = true }
 dashmap = { workspace = true }
+socketioxide = "0.15"
+tower-http = { version = "0.6", features = ["cors"] }
+hex = "0.4"
 
+aitp-core = { path = "../aitp-core" }
 aitp-identity = { path = "../aitp-identity" }
 aitp-ai-engine = { path = "../aitp-ai-engine" }
 aitp-observability = { path = "../aitp-observability" }

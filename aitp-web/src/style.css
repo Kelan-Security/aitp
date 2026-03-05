@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #050810;
+  --bg-secondary: #0a1020;
+  --accent-cyan: #00f5ff;
+  --accent-emerald: #00ff88;
+  --accent-red: #ff2244;
+  --accent-amber: #ffaa00;
+  --text-primary: #e8eaf0;
+  --text-mono: #7db8d4;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary font-sans antialiased overflow-x-hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-wider;
+  }
+
+  code, pre {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-accent-cyan text-bg-primary font-bold rounded-sm 
+           hover:bg-accent-emerald transition-all duration-300
+           shadow-[0_0_15px_rgba(0,245,255,0.3)] hover:shadow-[0_0_20px_rgba(0,255,136,0.5)];
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 border border-accent-cyan text-accent-cyan font-bold rounded-sm
+           hover:bg-accent-cyan/10 transition-all duration-300;
+  }
+
+  .cyber-panel {
+    @apply bg-bg-secondary border border-white/5 p-6 rounded-sm backdrop-blur-md;
+  }
+
+  .cyber-grid-bg {
+    background-image: radial-gradient(circle, rgba(0, 245, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-bg-primary;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-accent-cyan/50 hover:bg-accent-cyan;
+}
