@@ -320,7 +320,7 @@ impl<'a> ConnectRequest<'a> {
                             );
 
                             // Create send/receive channels for the session
-                            let (tx, _rx) = mpsc::channel::<Bytes>(256);
+                            let (tx, mut rx) = mpsc::channel::<Bytes>(256);
                             let (data_tx, data_rx) = mpsc::channel::<Bytes>(256);
 
                             // Spawn receive loop for this session
@@ -337,6 +337,30 @@ impl<'a> ConnectRequest<'a> {
                                             break;
                                         }
                                     }
+                                }
+                            });
+
+                            // Spawn send loop for this session
+                            let socket_send = self.client.socket.clone();
+                            let identity_send = self.client.identity.clone();
+                            let intent_send = self.intent;
+                            tokio::spawn(async move {
+                                while let Some(data) = rx.recv().await {
+                                    let mut header = aitp_core::header::AitpHeader::new(
+                                        0,
+                                        intent_send,
+                                        session_id,
+                                        identity_send.entity_id,
+                                        peer_entity_id,
+                                        128,
+                                        data.len() as u16,
+                                        current_timestamp_ns(),
+                                        rand_nonce(),
+                                    );
+                                    header.sign(&identity_send.signing_key());
+                                    let mut packet = header.to_bytes();
+                                    packet.extend_from_slice(&data);
+                                    let _ = socket_send.send_to(&packet, peer_addr).await;
                                 }
                             });
 

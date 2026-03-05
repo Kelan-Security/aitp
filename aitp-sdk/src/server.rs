@@ -437,7 +437,37 @@ impl AitpServer {
                         return;
                     }
 
-                    sessions.insert(session.id, Arc::new(session));
+                    let (tx, mut rx) = tokio::sync::mpsc::channel::<Bytes>(256);
+                    let (_data_tx, data_rx) = tokio::sync::mpsc::channel::<Bytes>(256);
+
+                    let session_id = session.id;
+                    let intent_send = session.intent;
+                    let peer_entity_id = session.peer_id;
+                    let session_for_map = session.with_channels(tx, data_rx);
+
+                    let socket_send = socket.clone();
+                    let identity_send = identity.clone();
+                    tokio::spawn(async move {
+                        while let Some(data) = rx.recv().await {
+                            let mut header = AitpHeader::new(
+                                0,
+                                intent_send,
+                                session_id,
+                                identity_send.entity_id,
+                                peer_entity_id,
+                                128,
+                                data.len() as u16,
+                                current_timestamp_ns(),
+                                rand_nonce(),
+                            );
+                            header.sign(&identity_send.signing_key());
+                            let mut packet = header.to_bytes();
+                            packet.extend_from_slice(&data);
+                            let _ = socket_send.send_to(&packet, peer_addr).await;
+                        }
+                    });
+
+                    sessions.insert(session_id, Arc::new(session_for_map));
                 }
                 Err(e) => {
                     tracing::info!(error = %e, "connection rejected by handler");
