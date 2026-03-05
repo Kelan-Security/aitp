@@ -183,8 +183,11 @@ impl Default for TrustSection {
 /// `[ai_engine]` — Trust scoring backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiEngineSection {
-    #[serde(default = "d_ai_mode")]
-    pub mode: String,
+    #[serde(default = "d_provider", alias = "mode")]
+    pub provider: String,
+
+    #[serde(default = "d_trust_mode")]
+    pub trust_mode: String,
 
     #[serde(default)]
     pub gemini_api_key: String,
@@ -206,12 +209,31 @@ pub struct AiEngineSection {
 
     #[serde(default = "d_gemini_weight")]
     pub gemini_weight: f64,
+
+    #[serde(default)]
+    pub claude_api_key: String,
+
+    #[serde(default = "d_claude_model")]
+    pub claude_model: String,
+
+    #[serde(default)]
+    pub openai_api_key: String,
+
+    #[serde(default = "d_openai_model")]
+    pub openai_model: String,
+
+    #[serde(default = "d_ollama_base_url")]
+    pub ollama_base_url: String,
+
+    #[serde(default = "d_ollama_model")]
+    pub ollama_model: String,
 }
 
 impl Default for AiEngineSection {
     fn default() -> Self {
         Self {
-            mode: d_ai_mode(),
+            provider: d_provider(),
+            trust_mode: d_trust_mode(),
             gemini_api_key: String::new(),
             gemini_model: d_gemini_model(),
             gemini_timeout_ms: d_gemini_timeout(),
@@ -219,6 +241,12 @@ impl Default for AiEngineSection {
             gemini_max_rps: d_gemini_rps(),
             rules_weight: d_rules_weight(),
             gemini_weight: d_gemini_weight(),
+            claude_api_key: String::new(),
+            claude_model: d_claude_model(),
+            openai_api_key: String::new(),
+            openai_model: d_openai_model(),
+            ollama_base_url: d_ollama_base_url(),
+            ollama_model: d_ollama_model(),
         }
     }
 }
@@ -399,7 +427,8 @@ impl AitpConfig {
         );
 
         // [ai_engine]
-        env_override_str("AITP_AI_ENGINE_MODE", &mut self.ai_engine.mode);
+        env_override_str("AITP_AI_ENGINE_PROVIDER", &mut self.ai_engine.provider);
+        env_override_str("AITP_AI_ENGINE_TRUST_MODE", &mut self.ai_engine.trust_mode);
         env_override_str(
             "AITP_AI_ENGINE_GEMINI_API_KEY",
             &mut self.ai_engine.gemini_api_key,
@@ -537,54 +566,68 @@ impl AitpConfig {
             });
         }
 
-        // AI engine mode must be valid
-        let valid_modes = ["rules", "gemini", "hybrid"];
-        if !valid_modes.contains(&self.ai_engine.mode.as_str()) {
+        // AI engine provider must be valid
+        let valid_providers = ["rules", "gemini", "claude", "openai", "ollama"];
+        if !valid_providers.contains(&self.ai_engine.provider.as_str()) {
             errors.push(ConfigValidationError {
-                field: "ai_engine.mode".into(),
+                field: "ai_engine.provider".into(),
                 message: format!(
-                    "invalid AI engine mode '{}'. Must be one of: {}",
-                    self.ai_engine.mode,
+                    "invalid AI engine provider '{}'. Must be one of: {}",
+                    self.ai_engine.provider,
+                    valid_providers.join(", ")
+                ),
+            });
+        }
+
+        // AI engine trust mode must be valid
+        let valid_modes = ["rules", "ai_only", "hybrid", "rules_only"];
+        if !valid_modes.contains(&self.ai_engine.trust_mode.as_str()) {
+            errors.push(ConfigValidationError {
+                field: "ai_engine.trust_mode".into(),
+                message: format!(
+                    "invalid AI engine trust mode '{}'. Must be one of: {}",
+                    self.ai_engine.trust_mode,
                     valid_modes.join(", ")
                 ),
             });
         }
 
-        // If mode requires Gemini, API key must be set
-        if (self.ai_engine.mode == "gemini" || self.ai_engine.mode == "hybrid")
-            && self.ai_engine.gemini_api_key.is_empty()
-        {
+        // If provider requires API key, must be set
+        if self.ai_engine.provider == "gemini" && self.ai_engine.gemini_api_key.is_empty() {
             errors.push(ConfigValidationError {
                 field: "ai_engine.gemini_api_key".into(),
-                message: format!(
-                    "gemini_api_key is required when ai_engine.mode is '{}'. \
-                     Set via AITP_AI_ENGINE_GEMINI_API_KEY environment variable \
-                     or in the [ai_engine] section of your config file.",
-                    self.ai_engine.mode
-                ),
+                message: "gemini_api_key is required when ai_engine.provider is 'gemini' (AITP_AI_ENGINE_GEMINI_API_KEY).".into(),
+            });
+        }
+        if self.ai_engine.provider == "claude" && self.ai_engine.claude_api_key.is_empty() {
+            errors.push(ConfigValidationError {
+                field: "ai_engine.claude_api_key".into(),
+                message: "claude_api_key is required when ai_engine.provider is 'claude'.".into(),
+            });
+        }
+        if self.ai_engine.provider == "openai" && self.ai_engine.openai_api_key.is_empty() {
+            errors.push(ConfigValidationError {
+                field: "ai_engine.openai_api_key".into(),
+                message: "openai_api_key is required when ai_engine.provider is 'openai'.".into(),
             });
         }
 
         // Gemini timeout must leave overhead budget for trust eval
         if self.ai_engine.gemini_timeout_ms >= self.trust.trust_eval_timeout_ms
-            && self.ai_engine.mode != "rules"
+            && self.ai_engine.provider == "gemini"
         {
             errors.push(ConfigValidationError {
                 field: "ai_engine.gemini_timeout_ms".into(),
                 message: format!(
                     "gemini_timeout_ms ({}) must be < trust_eval_timeout_ms ({}) \
-                     to leave overhead budget. Current gap: {}ms (need >= 1ms).",
-                    self.ai_engine.gemini_timeout_ms,
-                    self.trust.trust_eval_timeout_ms,
-                    self.trust
-                        .trust_eval_timeout_ms
-                        .saturating_sub(self.ai_engine.gemini_timeout_ms)
+                     to leave overhead budget.",
+                    self.ai_engine.gemini_timeout_ms, self.trust.trust_eval_timeout_ms
                 ),
             });
         }
 
         // In hybrid mode, weights should sum close to 1.0
-        if self.ai_engine.mode == "hybrid" {
+        if self.ai_engine.trust_mode == "hybrid" {
             let sum = self.ai_engine.rules_weight + self.ai_engine.gemini_weight;
             if (sum - 1.0).abs() > 0.01 {
                 errors.push(ConfigValidationError {
@@ -793,11 +836,26 @@ fn d_min_monitor() -> u8 {
     64
 }
 
-fn d_ai_mode() -> String {
+fn d_provider() -> String {
     "rules".into()
+}
+fn d_trust_mode() -> String {
+    "hybrid".into()
 }
 fn d_gemini_model() -> String {
     "gemini-2.0-flash".into()
+}
+fn d_claude_model() -> String {
+    "claude-haiku-4-5-20251001".into()
+}
+fn d_openai_model() -> String {
+    "gpt-4o-mini".into()
+}
+fn d_ollama_base_url() -> String {
+    "http://localhost:11434".into()
+}
+fn d_ollama_model() -> String {
+    "llama3.2".into()
 }
 fn d_gemini_timeout() -> u64 {
     4000
@@ -850,7 +908,8 @@ mod tests {
         assert_eq!(config.node.name, "aitp-node");
         assert_eq!(config.node.listen_port, 9999);
         assert_eq!(config.trust.default_policy, "deny");
-        assert_eq!(config.ai_engine.mode, "rules");
+        assert_eq!(config.ai_engine.provider, "rules");
+        assert_eq!(config.ai_engine.trust_mode, "hybrid");
     }
 
     #[test]
@@ -865,7 +924,7 @@ mod tests {
     #[test]
     fn test_gemini_mode_requires_api_key() {
         let mut config = AitpConfig::default();
-        config.ai_engine.mode = "gemini".into();
+        config.ai_engine.provider = "gemini".into();
         config.ai_engine.gemini_api_key = String::new();
         config.ai_engine.gemini_timeout_ms = 4; // Less than trust timeout
 
@@ -886,7 +945,7 @@ mod tests {
     #[test]
     fn test_gemini_timeout_exceeds_trust_timeout() {
         let mut config = AitpConfig::default();
-        config.ai_engine.mode = "gemini".into();
+        config.ai_engine.provider = "gemini".into();
         config.ai_engine.gemini_api_key = "test-key".into();
         config.ai_engine.gemini_timeout_ms = 10; // > trust_eval_timeout_ms (5)
 
@@ -938,7 +997,8 @@ mod tests {
     #[test]
     fn test_hybrid_mode_weights_must_sum_to_one() {
         let mut config = AitpConfig::default();
-        config.ai_engine.mode = "hybrid".into();
+        config.ai_engine.trust_mode = "hybrid".into();
+        config.ai_engine.provider = "gemini".into();
         config.ai_engine.gemini_api_key = "key".into();
         config.ai_engine.gemini_timeout_ms = 4;
         config.ai_engine.rules_weight = 0.3;

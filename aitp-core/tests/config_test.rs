@@ -1,4 +1,5 @@
-//! Integration tests for the AITP configuration system.
+//! Unit tests for the AITP configuration system.
+//!Integration tests for the AITP configuration system.
 //!
 //! Validates TOML loading, environment variable overrides, validation
 //! rules, and error messaging quality.
@@ -14,7 +15,8 @@ fn test_valid_default_config_loads_and_validates() {
     assert_eq!(config.node.name, "aitp-node");
     assert_eq!(config.node.listen_port, 9999);
     assert_eq!(config.trust.default_policy, "deny");
-    assert_eq!(config.ai_engine.mode, "rules");
+    assert_eq!(config.ai_engine.provider, "rules");
+    assert_eq!(config.ai_engine.trust_mode, "hybrid");
     assert_eq!(config.transport.max_concurrent_sessions, 10000);
 
     // Default with non-privileged port should validate
@@ -36,7 +38,8 @@ fn test_template_file_loads_and_validates() {
     assert_eq!(config.node.name, "aitp-node-alpha");
     assert_eq!(config.transport.max_concurrent_sessions, 10000);
     assert_eq!(config.trust.default_policy, "deny");
-    assert_eq!(config.ai_engine.mode, "rules");
+    assert_eq!(config.ai_engine.provider, "rules");
+    assert_eq!(config.ai_engine.trust_mode, "hybrid");
     assert_eq!(config.observability.prometheus_port, 9100);
 
     // Template uses rules mode, so no Gemini key needed
@@ -48,7 +51,7 @@ fn test_template_file_loads_and_validates() {
 #[test]
 fn test_gemini_mode_requires_api_key() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "gemini".into();
+    config.ai_engine.provider = "gemini".into();
     config.ai_engine.gemini_api_key = String::new();
     config.ai_engine.gemini_timeout_ms = 4; // < trust timeout
 
@@ -77,7 +80,8 @@ fn test_gemini_mode_requires_api_key() {
 #[test]
 fn test_hybrid_mode_requires_api_key() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "hybrid".into();
+    config.ai_engine.trust_mode = "hybrid".into();
+    config.ai_engine.provider = "gemini".into();
     config.ai_engine.gemini_api_key = String::new();
     config.ai_engine.gemini_timeout_ms = 4;
 
@@ -91,7 +95,8 @@ fn test_hybrid_mode_requires_api_key() {
 #[test]
 fn test_rules_mode_does_not_require_api_key() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "rules".into();
+    config.ai_engine.trust_mode = "rules".into();
+    config.ai_engine.provider = "rules".into();
     config.ai_engine.gemini_api_key = String::new();
 
     // With non-privileged port, should validate
@@ -103,7 +108,7 @@ fn test_rules_mode_does_not_require_api_key() {
 #[test]
 fn test_gemini_timeout_exceeds_trust_timeout() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "gemini".into();
+    config.ai_engine.provider = "gemini".into();
     config.ai_engine.gemini_api_key = "test-key".into();
     config.ai_engine.gemini_timeout_ms = 10; // > trust_eval_timeout_ms (5)
 
@@ -131,7 +136,7 @@ fn test_gemini_timeout_exceeds_trust_timeout() {
 #[test]
 fn test_gemini_timeout_exactly_equals_trust_timeout() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "gemini".into();
+    config.ai_engine.provider = "gemini".into();
     config.ai_engine.gemini_api_key = "test-key".into();
     config.ai_engine.gemini_timeout_ms = 5; // == trust_eval_timeout_ms
     config.trust.trust_eval_timeout_ms = 5;
@@ -215,7 +220,8 @@ fn test_env_override_ebpf_enabled() {
 #[test]
 fn test_hybrid_weights_must_sum_to_one() {
     let mut config = AitpConfig::default();
-    config.ai_engine.mode = "hybrid".into();
+    config.ai_engine.trust_mode = "hybrid".into();
+    config.ai_engine.provider = "gemini".into();
     config.ai_engine.gemini_api_key = "key".into();
     config.ai_engine.gemini_timeout_ms = 4;
     config.ai_engine.rules_weight = 0.3;
@@ -259,7 +265,7 @@ fn test_config_toml_roundtrip() {
         original.transport.max_concurrent_sessions
     );
     assert_eq!(parsed.trust.default_policy, original.trust.default_policy);
-    assert_eq!(parsed.ai_engine.mode, original.ai_engine.mode);
+    assert_eq!(parsed.ai_engine.provider, original.ai_engine.provider);
 }
 
 // ────────────────────────── Error Path ──────────────────────────
@@ -296,7 +302,7 @@ fn test_validation_collects_all_errors() {
     config.node.log_level = "verbose".into();
     config.node.entity_type = "Robot".into();
     config.trust.default_policy = "maybe".into();
-    config.ai_engine.mode = "neural".into();
+    config.ai_engine.trust_mode = "neural".into();
 
     let errors = config.validate().unwrap_err();
 

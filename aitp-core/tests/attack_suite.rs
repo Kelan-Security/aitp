@@ -15,7 +15,7 @@
 //! ```
 
 use aitp_ai_engine::engine::TrustEngine;
-use aitp_ai_engine::telemetry::BehaviorFlag;
+
 use aitp_core::framing::AitpPacket;
 use aitp_core::header::{flags, AitpHeader, IntentCode};
 use aitp_core::session::{Session, SessionTable};
@@ -350,12 +350,12 @@ async fn test_sybil_new_identity_low_trust() {
         intent_code: IntentCode::ModelInference as u16,
         identity_age_secs: 0, // brand new — no history
         historical_score: None,
-        behavioral_flags: vec![BehaviorFlag::NewIdentity],
+        behavioral_flags: vec!["NewIdentity".to_string()],
         time_of_day: 12,
         session_frequency: 1,
     };
 
-    let decision = trust.evaluate(&ctx);
+    let decision = trust.evaluate(&ctx).await;
     // A zero-age identity with suspicious flags must not get an unconditional Allow.
     // The score must be well below 255; Deny threshold is typically < 64.
     assert!(

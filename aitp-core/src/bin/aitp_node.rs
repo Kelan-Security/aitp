@@ -395,7 +395,7 @@ async fn handle_incoming_session(
         session_frequency: 1,
     };
 
-    let decision = trust_engine.evaluate(&trust_ctx);
+    let decision = trust_engine.evaluate(&trust_ctx).await;
 
     emit_event(
         "trust.evaluated",

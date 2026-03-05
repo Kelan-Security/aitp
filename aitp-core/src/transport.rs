@@ -337,7 +337,7 @@ impl HandshakeCoordinator {
             session_frequency: 1,
         };
 
-        let decision = self.trust_engine.evaluate(&trust_ctx);
+        let decision = self.trust_engine.evaluate(&trust_ctx).await;
 
         tracing::info!(
             session_id = format!("{:#018x}", session_id),

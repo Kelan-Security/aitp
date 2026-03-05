@@ -9,7 +9,8 @@
 //! - Session outcome feedback loop for adaptive learning
 
 pub mod engine;
-pub mod gemini_client;
 pub mod policy;
+pub mod provider;
+pub mod providers;
 pub mod scorer;
 pub mod telemetry;
