@@ -21,7 +21,7 @@ fn on_connect(socket: SocketRef) {
             info!("Authentication attempt from {}: {:?}", socket.id, data);
             // Simple mock auth for prototype
             socket
-                .emit("auth_success", json!({ "status": "authorized" }))
+                .emit("auth_success", &json!({ "status": "authorized" }))
                 .ok();
         },
     );
@@ -66,6 +66,6 @@ pub async fn bridge_events(io: SocketIo, mut rx: tokio::sync::broadcast::Receive
             _ => json!(event.kind),
         };
 
-        let _ = io.emit(event_name, payload);
+        let _ = io.emit(event_name, &payload);
     }
 }
