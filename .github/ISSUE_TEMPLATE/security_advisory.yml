@@ -1,0 +1,25 @@
+name: Security Advisory
+description: Report a security vulnerability via a private advisory.
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Important: If this is a critical vulnerability, please email security@aitp.dev instead for immediate attention.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A short description of the vulnerability.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: More detailed description of the vulnerability.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the impact of this vulnerability?

@@ -1,0 +1,58 @@
+[package]
+name = "aitp-core-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1.0"
+
+[dependencies.aitp-core]
+path = ".."
+
+[dependencies.aitp-ai-engine]
+path = "../../aitp-ai-engine"
+
+[dependencies.aitp-identity]
+path = "../../aitp-identity"
+
+[[bin]]
+name = "fuzz_header_parse"
+path = "fuzz_targets/fuzz_header_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_handshake_message"
+path = "fuzz_targets/fuzz_handshake_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_permit_token_parse"
+path = "fuzz_targets/fuzz_permit_token_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_gemini_response"
+path = "fuzz_targets/fuzz_gemini_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_identity_resolve"
+path = "fuzz_targets/fuzz_identity_resolve.rs"
+test = false
+doc = false
+bench = false
