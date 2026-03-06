@@ -26,6 +26,7 @@ impl WsHub {
         });
     }
 
+    #[allow(dead_code)]
     pub fn alert(&self, alert_type: &str, severity: &str, source_ip: &str, description: &str) {
         self.broadcast(WsEvent::Alert {
             alert_type: alert_type.to_string(),

@@ -1,24 +1,21 @@
-use axum::{
-    routing::get,
-    Router,
-};
-use std::sync::Arc;
+use axum::{routing::get, Router};
+use dotenvy::dotenv;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
 };
-use dotenvy::dotenv;
 
-mod state;
-mod error;
-mod auth;
 mod api;
-mod ws;
-mod db;
+mod auth;
 mod bridge;
+mod db;
+mod error;
+mod state;
+mod ws;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -27,24 +24,49 @@ async fn main() -> anyhow::Result<()> {
 
     // Configuration
     let config = state::AppConfig {
-        jwt_secret: std::env::var("AITP_JWT_SECRET").unwrap_or_else(|_| "dev_secret_key_12345".into()),
-        http_port: std::env::var("PORT").unwrap_or_else(|_| "3000".into()).parse().unwrap_or(3000),
-        aitp_port: std::env::var("AITP_UDP_PORT").unwrap_or_else(|_| "1414".into()).parse().unwrap_or(1414),
+        jwt_secret: std::env::var("AITP_JWT_SECRET")
+            .unwrap_or_else(|_| "dev_secret_key_12345".into()),
+        http_port: std::env::var("PORT")
+            .unwrap_or_else(|_| "3000".into())
+            .parse()
+            .unwrap_or(3000),
         db_path: std::env::var("AITP_DB_PATH").unwrap_or_else(|_| "sqlite:aitp.db".into()),
     };
 
-    // Initialize Database
-    if !std::path::Path::new("aitp.db").exists() {
-        std::fs::File::create("aitp.db")?;
+    // Parse DB path
+    let db_path_str = config
+        .db_path
+        .strip_prefix("sqlite:")
+        .unwrap_or(&config.db_path);
+    let db_path = std::path::Path::new(db_path_str);
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = db_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
     }
-    
-    let db_pool = sqlx::SqlitePool::connect(&config.db_path).await?;
+
+    // Initialize Database
+    if !db_path.exists() {
+        std::fs::File::create(db_path)?;
+    }
+
+    let mut db_conn_str = config.db_path.clone();
+    if !db_conn_str.starts_with("sqlite:") {
+        db_conn_str = format!("sqlite:{}", db_conn_str);
+    }
+
+    // Add connection options to ensure it creates if missing
+    let db_pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect(&db_conn_str)
+        .await?;
+
     db::migrations::run(&db_pool).await?;
 
     let app_state = Arc::new(state::AppState {
         db: db::DbPool::new(db_pool),
         hub: ws::WsHub::new(),
-        http: reqwest::Client::new(),
         start_time: Instant::now(),
         config: config.clone(),
     });
@@ -67,14 +89,16 @@ async fn main() -> anyhow::Result<()> {
         .with_state(app_state)
         .layer(cors);
 
-    // Serve static files if dist exists
+    // Serve static files if dist exists, else static
     if PathBuf::from("dist").exists() {
         app = app.fallback_service(ServeDir::new("dist"));
+    } else if PathBuf::from("static").exists() {
+        app = app.fallback_service(ServeDir::new("static"));
     }
 
     let addr = format!("0.0.0.0:{}", config.http_port);
     tracing::info!("Starting AITP Web Master Backend on http://{}", addr);
-    
+
     let listener = TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 

@@ -16,6 +16,7 @@ pub enum AppError {
     Internal(#[from] anyhow::Error),
     #[error("Not found")]
     NotFound,
+    #[allow(dead_code)]
     #[error("Bad request: {0}")]
     BadRequest(String),
 }
