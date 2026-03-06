@@ -235,11 +235,11 @@ impl IntentFingerprint {
         let timing_score = match self.declared_intent {
             IntentCode::ControlSignal | IntentCode::Telemetry | IntentCode::Heartbeat => {
                 // Low variance expected; high CoV = anomaly.
-                (cov - 0.5).max(0.0).min(1.0)
+                (cov - 0.5).clamp(0.0, 1.0)
             }
             IntentCode::ModelInference | IntentCode::FileTransfer => {
                 // High variance (bursts) is normal; very low CoV is suspicious.
-                (0.2 - cov).max(0.0).min(1.0) * 0.5
+                (0.2 - cov).clamp(0.0, 1.0) * 0.5
             }
             _ => 0.0,
         };

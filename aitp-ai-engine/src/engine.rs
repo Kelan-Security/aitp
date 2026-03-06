@@ -162,6 +162,12 @@ pub struct TrustMetrics {
     pub evals_fallback: AtomicU64,
 }
 
+impl Default for TrustMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrustMetrics {
     pub fn new() -> Self {
         Self {
@@ -184,9 +190,11 @@ impl TrustEngine {
     }
 
     pub fn with_gemini(api_key: &str) -> Self {
-        let mut config = AiEngineConfig::default();
-        config.provider = "gemini".to_string();
-        config.gemini_api_key = api_key.to_string();
+        let config = AiEngineConfig {
+            provider: "gemini".to_string(),
+            gemini_api_key: api_key.to_string(),
+            ..Default::default()
+        };
         Self::new(config).unwrap()
     }
 

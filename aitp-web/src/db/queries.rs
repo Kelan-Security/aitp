@@ -74,8 +74,8 @@ impl DbPool {
 
         let mut query = sqlx::query(&q).bind(provider).bind(model).bind(trust_mode);
 
-        if enc_key.is_some() {
-            query = query.bind(enc_key.unwrap());
+        if let Some(key) = enc_key {
+            query = query.bind(key);
         }
 
         query.bind(id).execute(self.inner()).await?;

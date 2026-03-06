@@ -304,7 +304,7 @@ async fn cmd_connect(
         timestamp,
         nonce,
     );
-    header.sign(&id.signing_key());
+    header.sign(id.signing_key());
 
     println!(
         "  {}  {}  {}",
@@ -428,7 +428,7 @@ async fn cmd_send(session: &mut ClientSession, msg: &str) {
             .as_nanos() as u64,
         nonce,
     );
-    header.sign(&session.identity.signing_key());
+    header.sign(session.identity.signing_key());
 
     let mut buf = header.to_bytes();
     buf.extend_from_slice(payload);
@@ -596,7 +596,7 @@ async fn cmd_revoke(session: &ClientSession) {
             .as_nanos() as u64,
         nonce,
     );
-    header.sign(&session.identity.signing_key());
+    header.sign(session.identity.signing_key());
 
     let _ = session
         .socket

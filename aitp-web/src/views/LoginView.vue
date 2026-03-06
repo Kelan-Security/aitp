@@ -179,11 +179,11 @@ async function doSignup() {
 <style scoped>
 /* Inject Enterprise Variables strictly into this view */
 .auth-view {
-  --bg:#f8fafc; --surf:#ffffff; --surf2:#f1f5f9; --surf3:#e2e8f0;
-  --primary:#0f172a; --blue:#2563eb; --blue-l:#eff6ff; --blue-m:#dbeafe;
-  --green:#059669; --green-l:#ecfdf5; --red:#dc2626; --red-l:#fef2f2;
-  --amber:#d97706; --amber-l:#fffbeb; --slate:#475569; --slate-l:#94a3b8;
-  --border:#e2e8f0; --border2:#cbd5e1; --text:#0f172a; --text2:#475569; --text3:#94a3b8;
+  --bg:#04080e; --surf:#080f18; --surf2:#0d1620; --surf3:#111d28;
+  --primary:#00e5ff; --blue:#00b8cc; --blue-l:#004d55; --blue-m:#008b99;
+  --green:#00ff88; --green-l:#005930; --red:#ff2244; --red-l:#590c18;
+  --amber:#ffaa00; --amber-l:#593b00; --slate:#475569; --slate-l:#94a3b8;
+  --border:#132030; --border2:#1e3040; --text:#b8ccd8; --text2:#4a6a7a; --text3:#2a4050;
 }
 
 .bg-bg { background-color: var(--bg); }
@@ -216,7 +216,8 @@ async function doSignup() {
 .auth-mark {
   width: 38px;
   height: 38px;
-  background: var(--primary);
+  background: transparent;
+  border: 1px solid var(--primary);
   border-radius: 9px;
   display: flex;
   align-items: center;
@@ -224,9 +225,10 @@ async function doSignup() {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
   font-size: 13px;
-  color: #fff;
+  color: var(--primary);
   letter-spacing: .5px;
   margin-bottom: 14px;
+  box-shadow: 0 0 10px rgba(0,229,255,0.2);
 }
 
 .auth-title {
@@ -267,7 +269,8 @@ async function doSignup() {
   background: var(--surf);
   color: var(--primary);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  border: 1px solid var(--border);
 }
 
 .fg { margin-bottom: 13px; }
@@ -308,16 +311,20 @@ async function doSignup() {
   width: 100%;
   padding: 10px;
   border-radius: 7px;
-  background: var(--primary);
-  color: #fff;
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
   font-size: 13px;
   font-weight: 600;
   transition: all .15s;
-  border: none;
   cursor: pointer;
+  box-shadow: 0 0 10px rgba(0,229,255,0.1) inset;
 }
 
-.btn-p:hover { background: #1e293b; }
+.btn-p:hover { 
+  background: rgba(0,229,255,0.1); 
+  box-shadow: 0 0 15px rgba(0,229,255,0.2) inset;
+}
 .btn-p:disabled { opacity: .6; cursor: wait; }
 
 .msg {

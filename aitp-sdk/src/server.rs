@@ -460,7 +460,7 @@ impl AitpServer {
                                 current_timestamp_ns(),
                                 rand_nonce(),
                             );
-                            header.sign(&identity_send.signing_key());
+                            header.sign(identity_send.signing_key());
                             let mut packet = header.to_bytes();
                             packet.extend_from_slice(&data);
                             let _ = socket_send.send_to(&packet, peer_addr).await;
