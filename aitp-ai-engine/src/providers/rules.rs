@@ -8,6 +8,12 @@ pub struct RulesProvider {
     // weights: RuleWeights,
 }
 
+impl Default for RulesProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RulesProvider {
     pub fn new() -> Self {
         Self {}
@@ -68,7 +74,7 @@ impl RulesProvider {
 
         // Historical score (30 points weight)
         if let Some(hist) = ctx.historical_score {
-            score += (hist as f32 - 128.0) * 0.3;
+            score += (hist - 128.0) * 0.3;
         }
 
         // Behavioral flags (-20 per flag)

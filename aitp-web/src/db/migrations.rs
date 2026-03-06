@@ -1,8 +1,11 @@
 pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("PRAGMA journal_mode=WAL;").execute(pool).await?;
+    sqlx::query("PRAGMA journal_mode=WAL;")
+        .execute(pool)
+        .await?;
     sqlx::query("PRAGMA foreign_keys=ON;").execute(pool).await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS organizations (
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS organizations (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL, industry TEXT,
         gemini_api_key_enc TEXT, claude_api_key_enc TEXT, openai_api_key_enc TEXT,
@@ -10,9 +13,13 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         ai_model TEXT NOT NULL DEFAULT 'gemini-2.5-flash-preview-05-20',
         trust_mode TEXT NOT NULL DEFAULT 'hybrid',
         created_at INTEGER NOT NULL, last_login INTEGER
-    )"#).execute(pool).await?;
+    )"#,
+    )
+    .execute(pool)
+    .await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS server_nodes (
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS server_nodes (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         name TEXT NOT NULL, listen_address TEXT NOT NULL DEFAULT '0.0.0.0',
         listen_port INTEGER NOT NULL DEFAULT 9999,
@@ -20,9 +27,13 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         status TEXT NOT NULL DEFAULT 'offline', client_count INTEGER NOT NULL DEFAULT 0,
         session_count INTEGER NOT NULL DEFAULT 0, last_seen INTEGER, created_at INTEGER NOT NULL,
         UNIQUE(org_id, name)
-    )"#).execute(pool).await?;
+    )"#,
+    )
+    .execute(pool)
+    .await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS client_nodes (
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS client_nodes (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         name TEXT NOT NULL, entity_id TEXT NOT NULL UNIQUE, public_key TEXT NOT NULL,
         private_key_path TEXT NOT NULL,
@@ -30,9 +41,13 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         trust_score INTEGER NOT NULL DEFAULT 128, session_count INTEGER NOT NULL DEFAULT 0,
         blocked_count INTEGER NOT NULL DEFAULT 0, last_seen INTEGER, created_at INTEGER NOT NULL,
         UNIQUE(org_id, name)
-    )"#).execute(pool).await?;
+    )"#,
+    )
+    .execute(pool)
+    .await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS sessions (
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY, org_id TEXT NOT NULL, server_node_id TEXT NOT NULL,
         client_node_id TEXT, client_entity_id TEXT NOT NULL,
         client_ip TEXT NOT NULL, client_port INTEGER NOT NULL,
@@ -41,13 +56,20 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         status TEXT NOT NULL DEFAULT 'active',
         bytes_tx INTEGER NOT NULL DEFAULT 0, bytes_rx INTEGER NOT NULL DEFAULT 0,
         started_at INTEGER NOT NULL, ended_at INTEGER, close_reason TEXT
-    )"#).execute(pool).await?;
+    )"#,
+    )
+    .execute(pool)
+    .await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS audit_events (
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS audit_events (
         id TEXT PRIMARY KEY, org_id TEXT, event_type TEXT NOT NULL, severity TEXT NOT NULL,
         source_ip TEXT, entity_id TEXT, session_id TEXT,
         description TEXT NOT NULL, metadata TEXT, created_at INTEGER NOT NULL
-    )"#).execute(pool).await?;
+    )"#,
+    )
+    .execute(pool)
+    .await?;
 
     // Indexes
     for idx in &[
@@ -57,7 +79,9 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_events_org ON audit_events(org_id)",
         "CREATE INDEX IF NOT EXISTS idx_events_type ON audit_events(event_type)",
         "CREATE INDEX IF NOT EXISTS idx_events_time ON audit_events(created_at DESC)",
-    ] { sqlx::query(*idx).execute(pool).await?; }
+    ] {
+        sqlx::query(idx).execute(pool).await?;
+    }
 
     tracing::info!("Database migrations complete");
     Ok(())
