@@ -3,211 +3,344 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const email = ref('')
-const password = ref('')
-const isLoggingIn = ref(false)
 const isSignup = ref(false)
-const errorMessage = ref('')
 
-async function handleSubmit() {
-  errorMessage.value = ''
-  if (!email.value || !password.value) {
-    errorMessage.value = 'Please complete all required fields.'
+// Sign In Refs
+const siEmail = ref('demo@aitp.dev')
+const siPassword = ref('demo1234')
+const siLoading = ref(false)
+const siError = ref('')
+
+// Sign Up Refs
+const suOrg = ref('')
+const suIndustry = ref('')
+const suEmail = ref('')
+const suPassword = ref('')
+const suPasswordConfirm = ref('')
+const suApiKey = ref('')
+
+const suLoading = ref(false)
+const suError = ref('')
+const suSuccess = ref('')
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } }
+  if (body) opts.body = JSON.stringify(body)
+  const r = await fetch(path, opts) // Vite proxies /api to backend
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error || r.statusText)
+  return data
+}
+
+async function doSignin() {
+  siError.value = ''
+  if (!siEmail.value || !siPassword.value) {
+    siError.value = 'Email and password are required.'
+    return
+  }
+  siLoading.value = true
+  try {
+    const res = await api('POST', '/api/auth/signin', {
+      email: siEmail.value,
+      password: siPassword.value
+    })
+    localStorage.setItem('aitp_token', res.token)
+    localStorage.setItem('aitp_org', JSON.stringify(res.org))
+    router.push('/terminal')
+  } catch (e) {
+    siError.value = e.message || 'Failed to sign in'
+  } finally {
+    siLoading.value = false
+  }
+}
+
+async function doSignup() {
+  suError.value = ''
+  suSuccess.value = ''
+  
+  if (!suOrg.value || !suEmail.value || !suPassword.value) {
+    suError.value = 'Please fill out all required fields.'
+    return
+  }
+  if (suPassword.value !== suPasswordConfirm.value) {
+    suError.value = 'Passwords do not match.'
+    return
+  }
+  if (suPassword.value.length < 8) {
+    suError.value = 'Password must be at least 8 characters.'
     return
   }
 
-  isLoggingIn.value = true
-
-  // For now, simulate network request since backend connection is next phase
-  setTimeout(() => {
-    isLoggingIn.value = false
-    router.push('/terminal') // Routes to the terminal dashboard
-  }, 1200)
+  suLoading.value = true
+  try {
+    const res = await api('POST', '/api/auth/signup', {
+      org_name: suOrg.value,
+      industry: suIndustry.value,
+      email: suEmail.value,
+      password: suPassword.value,
+      gemini_api_key: suApiKey.value || null
+    })
+    localStorage.setItem('aitp_token', res.token)
+    localStorage.setItem('aitp_org', JSON.stringify(res.org))
+    suSuccess.value = 'Organization created! Redirecting...'
+    setTimeout(() => {
+      router.push('/terminal')
+    }, 900)
+  } catch (e) {
+    suError.value = e.message || 'Failed to create organization'
+  } finally {
+    suLoading.value = false
+  }
 }
 </script>
 
 <template>
-  <div class="enterprise-container min-h-screen flex">
-    <!-- Left Split: Branding / Graphic -->
-    <div class="hidden lg:flex lg:w-1/2 bg-primary relative overflow-hidden items-center justify-center">
-      <!-- Decorative enterprise grid -->
-      <div class="absolute inset-0 grid-pattern opacity-10"></div>
+  <div class="auth-view min-h-screen flex items-center justify-center relative bg-bg font-sans">
+    <div class="auth-grid"></div>
+    
+    <div class="auth-card relative z-10 w-[400px]">
+      <div class="auth-mark">AI</div>
+      <div class="auth-title">AITP Platform</div>
+      <div class="auth-sub">Intelligence Protocol Layer — Organization Access</div>
       
-      <div class="relative z-10 px-16 max-w-2xl">
-        <div class="inline-flex items-center gap-3 mb-8">
-          <div class="w-8 h-8 rounded-lg bg-blue flex items-center justify-center shadow-lg shadow-blue/30">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span class="text-white font-syne font-bold tracking-tight text-xl">AITP Protocol</span>
+      <div class="tabs">
+        <button class="tab" :class="{ 'on': !isSignup }" @click="isSignup = false; siError = ''">Sign In</button>
+        <button class="tab" :class="{ 'on': isSignup }" @click="isSignup = true; suError = ''">Create Org</button>
+      </div>
+
+      <!-- SIGN IN -->
+      <form v-if="!isSignup" @submit.prevent="doSignin">
+        <div v-if="siError" class="msg err">{{ siError }}</div>
+        
+        <div class="fg">
+          <label class="fl">Organization Email</label>
+          <input v-model="siEmail" type="email" class="fi" placeholder="you@company.com" required />
+        </div>
+        <div class="fg">
+          <label class="fl">Password</label>
+          <input v-model="siPassword" type="password" class="fi" placeholder="••••••••" required />
         </div>
         
-        <h1 class="text-4xl lg:text-5xl font-syne font-bold text-white leading-tight mb-6">
-          The Intelligence <br/>
-          <span class="text-blue-light">Transport Layer.</span>
-        </h1>
-        <p class="text-surface2/80 font-sans text-lg mb-12 max-w-lg leading-relaxed">
-          Secure, intent-bound, and context-aware communication infrastructure for the next generation of autonomous AI systems.
+        <button type="submit" class="btn-p mt-2" :disabled="siLoading">
+          {{ siLoading ? 'Signing in...' : 'Sign In →' }}
+        </button>
+        
+        <p class="text-center mt-4 text-[11px] text-text3">
+          Demo Access: demo@aitp.dev / demo1234
         </p>
+      </form>
 
-        <div class="flex items-center gap-4 text-sm font-mono text-surface2/60">
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-green animate-pulse"></div>
-            Systems Operational
+      <!-- SIGN UP -->
+      <form v-else @submit.prevent="doSignup">
+        <div v-if="suError" class="msg err">{{ suError }}</div>
+        <div v-if="suSuccess" class="msg ok">{{ suSuccess }}</div>
+        
+        <div class="fr border-b border-border pb-3 mb-3">
+          <div class="fg">
+            <label class="fl">Organization Name</label>
+            <input v-model="suOrg" type="text" class="fi" placeholder="Acme Corp" required />
           </div>
-          <div class="h-4 w-px bg-white/20"></div>
-          <span>v0.2.0-beta</span>
+          <div class="fg">
+            <label class="fl">Industry</label>
+            <input v-model="suIndustry" type="text" class="fi" placeholder="AI / FinTech" />
+          </div>
         </div>
-      </div>
+        
+        <div class="fg">
+          <label class="fl">Work Email</label>
+          <input v-model="suEmail" type="email" class="fi" placeholder="you@company.com" required />
+        </div>
+        
+        <div class="fr">
+          <div class="fg">
+            <label class="fl">Password</label>
+            <input v-model="suPassword" type="password" class="fi" placeholder="8+ chars" required />
+          </div>
+          <div class="fg">
+            <label class="fl">Confirm</label>
+            <input v-model="suPasswordConfirm" type="password" class="fi" placeholder="Repeat" required />
+          </div>
+        </div>
+        
+        <div class="fg mt-3">
+          <label class="fl">AI Provider API Key (optional)</label>
+          <input v-model="suApiKey" type="password" class="fi" placeholder="sk-..." />
+        </div>
+        
+        <button type="submit" class="btn-p mt-3" :disabled="suLoading">
+          {{ suLoading ? 'Creating...' : 'Create Organization →' }}
+        </button>
+      </form>
       
-      <!-- Abstract floating shapes -->
-      <div class="absolute top-1/4 -right-12 w-64 h-64 bg-blue rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-      <div class="absolute top-1/3 right-1/4 w-72 h-72 bg-blue-mid rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-    </div>
-
-    <!-- Right Split: Auth Form -->
-    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 lg:p-24 bg-bg">
-      <div class="w-full max-w-md bg-surface p-10 rounded-2xl shadow-xl shadow-primary/5 border border-surface2">
-        
-        <div class="mb-8">
-          <h2 class="text-2xl font-syne font-bold text-primary mb-2">
-            {{ isSignup ? 'Create Organization' : 'Welcome back' }}
-          </h2>
-          <p class="text-sm text-primary/60 font-sans">
-            {{ isSignup ? 'Provision your network identity to get started.' : 'Enter your credentials to access the terminal.' }}
-          </p>
-        </div>
-
-        <form @submit.prevent="handleSubmit" class="space-y-5">
-          <div v-if="errorMessage" class="p-4 bg-red-l text-red text-sm rounded-lg font-medium border border-red/10 flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            {{ errorMessage }}
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="block text-sm font-medium text-primary">Email Address</label>
-            <input 
-              v-model="email" 
-              type="email" 
-              class="w-full px-4 py-3 rounded-xl bg-surface2 border-transparent focus:bg-surface focus:border-blue focus:ring-2 focus:ring-blue-light outline-none transition-all font-sans text-primary placeholder-primary/30"
-              placeholder="admin@organization.com"
-            >
-          </div>
-
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between">
-              <label class="block text-sm font-medium text-primary">Password</label>
-              <a v-if="!isSignup" href="#" class="text-sm font-medium text-blue hover:text-blue-mid transition-colors">Forgot?</a>
-            </div>
-            <input 
-              v-model="password" 
-              type="password" 
-              class="w-full px-4 py-3 rounded-xl bg-surface2 border-transparent focus:bg-surface focus:border-blue focus:ring-2 focus:ring-blue-light outline-none transition-all font-sans text-primary placeholder-primary/30"
-              placeholder="••••••••••••"
-            >
-          </div>
-
-          <button 
-            type="submit" 
-            :disabled="isLoggingIn"
-            class="w-full py-3.5 px-4 bg-blue hover:bg-blue/90 text-white rounded-xl font-medium font-sans transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue/20"
-          >
-            <span v-if="!isLoggingIn">{{ isSignup ? 'Create Account' : 'Sign In' }}</span>
-            <div v-else class="flex items-center gap-2">
-              <svg class="animate-spin h-5 w-5 text-white/80" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>Authenticating...</span>
-            </div>
-          </button>
-        </form>
-
-        <div class="mt-8 text-center">
-          <p class="text-sm text-primary/60 font-sans">
-            {{ isSignup ? 'Already have an account?' : 'Need an organization account?' }}
-            <button @click="isSignup = !isSignup" class="font-medium text-blue hover:text-blue-mid transition-colors ml-1 focus:outline-none">
-              {{ isSignup ? 'Sign In' : 'Create one' }}
-            </button>
-          </p>
-        </div>
-        
-      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 /* Inject Enterprise Variables strictly into this view */
-.enterprise-container {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface2: #f1f5f9;
-  --primary: #0f172a;
-  --blue: #2563eb;
-  --blue-light: #eff6ff;
-  --blue-mid: #dbeafe;
-  --green: #059669;
-  --red: #dc2626;
-  --red-l: #fef2f2;
+.auth-view {
+  --bg:#f8fafc; --surf:#ffffff; --surf2:#f1f5f9; --surf3:#e2e8f0;
+  --primary:#0f172a; --blue:#2563eb; --blue-l:#eff6ff; --blue-m:#dbeafe;
+  --green:#059669; --green-l:#ecfdf5; --red:#dc2626; --red-l:#fef2f2;
+  --amber:#d97706; --amber-l:#fffbeb; --slate:#475569; --slate-l:#94a3b8;
+  --border:#e2e8f0; --border2:#cbd5e1; --text:#0f172a; --text2:#475569; --text3:#94a3b8;
 }
 
 .bg-bg { background-color: var(--bg); }
-.bg-surface { background-color: var(--surface); }
-.bg-surface2 { background-color: var(--surface2); }
-.bg-primary { background-color: var(--primary); }
-.bg-blue { background-color: var(--blue); }
-.bg-blue-light { background-color: var(--blue-light); }
-.bg-blue-mid { background-color: var(--blue-mid); }
-.bg-red-l { background-color: var(--red-l); }
+.text-text3 { color: var(--text3); }
 
-.text-primary { color: var(--primary); }
-.text-blue { color: var(--blue); }
-.text-blue-light { color: var(--blue-light); }
-.text-blue-mid { color: var(--blue-mid); }
-.text-green { color: var(--green); }
-.text-red { color: var(--red); }
-.text-surface2 { color: var(--surface2); }
-
-.border-surface2 { border-color: var(--surface2); }
-.border-transparent { border-color: transparent; }
-
-.focus\:border-blue:focus { border-color: var(--blue); }
-.focus\:ring-blue-light:focus { --tw-ring-color: var(--blue-light); }
-
-.opacity-10 { opacity: 0.1; }
-.opacity-20 { opacity: 0.2; }
-.opacity-25 { opacity: 0.25; }
-.opacity-30 { opacity: 0.3; }
-.opacity-60 { opacity: 0.6; }
-.opacity-70 { opacity: 0.7; }
-.opacity-75 { opacity: 0.75; }
-.opacity-80 { opacity: 0.8; }
-
-.grid-pattern {
-  background-size: 30px 30px;
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+/* Custom Overrides from user CSS */
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.35;
 }
 
-.font-syne { font-family: 'Syne', sans-serif; }
-.font-sans { font-family: 'DM Sans', sans-serif; }
-.font-mono { font-family: 'IBM Plex Mono', monospace; }
-
-.animate-blob {
-  animation: blob 7s infinite;
+.auth-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 36px;
+  width: 400px; /* Force consistent width like the snippet */
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,.04), 0 20px 40px -8px rgba(0,0,0,.07);
+  animation: cardIn .35s ease;
 }
-.animation-delay-2000 {
-  animation-delay: 2s;
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to { opacity: 1; transform: none; }
 }
 
-@keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
+.auth-mark {
+  width: 38px;
+  height: 38px;
+  background: var(--primary);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: .5px;
+  margin-bottom: 14px;
+}
+
+.auth-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 21px;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.auth-sub {
+  font-size: 12px;
+  color: var(--text3);
+  margin-bottom: 22px;
+}
+
+.tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--surf2);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  flex: 1;
+  padding: 7px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text2);
+  transition: all .15s;
+}
+
+.tab.on {
+  background: var(--surf);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+.fg { margin-bottom: 13px; }
+.fl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 5px;
+  display: block;
+}
+
+.fi {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--surf);
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text);
+  transition: border .15s;
+}
+
+.fi:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  outline: none;
+}
+
+.fi::placeholder { color: var(--text3); }
+
+.fr {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-p {
+  width: 100%;
+  padding: 10px;
+  border-radius: 7px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all .15s;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-p:hover { background: #1e293b; }
+.btn-p:disabled { opacity: .6; cursor: wait; }
+
+.msg {
+  padding: 8px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.msg.err {
+  background: var(--red-l);
+  border: 1px solid #fecaca;
+  color: var(--red);
+}
+
+.msg.ok {
+  background: var(--green-l);
+  border: 1px solid #bbf7d0;
+  color: var(--green);
+}
+
+.border-border {
+  border-color: var(--border);
 }
 </style>

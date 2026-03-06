@@ -127,6 +127,7 @@ pub struct UpdateAiConfigReq {
     pub trust_mode: String,
 }
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct VerifyKeyReq {
     pub provider: String,
     pub model: String,

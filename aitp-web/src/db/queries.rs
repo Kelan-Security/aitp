@@ -199,6 +199,7 @@ impl DbPool {
         .await
     }
 
+    #[allow(dead_code)]
     pub async fn create_event(&self, event: AuditEvent) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT INTO audit_events (id, org_id, event_type, severity, source_ip, entity_id, session_id, description, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(event.id)

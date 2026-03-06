@@ -1,7 +1,7 @@
 use crate::{auth::OrgId, db::models::*, error::AppError, state::AppState};
 use axum::{
     extract::{Path, State},
-    routing::{delete, get, post},
+    routing::{delete, get},
     Json, Router,
 };
 use std::sync::Arc;
