@@ -294,6 +294,15 @@ impl HandshakeCoordinator {
                 session_id = format!("{:#018x}", session_id),
                 "Duplicate SYN for pending handshake, ignoring"
             );
+            self.event_bus
+                .packet_dropped(DropReason::OrphanPacket { session_id }, src_ip);
+            let _ = self
+                .event_tx
+                .send(TransportEvent::PacketDropped {
+                    peer_addr,
+                    reason: "REPLAY_DETECTED".to_string(),
+                })
+                .await;
             return;
         }
 
