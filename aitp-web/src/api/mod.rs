@@ -2,6 +2,7 @@ pub mod auth;
 pub mod config;
 pub mod events;
 pub mod nodes;
+pub mod sentinel;
 pub mod sessions;
 pub mod stats;
 
@@ -15,4 +16,5 @@ pub fn router() -> Router<std::sync::Arc<crate::state::AppState>> {
         .merge(events::router())
         .merge(config::router())
         .merge(stats::router())
+        .merge(sentinel::router())
 }

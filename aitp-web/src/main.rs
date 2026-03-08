@@ -14,6 +14,7 @@ mod auth;
 mod bridge;
 mod db;
 mod error;
+mod sentinel;
 mod state;
 mod ws;
 
@@ -64,15 +65,25 @@ async fn main() -> anyhow::Result<()> {
 
     db::migrations::run(&db_pool).await?;
 
+    let sentinel_instance = sentinel::Sentinel::new();
+
     let app_state = Arc::new(state::AppState {
         db: db::DbPool::new(db_pool),
         hub: ws::WsHub::new(),
         start_time: Instant::now(),
         config: config.clone(),
+        sentinel: sentinel_instance.clone(),
     });
 
     // Start background tasks (AITP bridge to WS Hub, stats broadcaster, etc.)
     bridge::start_background_tasks(app_state.clone()).await;
+
+    // Start Sentinel autonomous network defense agent
+    let s = app_state.clone();
+    let sen = sentinel_instance.clone();
+    tokio::spawn(async move {
+        sentinel::run(s, sen).await;
+    });
 
     // Build the Axum router
     // We serve the Vue frontend from the "dist" directory if it exists,

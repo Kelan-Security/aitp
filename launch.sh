@@ -223,6 +223,15 @@ start_backend() {
         # Open browser to Vite server instead of backend
         (sleep 2 && open_browser "http://localhost:5173") &
 
+        # Start Vite frontend
+        if [ -d "aitp-web" ] && [ -f "aitp-web/package.json" ]; then
+          echo -e "  ${YELLOW}→${NC} Starting frontend dev server in background..."
+          (cd aitp-web && npm run dev) &
+          FRONTEND_PID=$!
+          # Add trap to kill frontend when backend is stopped
+          trap 'kill $FRONTEND_PID 2>/dev/null' EXIT
+        fi
+
         # Run backend in foreground
     RUST_LOG="$LOG_LEVEL" \
     AITP_HTTP_PORT="$HTTP_PORT" \

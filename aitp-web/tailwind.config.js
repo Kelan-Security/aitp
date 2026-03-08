@@ -7,14 +7,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        'bg-primary': '#050810',
-        'bg-secondary': '#0a1020',
-        'accent-cyan': '#00f5ff',
-        'accent-emerald': '#00ff88',
-        'accent-red': '#ff2244',
-        'accent-amber': '#ffaa00',
-        'text-primary': '#e8eaf0',
-        'text-mono': '#7db8d4',
+        'bg-primary': '#ffffff',
+        'bg-secondary': '#f9fafb',
+        'accent-cyan': '#000000',
+        'accent-emerald': '#333333',
+        'accent-red': '#000000',
+        'accent-amber': '#666666',
+        'text-primary': '#000000',
+        'text-mono': '#333333',
       },
       fontFamily: {
         display: ['Orbitron', 'sans-serif'],
@@ -22,7 +22,7 @@ export default {
         sans: ['Inter', 'sans-serif'],
       },
       backgroundImage: {
-        'cyber-grid': "radial-gradient(circle, rgba(0, 245, 255, 0.05) 1px, transparent 1px)",
+        'cyber-grid': "radial-gradient(circle, rgba(0, 0, 0, 0.15) 1px, transparent 1px)",
       },
       backgroundSize: {
         'grid-size': '40px 40px',
