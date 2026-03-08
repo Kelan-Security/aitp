@@ -20,10 +20,13 @@
 //!  79       8    Timestamp (u64 BE, Unix epoch nanoseconds)
 //!  87      12    Nonce (96 bits)
 //!  99      64    Ed25519 Signature
-//! 163      ..    Payload (variable, `payload_len` bytes)
+//! 163    3309    ML-DSA-65 Detached Signature
+//! 3472     ..    Payload (variable, `payload_len` bytes)
 //! ```
 
+use aitp_identity::identity::{AitpIdentity, HybridSignature};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use pqcrypto_dilithium::dilithium3;
 use std::fmt;
 use thiserror::Error;
 
@@ -32,8 +35,11 @@ use thiserror::Error;
 /// Current AITP protocol version.
 pub const AITP_VERSION: u8 = 1;
 
+/// Size of the ML-DSA-65 (Dilithium3) signature
+pub const PQ_SIG_SIZE: usize = 3309;
+
 /// Size of the fixed header in bytes (before payload).
-pub const HEADER_SIZE: usize = 163;
+pub const HEADER_SIZE: usize = 163 + PQ_SIG_SIZE;
 
 /// Maximum payload size (limited by u16 payload_len field).
 pub const MAX_PAYLOAD_SIZE: usize = u16::MAX as usize;
@@ -188,6 +194,8 @@ pub struct AitpHeader {
     pub nonce: [u8; 12],
     /// Ed25519 signature over all preceding header fields.
     pub signature: [u8; 64],
+    /// Post-Quantum ML-DSA-65 signature.
+    pub pq_signature: [u8; PQ_SIG_SIZE],
 }
 
 impl AitpHeader {
@@ -220,6 +228,7 @@ impl AitpHeader {
             timestamp,
             nonce,
             signature: [0u8; 64],
+            pq_signature: [0u8; PQ_SIG_SIZE],
         }
     }
 
@@ -263,6 +272,9 @@ impl AitpHeader {
 
         // Bytes 99–162: signature (64 bytes)
         buf.extend_from_slice(&self.signature);
+
+        // Bytes 163–3471: PQ signature (3309 bytes)
+        buf.extend_from_slice(&self.pq_signature);
 
         debug_assert_eq!(buf.len(), HEADER_SIZE);
         buf
@@ -326,6 +338,10 @@ impl AitpHeader {
         let mut signature = [0u8; 64];
         signature.copy_from_slice(&buf[99..163]);
 
+        // Bytes 163–3471: PQ signature
+        let mut pq_signature = [0u8; PQ_SIG_SIZE];
+        pq_signature.copy_from_slice(&buf[163..163 + PQ_SIG_SIZE]);
+
         Ok(Self {
             version,
             flags: flags_val,
@@ -339,6 +355,7 @@ impl AitpHeader {
             timestamp,
             nonce,
             signature,
+            pq_signature,
         })
     }
 
@@ -351,22 +368,53 @@ impl AitpHeader {
         full[..99].to_vec()
     }
 
-    /// Sign this header using the given Ed25519 signing key.
+    /// Sign this header using the given AitpIdentity (hybrid).
     ///
     /// Computes the signature over [`signable_bytes`](AitpHeader::signable_bytes)
-    /// and stores it in the [`signature`](AitpHeader::signature) field.
+    /// and stores it in the `signature` and `pq_signature` fields.
+    pub fn sign_hybrid(&mut self, identity: &AitpIdentity) {
+        let msg = self.signable_bytes();
+        let hybrid_sig = identity.sign_hybrid(&msg);
+        self.signature.copy_from_slice(&hybrid_sig.classical);
+        // Note: PQ signature depends strictly on the size constraint
+        if hybrid_sig.pq.len() == PQ_SIG_SIZE {
+            self.pq_signature.copy_from_slice(&hybrid_sig.pq);
+        } else {
+            tracing::warn!(
+                "PQ signature length mismatch: expected {}, got {}",
+                PQ_SIG_SIZE,
+                hybrid_sig.pq.len()
+            );
+        }
+    }
+
+    /// Backwards compatibility wrapper that only signs classically.
     pub fn sign(&mut self, signing_key: &SigningKey) {
         let msg = self.signable_bytes();
         let sig = signing_key.sign(&msg);
         self.signature = sig.to_bytes();
     }
 
-    /// Verify the header signature against the given public key.
+    /// Verify the header signature against the hybrid public keys.
     ///
     /// # Errors
-    ///
     /// Returns [`HeaderError::InvalidSignature`] if verification fails.
-    /// Returns [`HeaderError::InvalidPublicKey`] if the key bytes are invalid.
+    pub fn verify_signature_hybrid(
+        &self,
+        classical_pk: &[u8; 32],
+        pq_pk: &dilithium3::PublicKey,
+    ) -> Result<(), HeaderError> {
+        let msg = self.signable_bytes();
+        let hybrid_sig = HybridSignature {
+            classical: self.signature.to_vec(),
+            pq: self.pq_signature.to_vec(),
+        };
+
+        aitp_identity::identity::verify_hybrid_with_pubkeys(classical_pk, pq_pk, &msg, &hybrid_sig)
+            .map_err(|e| HeaderError::InvalidSignature(e.to_string()))
+    }
+
+    /// Verify classically (for legacy nodes or tests).
     pub fn verify_signature(&self, public_key: &[u8; 32]) -> Result<(), HeaderError> {
         let verifying_key = VerifyingKey::from_bytes(public_key)
             .map_err(|e| HeaderError::InvalidPublicKey(e.to_string()))?;
@@ -492,6 +540,7 @@ mod tests {
         assert_eq!(parsed.timestamp, original.timestamp);
         assert_eq!(parsed.nonce, original.nonce);
         assert_eq!(parsed.signature, original.signature);
+        assert_eq!(parsed.pq_signature.len(), original.pq_signature.len());
     }
 
     #[test]
@@ -499,7 +548,7 @@ mod tests {
         let header = test_header([0u8; 32], [0u8; 32]);
         let bytes = header.to_bytes();
         assert_eq!(bytes.len(), HEADER_SIZE);
-        assert_eq!(HEADER_SIZE, 163);
+        assert_eq!(HEADER_SIZE, 3472);
     }
 
     #[test]
@@ -636,6 +685,24 @@ mod tests {
         header
             .verify_signature(&pub_key_bytes)
             .expect("Signature should be valid");
+    }
+
+    #[test]
+    fn test_sign_and_verify_hybrid() {
+        let id_src =
+            AitpIdentity::generate("src", aitp_identity::identity::EntityType::Service, vec![]);
+        let id_dst =
+            AitpIdentity::generate("dst", aitp_identity::identity::EntityType::Service, vec![]);
+
+        let mut header = test_header(id_src.entity_id, id_dst.entity_id);
+        header.sign_hybrid(&id_src);
+
+        assert_ne!(header.signature, [0u8; 64]);
+        assert_ne!(header.pq_signature[0..10], [0u8; 10]);
+
+        header
+            .verify_signature_hybrid(&id_src.public_key_bytes(), &id_src.pq_public_key)
+            .expect("Hybrid signature should be valid");
     }
 
     #[test]

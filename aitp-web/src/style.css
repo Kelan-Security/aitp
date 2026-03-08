@@ -5,61 +5,64 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #050810;
-  --bg-secondary: #0a1020;
-  --accent-cyan: #00f5ff;
-  --accent-emerald: #00ff88;
-  --accent-red: #ff2244;
-  --accent-amber: #ffaa00;
-  --text-primary: #e8eaf0;
-  --text-mono: #7db8d4;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --accent-cyan: #000000;
+  --accent-emerald: #333333;
+  --accent-red: #000000;
+  --accent-amber: #666666;
+  --text-primary: #000000;
+  --text-mono: #333333;
 }
 
 @layer base {
   body {
-    @apply bg-bg-primary text-text-primary font-sans antialiased overflow-x-hidden;
+    @apply bg-bg-primary text-text-primary font-sans antialiased overflow-x-hidden selection:bg-black selection:text-white;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display tracking-wider;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight text-black;
   }
 
-  code, pre {
+  code,
+  pre {
     @apply font-mono;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply px-6 py-3 bg-accent-cyan text-bg-primary font-bold rounded-sm 
-           hover:bg-accent-emerald transition-all duration-300
-           shadow-[0_0_15px_rgba(0,245,255,0.3)] hover:shadow-[0_0_20px_rgba(0,255,136,0.5)];
+    @apply px-8 py-4 bg-black text-white font-medium rounded-sm border border-black hover:bg-transparent hover:text-black transition-all duration-300 shadow-sm hover:shadow-md;
   }
 
   .btn-secondary {
-    @apply px-6 py-3 border border-accent-cyan text-accent-cyan font-bold rounded-sm
-           hover:bg-accent-cyan/10 transition-all duration-300;
+    @apply px-8 py-4 border border-black/20 text-black font-medium rounded-sm hover:border-black hover:bg-black/5 transition-all duration-300;
   }
 
   .cyber-panel {
-    @apply bg-bg-secondary border border-white/5 p-6 rounded-sm backdrop-blur-md;
+    @apply bg-white border border-black/10 p-8 shadow-sm hover:shadow-xl transition-shadow duration-500 rounded-lg;
   }
 
   .cyber-grid-bg {
-    background-image: radial-gradient(circle, rgba(0, 245, 255, 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-bg-primary;
+  @apply bg-white;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-accent-cyan/50 hover:bg-accent-cyan;
+  @apply bg-black/20 hover:bg-black/50 rounded-full border-2 border-white;
 }

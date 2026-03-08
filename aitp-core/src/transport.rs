@@ -374,11 +374,55 @@ impl HandshakeCoordinator {
             return;
         }
 
-        // Accept: send SYN+ACK
-        self.send_syn_ack(session_id, &source_id, decision.trust_score, peer_addr)
-            .await;
+        let mut session_key = None;
+        let mut syn_ack_payload = vec![];
 
-        // Create and insert session
+        // Perform Hybrid Key Exchange if client sent keys (1216 bytes)
+        let expected_len = 32 + pqcrypto_kyber::kyber768::public_key_bytes();
+        if _payload.len() == expected_len {
+            let client_x25519_pk: [u8; 32] = _payload[0..32].try_into().unwrap();
+            let mut client_kem_pk = vec![0u8; pqcrypto_kyber::kyber768::public_key_bytes()];
+            client_kem_pk.copy_from_slice(&_payload[32..expected_len]);
+
+            // 1. Classical (X25519)
+            let server_x25519_sk =
+                x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::OsRng);
+            let server_x25519_pk = x25519_dalek::PublicKey::from(&server_x25519_sk);
+            let classical_ss =
+                server_x25519_sk.diffie_hellman(&x25519_dalek::PublicKey::from(client_x25519_pk));
+
+            // 2. Post-Quantum (ML-KEM-768)
+            use pqcrypto_traits::kem::{Ciphertext, PublicKey, SharedSecret};
+            if let Ok(parsed_kem_pk) =
+                pqcrypto_kyber::kyber768::PublicKey::from_bytes(&client_kem_pk)
+            {
+                let (pq_ss, ciphertext) = pqcrypto_kyber::kyber768::encapsulate(&parsed_kem_pk);
+
+                // 3. Derive Hybrid Session Key: SHA256(Classical_SS || PQ_SS)
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(classical_ss.as_bytes());
+                hasher.update(pq_ss.as_bytes());
+                let final_key: [u8; 32] = hasher.finalize().into();
+                session_key = Some(final_key);
+
+                // 4. Build SYN+ACK payload (Server X25519 PK + KEM Ciphertext)
+                syn_ack_payload.extend_from_slice(server_x25519_pk.as_bytes());
+                syn_ack_payload.extend_from_slice(ciphertext.as_bytes());
+            } else {
+                tracing::warn!("Failed to parse ML-KEM-768 public key from client");
+            }
+        }
+
+        // Accept: send SYN+ACK
+        self.send_syn_ack(
+            session_id,
+            &source_id,
+            decision.trust_score,
+            peer_addr,
+            syn_ack_payload,
+        )
+        .await;
+
         let mut session = Session::new(
             session_id,
             self.identity.entity_id,
@@ -386,6 +430,7 @@ impl HandshakeCoordinator {
             header.intent_code,
         );
         session.trust_score = decision.trust_score;
+        session.session_key = session_key;
         session.state = HandshakeState::SessionActive;
 
         if let Err(e) = self.session_table.insert(session) {
@@ -452,6 +497,7 @@ impl HandshakeCoordinator {
         dest_id: &[u8; 32],
         trust_score: u8,
         peer_addr: SocketAddr,
+        payload: Vec<u8>,
     ) {
         let mut header = AitpHeader::new(
             flags::SYN | flags::ACK,
@@ -460,13 +506,13 @@ impl HandshakeCoordinator {
             self.identity.entity_id,
             *dest_id,
             trust_score,
-            0,
+            payload.len() as u16,
             now_nanos(),
             rand_nonce(),
         );
-        header.sign(self.identity.signing_key());
+        header.sign_hybrid(&self.identity);
 
-        if let Ok(pkt) = AitpPacket::new(header, vec![]) {
+        if let Ok(pkt) = AitpPacket::new(header, payload) {
             let bytes = pkt.to_bytes();
             if let Err(e) = self.socket.send_to(&bytes, peer_addr).await {
                 tracing::error!(error = %e, "Failed to send SYN+ACK");
@@ -486,7 +532,7 @@ impl HandshakeCoordinator {
             now_nanos(),
             rand_nonce(),
         );
-        header.sign(self.identity.signing_key());
+        header.sign_hybrid(&self.identity);
 
         if let Ok(pkt) = AitpPacket::new(header, vec![]) {
             let bytes = pkt.to_bytes();

@@ -4,7 +4,9 @@
 //! the SHA-256 hash of its Ed25519 public key. This provides a stable,
 //! cryptographically bound identity that doesn't depend on IP addresses.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
+use pqcrypto_dilithium::dilithium3;
+use pqcrypto_traits::sign::{DetachedSignature, PublicKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,16 +91,31 @@ pub struct IdentityMetadata {
     pub expires_at: Option<u64>,
 }
 
+// ────────────────────────── Hybrid Signature ──────────────────────────
+
+/// A hybrid signature combining classical Ed25519 and ML-DSA-65 (Dilithium3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HybridSignature {
+    /// Classical 64-byte Ed25519 signature
+    pub classical: Vec<u8>,
+    /// Post-Quantum ML-DSA-65 detached signature
+    pub pq: Vec<u8>,
+}
+
 // ────────────────────────── AITP Identity ──────────────────────────
 
 /// A complete AITP identity containing a keypair and metadata.
 ///
 /// The private key never leaves the node. The entity ID (SHA-256 of
-/// the public key) serves as the protocol-level address.
+/// the public keys) serves as the protocol-level address.
 pub struct AitpIdentity {
     /// Ed25519 signing key (contains both private and public key).
     signing_key: SigningKey,
-    /// The 32-byte entity ID: SHA-256(public_key).
+    /// ML-DSA-65 (Dilithium3) public key.
+    pub pq_public_key: dilithium3::PublicKey,
+    /// ML-DSA-65 (Dilithium3) secret key.
+    pq_secret_key: dilithium3::SecretKey,
+    /// The 32-byte entity ID: SHA-256(Ed25519_pubkey || ML-DSA_pubkey).
     pub entity_id: [u8; 32],
     /// Identity metadata.
     pub metadata: IdentityMetadata,
@@ -124,7 +141,12 @@ impl AitpIdentity {
     ) -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         let public_key = signing_key.verifying_key();
-        let entity_id: [u8; 32] = Sha256::digest(public_key.as_bytes()).into();
+        let (pq_public_key, pq_secret_key) = dilithium3::keypair();
+
+        let mut hasher = Sha256::new();
+        hasher.update(public_key.as_bytes());
+        hasher.update(pq_public_key.as_bytes());
+        let entity_id: [u8; 32] = hasher.finalize().into();
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -133,6 +155,8 @@ impl AitpIdentity {
 
         Self {
             signing_key,
+            pq_public_key,
+            pq_secret_key,
             entity_id,
             metadata: IdentityMetadata {
                 name: name.into(),
@@ -145,6 +169,8 @@ impl AitpIdentity {
     }
 
     /// Create an identity from an existing signing key.
+    /// In a fully persistent PQ setup, we would also load the ML-DSA key.
+    /// For this migration, we generate a fresh ML-DSA key for existing classical nodes.
     pub fn from_signing_key(
         signing_key: SigningKey,
         name: impl Into<String>,
@@ -152,7 +178,12 @@ impl AitpIdentity {
         capabilities: Vec<Capability>,
     ) -> Self {
         let public_key = signing_key.verifying_key();
-        let entity_id: [u8; 32] = Sha256::digest(public_key.as_bytes()).into();
+        let (pq_public_key, pq_secret_key) = dilithium3::keypair();
+
+        let mut hasher = Sha256::new();
+        hasher.update(public_key.as_bytes());
+        hasher.update(pq_public_key.as_bytes());
+        let entity_id: [u8; 32] = hasher.finalize().into();
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -161,6 +192,8 @@ impl AitpIdentity {
 
         Self {
             signing_key,
+            pq_public_key,
+            pq_secret_key,
             entity_id,
             metadata: IdentityMetadata {
                 name: name.into(),
@@ -201,24 +234,63 @@ impl AitpIdentity {
         sig.to_bytes()
     }
 
+    /// Sign arbitrary data with both classical and post-quantum keys.
+    pub fn sign_hybrid(&self, data: &[u8]) -> HybridSignature {
+        let classical = self.sign(data).to_vec();
+        let pq_sig = pqcrypto_dilithium::dilithium3::detached_sign(data, &self.pq_secret_key);
+        HybridSignature {
+            classical,
+            pq: pq_sig.as_bytes().to_vec(),
+        }
+    }
+
     /// Verify a signature against this identity's public key.
     ///
     /// # Errors
     ///
     /// Returns [`IdentityError::VerificationFailed`] if the signature is invalid.
     pub fn verify(&self, data: &[u8], signature: &[u8; 64]) -> Result<(), IdentityError> {
-        let sig = Signature::from_bytes(signature);
+        let sig = ed25519_dalek::Signature::from_bytes(signature);
         self.signing_key
             .verifying_key()
             .verify(data, &sig)
             .map_err(|e| IdentityError::VerificationFailed(e.to_string()))
     }
 
-    /// Compute the entity ID from a public key.
+    /// Verify a hybrid signature.
+    pub fn verify_hybrid(
+        &self,
+        data: &[u8],
+        signature: &HybridSignature,
+    ) -> Result<(), IdentityError> {
+        let classical_array = signature.classical.as_slice().try_into().map_err(|_| {
+            IdentityError::VerificationFailed("invalid classical sig length".into())
+        })?;
+        self.verify(data, &classical_array)?;
+
+        let pq_sig = pqcrypto_dilithium::dilithium3::DetachedSignature::from_bytes(&signature.pq)
+            .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
+        pqcrypto_dilithium::dilithium3::verify_detached_signature(
+            &pq_sig,
+            data,
+            &self.pq_public_key,
+        )
+        .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Compute the entity ID from public keys.
     ///
-    /// Entity ID = SHA-256(Ed25519_public_key)
-    pub fn entity_id_from_pubkey(public_key: &[u8; 32]) -> [u8; 32] {
-        Sha256::digest(public_key).into()
+    /// Entity ID = SHA-256(Ed25519_public_key || ML-DSA_public_key)
+    pub fn entity_id_from_pubkey(
+        public_key: &[u8; 32],
+        pq_public_key: &dilithium3::PublicKey,
+    ) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(public_key);
+        hasher.update(pq_public_key.as_bytes());
+        hasher.finalize().into()
     }
 
     /// Check whether this identity has expired.
@@ -266,11 +338,9 @@ fn hex_short(bytes: &[u8]) -> String {
     }
 }
 
-/// Verify a signature using a raw public key (without needing an AitpIdentity).
-///
-/// # Errors
-///
-/// Returns [`IdentityError`] on invalid key or failed verification.
+/// Verify a classical signature using a raw public key.
+/// Note: In Phase 7 this is only used for backward compatibility or simple hashes.
+/// Full hybrid verification requires `verify_hybrid_with_pubkeys`.
 pub fn verify_with_pubkey(
     public_key: &[u8; 32],
     data: &[u8],
@@ -278,10 +348,28 @@ pub fn verify_with_pubkey(
 ) -> Result<(), IdentityError> {
     let verifying_key = VerifyingKey::from_bytes(public_key)
         .map_err(|e| IdentityError::InvalidPublicKey(e.to_string()))?;
-    let sig = Signature::from_bytes(signature);
+    let sig = ed25519_dalek::Signature::from_bytes(signature);
     verifying_key
         .verify(data, &sig)
         .map_err(|e| IdentityError::VerificationFailed(e.to_string()))
+}
+
+/// Verify a Hybrid Signature using raw public keys.
+pub fn verify_hybrid_with_pubkeys(
+    classical_pk: &[u8; 32],
+    pq_pk: &pqcrypto_dilithium::dilithium3::PublicKey,
+    data: &[u8],
+    signature: &HybridSignature,
+) -> Result<(), IdentityError> {
+    let classical_array = signature.classical.as_slice().try_into().map_err(|_| {
+        IdentityError::VerificationFailed("invalid classical signature length".into())
+    })?;
+    verify_with_pubkey(classical_pk, data, &classical_array)?;
+    let pq_sig = pqcrypto_dilithium::dilithium3::DetachedSignature::from_bytes(&signature.pq)
+        .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
+    pqcrypto_dilithium::dilithium3::verify_detached_signature(&pq_sig, data, pq_pk)
+        .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
+    Ok(())
 }
 
 // ────────────────────────── Tests ──────────────────────────
@@ -309,7 +397,7 @@ mod tests {
     fn test_entity_id_derivation() {
         let id = AitpIdentity::generate("test", EntityType::AiModel, vec![]);
         let pubkey = id.public_key_bytes();
-        let derived = AitpIdentity::entity_id_from_pubkey(&pubkey);
+        let derived = AitpIdentity::entity_id_from_pubkey(&pubkey, &id.pq_public_key);
         assert_eq!(id.entity_id, derived);
     }
 
@@ -356,8 +444,10 @@ mod tests {
     #[test]
     fn test_from_signing_key() {
         let key = SigningKey::generate(&mut OsRng);
-        let expected_id = AitpIdentity::entity_id_from_pubkey(&key.verifying_key().to_bytes());
-        let id = AitpIdentity::from_signing_key(key, "from-key", EntityType::Device, vec![]);
+        let id =
+            AitpIdentity::from_signing_key(key.clone(), "from-key", EntityType::Device, vec![]);
+        let expected_id =
+            AitpIdentity::entity_id_from_pubkey(&key.verifying_key().to_bytes(), &id.pq_public_key);
         assert_eq!(id.entity_id, expected_id);
     }
 }

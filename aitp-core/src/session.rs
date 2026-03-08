@@ -131,6 +131,8 @@ pub struct Session {
     pub intent: IntentCode,
     /// Trust score at session establishment.
     pub trust_score: u8,
+    /// Established hybrid session key (X25519 + ML-KEM-768).
+    pub session_key: Option<[u8; 32]>,
     /// Congestion control state.
     pub congestion: CongestionState,
     /// When this session was created.
@@ -161,6 +163,7 @@ impl Session {
             dest_id,
             intent,
             trust_score: 0,
+            session_key: None,
             congestion: CongestionState::default(),
             created_at: now,
             last_active: now,

@@ -48,6 +48,12 @@ stop_existing() {
   # Kill anything on our ports
   if command -v lsof &>/dev/null; then
     lsof -ti :"$HTTP_PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
+    lsof -ti :5173 2>/dev/null | xargs kill -9 2>/dev/null || true
+  fi
+  
+  # Kill lingering vite processes using pkill
+  if command -v pkill &>/dev/null; then
+    pkill -f "vite" 2>/dev/null || true
   fi
 }
 
@@ -233,11 +239,12 @@ start_backend() {
         fi
 
         # Run backend in foreground
+        # Run backend in foreground without exec so trap fires
     RUST_LOG="$LOG_LEVEL" \
     AITP_HTTP_PORT="$HTTP_PORT" \
     AITP_UDP_PORT="$UDP_PORT" \
     AITP_DB_PATH="$DB_PATH" \
-    exec "$BINARY"
+    "$BINARY"
 
   else
     # Production mode: run in background

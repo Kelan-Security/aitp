@@ -13,6 +13,7 @@ use colored::Colorize;
 use rand::RngCore;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use sha2::Digest;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -43,6 +44,10 @@ struct Cli {
     /// Connect with no identity (test: server should reject).
     #[arg(long)]
     no_identity: bool,
+
+    /// Run a specific test suite (e.g., ddos, replay, anon).
+    #[arg(long)]
+    test: Option<String>,
 
     /// Run the full automated test suite.
     #[arg(long)]
@@ -108,6 +113,20 @@ async fn main() -> anyhow::Result<()> {
 
     if cli.run_tests {
         return run_automated_tests(&cli, identity).await;
+    }
+
+    if let Some(test_name) = &cli.test {
+        match test_name.as_str() {
+            "ddos" => cmd_test_ddos(&cli.server).await,
+            "replay" => cmd_test_replay(&cli.server).await,
+            "anon" => cmd_connect_anon(&cli.server).await,
+            _ => println!(
+                "{} Unknown test: '{}'. Available: ddos, replay, anon",
+                "!".red(),
+                test_name
+            ),
+        }
+        return Ok(());
     }
 
     if let Some(n) = cli.load_test {
@@ -293,6 +312,16 @@ async fn cmd_connect(
     let source_id = id.entity_id;
     let dest_id = [0u8; 32]; // Not strictly verified by server yet if unknown
 
+    // Hybrid Key Exchange: Client ephemeral keys
+    let client_x25519_sk = x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::OsRng);
+    let client_x25519_pk = x25519_dalek::PublicKey::from(&client_x25519_sk);
+    let (client_kem_pk, client_kem_sk) = pqcrypto_kyber::kyber768::keypair();
+
+    let mut syn_payload = vec![];
+    use pqcrypto_traits::kem::PublicKey;
+    syn_payload.extend_from_slice(client_x25519_pk.as_bytes());
+    syn_payload.extend_from_slice(client_kem_pk.as_bytes());
+
     let mut header = AitpHeader::new(
         flags::SYN,
         intent,
@@ -300,11 +329,11 @@ async fn cmd_connect(
         source_id,
         dest_id,
         0, // Initial trust score 0
-        0,
+        syn_payload.len() as u16,
         timestamp,
         nonce,
     );
-    header.sign(id.signing_key());
+    header.sign_hybrid(&id);
 
     println!(
         "  {}  {}  {}",
@@ -313,7 +342,9 @@ async fn cmd_connect(
         "Sending version negotiation + identity".dimmed()
     );
 
-    let packet = header.to_bytes();
+    let pkt = aitp_core::framing::AitpPacket::new(header, syn_payload).unwrap();
+
+    let packet = pkt.to_bytes();
     if let Err(e) = socket.send_to(&packet, server_addr).await {
         println!("{} Failed to send SYN: {e}", "✗".red().bold());
         return None;
@@ -357,6 +388,50 @@ async fn cmd_connect(
                         format!("{session_id:#018x}").cyan(),
                         trust_colored,
                     );
+
+                    let mut _session_key = None;
+
+                    // Decapsulate Hybrid Key if Server sent ciphertext (32 + 1088 bytes)
+                    let expected_len = 32 + pqcrypto_kyber::kyber768::ciphertext_bytes();
+                    if len > aitp_core::header::HEADER_SIZE {
+                        let payload_len = len - aitp_core::header::HEADER_SIZE;
+                        if payload_len == expected_len {
+                            let payload = &buf[aitp_core::header::HEADER_SIZE..len];
+                            let server_x25519_pk_bytes: [u8; 32] =
+                                payload[0..32].try_into().unwrap();
+                            let server_x25519_pk =
+                                x25519_dalek::PublicKey::from(server_x25519_pk_bytes);
+
+                            let mut ciphertext_bytes =
+                                vec![0u8; pqcrypto_kyber::kyber768::ciphertext_bytes()];
+                            ciphertext_bytes.copy_from_slice(&payload[32..expected_len]);
+
+                            let classical_ss = client_x25519_sk.diffie_hellman(&server_x25519_pk);
+                            use pqcrypto_traits::kem::{Ciphertext, SharedSecret};
+
+                            if let Ok(parsed_ciphertext) =
+                                pqcrypto_kyber::kyber768::Ciphertext::from_bytes(&ciphertext_bytes)
+                            {
+                                let pq_ss = pqcrypto_kyber::kyber768::decapsulate(
+                                    &parsed_ciphertext,
+                                    &client_kem_sk,
+                                );
+
+                                let mut hasher = sha2::Sha256::new();
+                                hasher.update(classical_ss.as_bytes());
+                                hasher.update(pq_ss.as_bytes());
+                                let final_key: [u8; 32] = hasher.finalize().into();
+                                _session_key = Some(final_key);
+
+                                println!(
+                                    "  {}  {}  {}",
+                                    "✓".green(),
+                                    "HYBRID_KEY_EXCHANGE ".cyan(),
+                                    "Session key established (X25519 + ML-KEM-768)".dimmed()
+                                );
+                            }
+                        }
+                    }
 
                     return Some(ClientSession {
                         id: session_id,
@@ -428,7 +503,7 @@ async fn cmd_send(session: &mut ClientSession, msg: &str) {
             .as_nanos() as u64,
         nonce,
     );
-    header.sign(session.identity.signing_key());
+    header.sign_hybrid(&session.identity);
 
     let mut buf = header.to_bytes();
     buf.extend_from_slice(payload);
@@ -596,7 +671,7 @@ async fn cmd_revoke(session: &ClientSession) {
             .as_nanos() as u64,
         nonce,
     );
-    header.sign(session.identity.signing_key());
+    header.sign_hybrid(&session.identity);
 
     let _ = session
         .socket
