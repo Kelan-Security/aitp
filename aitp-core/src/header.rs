@@ -26,7 +26,7 @@
 
 use aitp_identity::identity::{AitpIdentity, HybridSignature};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
-use pqcrypto_dilithium::dilithium3;
+use pqcrypto_mldsa::mldsa65;
 use std::fmt;
 use thiserror::Error;
 
@@ -402,7 +402,7 @@ impl AitpHeader {
     pub fn verify_signature_hybrid(
         &self,
         classical_pk: &[u8; 32],
-        pq_pk: &dilithium3::PublicKey,
+        pq_pk: &mldsa65::PublicKey,
     ) -> Result<(), HeaderError> {
         let msg = self.signable_bytes();
         let hybrid_sig = HybridSignature {

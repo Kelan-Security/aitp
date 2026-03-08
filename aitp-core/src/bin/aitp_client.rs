@@ -313,9 +313,9 @@ async fn cmd_connect(
     let dest_id = [0u8; 32]; // Not strictly verified by server yet if unknown
 
     // Hybrid Key Exchange: Client ephemeral keys
-    let client_x25519_sk = x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::OsRng);
+    let client_x25519_sk = x25519_dalek::EphemeralSecret::random_from_rng(rand::rngs::OsRng);
     let client_x25519_pk = x25519_dalek::PublicKey::from(&client_x25519_sk);
-    let (client_kem_pk, client_kem_sk) = pqcrypto_kyber::kyber768::keypair();
+    let (client_kem_pk, client_kem_sk) = pqcrypto_mlkem::mlkem768::keypair();
 
     let mut syn_payload = vec![];
     use pqcrypto_traits::kem::PublicKey;
@@ -392,7 +392,7 @@ async fn cmd_connect(
                     let mut _session_key = None;
 
                     // Decapsulate Hybrid Key if Server sent ciphertext (32 + 1088 bytes)
-                    let expected_len = 32 + pqcrypto_kyber::kyber768::ciphertext_bytes();
+                    let expected_len = 32 + pqcrypto_mlkem::mlkem768::ciphertext_bytes();
                     if len > aitp_core::header::HEADER_SIZE {
                         let payload_len = len - aitp_core::header::HEADER_SIZE;
                         if payload_len == expected_len {
@@ -403,16 +403,16 @@ async fn cmd_connect(
                                 x25519_dalek::PublicKey::from(server_x25519_pk_bytes);
 
                             let mut ciphertext_bytes =
-                                vec![0u8; pqcrypto_kyber::kyber768::ciphertext_bytes()];
+                                vec![0u8; pqcrypto_mlkem::mlkem768::ciphertext_bytes()];
                             ciphertext_bytes.copy_from_slice(&payload[32..expected_len]);
 
                             let classical_ss = client_x25519_sk.diffie_hellman(&server_x25519_pk);
                             use pqcrypto_traits::kem::{Ciphertext, SharedSecret};
 
                             if let Ok(parsed_ciphertext) =
-                                pqcrypto_kyber::kyber768::Ciphertext::from_bytes(&ciphertext_bytes)
+                                pqcrypto_mlkem::mlkem768::Ciphertext::from_bytes(&ciphertext_bytes)
                             {
-                                let pq_ss = pqcrypto_kyber::kyber768::decapsulate(
+                                let pq_ss = pqcrypto_mlkem::mlkem768::decapsulate(
                                     &parsed_ciphertext,
                                     &client_kem_sk,
                                 );
