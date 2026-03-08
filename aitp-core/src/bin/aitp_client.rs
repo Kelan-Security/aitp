@@ -389,8 +389,6 @@ async fn cmd_connect(
                         trust_colored,
                     );
 
-                    let mut _session_key = None;
-
                     // Decapsulate Hybrid Key if Server sent ciphertext (32 + 1088 bytes)
                     let expected_len = 32 + pqcrypto_mlkem::mlkem768::ciphertext_bytes();
                     if len > aitp_core::header::HEADER_SIZE {
@@ -420,8 +418,7 @@ async fn cmd_connect(
                                 let mut hasher = sha2::Sha256::new();
                                 hasher.update(classical_ss.as_bytes());
                                 hasher.update(pq_ss.as_bytes());
-                                let final_key: [u8; 32] = hasher.finalize().into();
-                                _session_key = Some(final_key);
+                                let _final_key: [u8; 32] = hasher.finalize().into();
 
                                 println!(
                                     "  {}  {}  {}",
