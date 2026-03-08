@@ -37,3 +37,10 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+
+  # ── AITP Web Master ──
+  - job_name: 'aitp-web'
+    static_configs:
+      - targets: ['host.docker.internal:3000', '172.20.0.1:3000']
+        labels:
+          role: 'frontend-backend'

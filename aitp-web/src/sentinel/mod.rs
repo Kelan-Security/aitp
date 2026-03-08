@@ -340,6 +340,7 @@ async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
             let mut log = sentinel.anomaly_log.lock().await;
 
             for anomaly in anomalies_found {
+                crate::metrics::METRIC_ANOMALIES_DETECTED.inc();
                 let audit_severity = match anomaly.severity {
                     AnomalySeverity::Info => "info",
                     AnomalySeverity::Warning => "warning",

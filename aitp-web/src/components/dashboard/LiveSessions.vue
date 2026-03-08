@@ -4,15 +4,15 @@ import { useAitpStore } from '../../stores/aitp'
 const store = useAitpStore()
 
 function getStatusColor(status) {
-  if (status === 'REVOKED') return 'text-accent-red'
-  if (status === 'ESTABLISHED') return 'text-accent-emerald'
+  if (status === 'REVOKED') return 'text-black bg-white px-1 line-through'
+  if (status === 'ESTABLISHED') return 'text-white font-bold'
   return 'text-white/40'
 }
 
 function getTrustColor(score) {
-  if (score > 128) return 'border-accent-emerald'
-  if (score > 64) return 'border-accent-amber'
-  return 'border-accent-red'
+  if (score > 128) return 'border-white/40'
+  if (score > 64) return 'border-white/20'
+  return 'border-white/10'
 }
 </script>
 
@@ -31,6 +31,7 @@ function getTrustColor(score) {
         <thead class="bg-white/5 uppercase text-[10px] text-white/40 tracking-widest">
           <tr>
             <th class="p-4">Session_ID</th>
+            <th class="p-4">Tier</th>
             <th class="p-4">Source</th>
             <th class="p-4">Destination</th>
             <th class="p-4">Intent</th>
@@ -44,21 +45,22 @@ function getTrustColor(score) {
               class="hover:bg-white/5 transition-colors group border-l-2"
               :class="getTrustColor(session.trust_score)">
             <td class="p-4 text-white/80">{{ session.id.substring(0, 8) }}...</td>
-            <td class="p-4 text-accent-cyan">{{ session.source.substring(0, 6) }}</td>
+            <td class="p-4"><span class="px-2 py-0.5 border border-white/20 text-[10px]">{{ session.federation_level || 'LOCAL' }}</span></td>
+            <td class="p-4 font-bold">{{ session.source.substring(0, 6) }}</td>
             <td class="p-4 text-white/60">{{ session.destination.substring(0, 6) }}</td>
-            <td class="p-4"><span class="px-2 py-0.5 bg-white/5 rounded-full text-[10px]">{{ session.intent }}</span></td>
-            <td class="p-4 text-center font-bold" :class="session.trust_score > 128 ? 'text-accent-emerald' : 'text-accent-red'">
+            <td class="p-4"><span class="px-2 py-0.5 bg-white text-black font-bold text-[10px] uppercase">{{ session.intent }}</span></td>
+            <td class="p-4 text-center font-bold text-white">
               {{ session.trust_score }}
             </td>
-            <td class="p-4" :class="getStatusColor(session.status)">{{ session.status }}</td>
+            <td class="p-4 uppercase text-[10px]" :class="getStatusColor(session.status)">{{ session.status }}</td>
             <td class="p-4 text-right">
-              <button class="opacity-0 group-hover:opacity-100 text-accent-red hover:underline transition-opacity uppercase text-[10px]">
+              <button class="opacity-0 group-hover:opacity-100 text-white hover:bg-white hover:text-black transition-colors uppercase text-[10px] px-2 py-1">
                 Revoke_Access
               </button>
             </td>
           </tr>
           <tr v-if="store.sessions.length === 0">
-            <td colspan="7" class="p-12 text-center opacity-20 uppercase tracking-[0.3em]">
+            <td colspan="8" class="p-12 text-center opacity-20 uppercase tracking-[0.3em]">
               No Active Sessions Detected
             </td>
           </tr>
