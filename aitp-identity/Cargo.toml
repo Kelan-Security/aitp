@@ -13,6 +13,9 @@ ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
 dashmap = { workspace = true }
+pqcrypto-traits = { workspace = true }
+pqcrypto-dilithium = { workspace = true }
+pqcrypto-kyber = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

@@ -19,6 +19,10 @@ use std::path::PathBuf;
 /// Complete AITP node configuration — mirrors the TOML schema exactly.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AitpConfig {
+    /// Cryptography mode and PQ algorithms.
+    #[serde(default)]
+    pub crypto: CryptoSection,
+
     /// Node identity and networking.
     #[serde(default)]
     pub node: NodeSection,
@@ -46,6 +50,29 @@ pub struct AitpConfig {
     /// eBPF kernel enforcement.
     #[serde(default)]
     pub ebpf: EbpfSection,
+}
+
+/// `[crypto]` — Classical, Hybrid PQ, or Pure PQ schemas
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CryptoSection {
+    #[serde(default = "d_crypto_mode")]
+    pub mode: String,
+
+    #[serde(default = "d_crypto_pq_algorithm")]
+    pub pq_algorithm: String,
+
+    #[serde(default = "d_crypto_kem_algorithm")]
+    pub kem_algorithm: String,
+}
+
+impl Default for CryptoSection {
+    fn default() -> Self {
+        Self {
+            mode: d_crypto_mode(),
+            pq_algorithm: d_crypto_pq_algorithm(),
+            kem_algorithm: d_crypto_kem_algorithm(),
+        }
+    }
 }
 
 /// `[node]` — Identity, networking, and logging.
@@ -356,6 +383,11 @@ impl AitpConfig {
     ///
     /// Each env var maps to a config field via `AITP_SECTION_FIELD` naming.
     fn apply_env_overrides(&mut self) {
+        // [crypto]
+        env_override_str("AITP_CRYPTO_MODE", &mut self.crypto.mode);
+        env_override_str("AITP_CRYPTO_PQ_ALGORITHM", &mut self.crypto.pq_algorithm);
+        env_override_str("AITP_CRYPTO_KEM_ALGORITHM", &mut self.crypto.kem_algorithm);
+
         // [node]
         env_override_str("AITP_NODE_NAME", &mut self.node.name);
         env_override_str("AITP_NODE_ENTITY_TYPE", &mut self.node.entity_type);
@@ -479,6 +511,19 @@ impl AitpConfig {
     /// all detected issues (not just the first one).
     pub fn validate(&self) -> Result<(), Vec<ConfigValidationError>> {
         let mut errors = Vec::new();
+
+        // Crypto mode must be valid
+        let valid_crypto_modes = ["classical", "hybrid_pq", "pq_only"];
+        if !valid_crypto_modes.contains(&self.crypto.mode.as_str()) {
+            errors.push(ConfigValidationError {
+                field: "crypto.mode".into(),
+                message: format!(
+                    "invalid crypto mode '{}'. Must be one of: {}",
+                    self.crypto.mode,
+                    valid_crypto_modes.join(", ")
+                ),
+            });
+        }
 
         // Entity type must be one of the known types
         let valid_entity_types = ["Human", "AiModel", "Service", "Device"];
@@ -765,6 +810,16 @@ fn env_override_bool(var: &str, target: &mut bool) {
 }
 
 // ────────────────────────── Default Values ──────────────────────────
+
+fn d_crypto_mode() -> String {
+    "hybrid_pq".into()
+}
+fn d_crypto_pq_algorithm() -> String {
+    "ML-DSA-65".into()
+}
+fn d_crypto_kem_algorithm() -> String {
+    "ML-KEM-768".into()
+}
 
 fn d_node_name() -> String {
     "aitp-node".into()
