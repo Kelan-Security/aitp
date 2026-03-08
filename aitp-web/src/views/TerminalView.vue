@@ -480,7 +480,7 @@ onMounted(() => {
 @keyframes alertIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .ab-head { color: #000; font-size: 12px; font-weight: 900; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px;}
 .ab-row { font-size: 12px; color: #000; margin: 3px 0; display: flex; gap: 12px; font-weight: 500;}
-.ab-key { color: #666; min-width: 90px; font-weight: 700; text-transform: uppercase; font-size: 10px; pt-0.5}
+.ab-key { color: #666; min-width: 90px; font-weight: 700; text-transform: uppercase; font-size: 10px; padding-top: 2px; }
 .ab-val { color: #000; font-weight: 800;}
 .ab-val.vg { color: #000; background: #eee; padding: 0 4px; }
 
