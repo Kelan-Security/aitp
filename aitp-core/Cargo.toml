@@ -29,8 +29,8 @@ ed25519-dalek = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
 pqcrypto-traits = { workspace = true }
-pqcrypto-dilithium = { workspace = true }
-pqcrypto-kyber = { workspace = true }
+pqcrypto-mldsa = { workspace = true }
+pqcrypto-mlkem = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 toml = { workspace = true }
 

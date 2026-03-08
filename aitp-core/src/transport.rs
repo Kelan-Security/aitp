@@ -140,7 +140,7 @@ pub enum TransportEvent {
     DataReceived {
         session_id: u64,
         peer_addr: SocketAddr,
-        header: AitpHeader,
+        header: Box<AitpHeader>,
         payload: Vec<u8>,
     },
     /// A session was closed (FIN received).
@@ -387,10 +387,10 @@ impl HandshakeCoordinator {
         let mut syn_ack_payload = vec![];
 
         // Perform Hybrid Key Exchange if client sent keys (1216 bytes)
-        let expected_len = 32 + pqcrypto_kyber::kyber768::public_key_bytes();
+        let expected_len = 32 + pqcrypto_mlkem::mlkem768::public_key_bytes();
         if _payload.len() == expected_len {
             let client_x25519_pk: [u8; 32] = _payload[0..32].try_into().unwrap();
-            let mut client_kem_pk = vec![0u8; pqcrypto_kyber::kyber768::public_key_bytes()];
+            let mut client_kem_pk = vec![0u8; pqcrypto_mlkem::mlkem768::public_key_bytes()];
             client_kem_pk.copy_from_slice(&_payload[32..expected_len]);
 
             // 1. Classical (X25519)
@@ -403,9 +403,9 @@ impl HandshakeCoordinator {
             // 2. Post-Quantum (ML-KEM-768)
             use pqcrypto_traits::kem::{Ciphertext, PublicKey, SharedSecret};
             if let Ok(parsed_kem_pk) =
-                pqcrypto_kyber::kyber768::PublicKey::from_bytes(&client_kem_pk)
+                pqcrypto_mlkem::mlkem768::PublicKey::from_bytes(&client_kem_pk)
             {
-                let (pq_ss, ciphertext) = pqcrypto_kyber::kyber768::encapsulate(&parsed_kem_pk);
+                let (pq_ss, ciphertext) = pqcrypto_mlkem::mlkem768::encapsulate(&parsed_kem_pk);
 
                 // 3. Derive Hybrid Session Key: SHA256(Classical_SS || PQ_SS)
                 let mut hasher = sha2::Sha256::new();
@@ -809,7 +809,7 @@ impl AitpTransport {
                     .send(TransportEvent::DataReceived {
                         session_id,
                         peer_addr,
-                        header: packet.header,
+                        header: Box::new(packet.header),
                         payload: packet.payload,
                     })
                     .await;

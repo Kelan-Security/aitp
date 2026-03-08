@@ -31,8 +31,8 @@ ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 sha2 = "0.10"
 pqcrypto-traits = "0.3"
-pqcrypto-dilithium = "0.5"
-pqcrypto-kyber = "0.8"
+pqcrypto-mldsa = "0.1"
+pqcrypto-mlkem = "0.1"
 axum = "0.8"
 prometheus = { version = "0.13", default-features = false }
 clap = { version = "4", features = ["derive"] }

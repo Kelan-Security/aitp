@@ -5,7 +5,7 @@
 //! cryptographically bound identity that doesn't depend on IP addresses.
 
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
-use pqcrypto_dilithium::dilithium3;
+use pqcrypto_mldsa::mldsa65;
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -112,9 +112,9 @@ pub struct AitpIdentity {
     /// Ed25519 signing key (contains both private and public key).
     signing_key: SigningKey,
     /// ML-DSA-65 (Dilithium3) public key.
-    pub pq_public_key: dilithium3::PublicKey,
+    pub pq_public_key: mldsa65::PublicKey,
     /// ML-DSA-65 (Dilithium3) secret key.
-    pq_secret_key: dilithium3::SecretKey,
+    pq_secret_key: mldsa65::SecretKey,
     /// The 32-byte entity ID: SHA-256(Ed25519_pubkey || ML-DSA_pubkey).
     pub entity_id: [u8; 32],
     /// Identity metadata.
@@ -141,7 +141,7 @@ impl AitpIdentity {
     ) -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         let public_key = signing_key.verifying_key();
-        let (pq_public_key, pq_secret_key) = dilithium3::keypair();
+        let (pq_public_key, pq_secret_key) = mldsa65::keypair();
 
         let mut hasher = Sha256::new();
         hasher.update(public_key.as_bytes());
@@ -178,7 +178,7 @@ impl AitpIdentity {
         capabilities: Vec<Capability>,
     ) -> Self {
         let public_key = signing_key.verifying_key();
-        let (pq_public_key, pq_secret_key) = dilithium3::keypair();
+        let (pq_public_key, pq_secret_key) = mldsa65::keypair();
 
         let mut hasher = Sha256::new();
         hasher.update(public_key.as_bytes());
@@ -237,7 +237,7 @@ impl AitpIdentity {
     /// Sign arbitrary data with both classical and post-quantum keys.
     pub fn sign_hybrid(&self, data: &[u8]) -> HybridSignature {
         let classical = self.sign(data).to_vec();
-        let pq_sig = pqcrypto_dilithium::dilithium3::detached_sign(data, &self.pq_secret_key);
+        let pq_sig = pqcrypto_mldsa::mldsa65::detached_sign(data, &self.pq_secret_key);
         HybridSignature {
             classical,
             pq: pq_sig.as_bytes().to_vec(),
@@ -268,14 +268,10 @@ impl AitpIdentity {
         })?;
         self.verify(data, &classical_array)?;
 
-        let pq_sig = pqcrypto_dilithium::dilithium3::DetachedSignature::from_bytes(&signature.pq)
+        let pq_sig = pqcrypto_mldsa::mldsa65::DetachedSignature::from_bytes(&signature.pq)
             .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
-        pqcrypto_dilithium::dilithium3::verify_detached_signature(
-            &pq_sig,
-            data,
-            &self.pq_public_key,
-        )
-        .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
+        pqcrypto_mldsa::mldsa65::verify_detached_signature(&pq_sig, data, &self.pq_public_key)
+            .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
 
         Ok(())
     }
@@ -285,7 +281,7 @@ impl AitpIdentity {
     /// Entity ID = SHA-256(Ed25519_public_key || ML-DSA_public_key)
     pub fn entity_id_from_pubkey(
         public_key: &[u8; 32],
-        pq_public_key: &dilithium3::PublicKey,
+        pq_public_key: &mldsa65::PublicKey,
     ) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(public_key);
@@ -357,7 +353,7 @@ pub fn verify_with_pubkey(
 /// Verify a Hybrid Signature using raw public keys.
 pub fn verify_hybrid_with_pubkeys(
     classical_pk: &[u8; 32],
-    pq_pk: &pqcrypto_dilithium::dilithium3::PublicKey,
+    pq_pk: &pqcrypto_mldsa::mldsa65::PublicKey,
     data: &[u8],
     signature: &HybridSignature,
 ) -> Result<(), IdentityError> {
@@ -365,9 +361,9 @@ pub fn verify_hybrid_with_pubkeys(
         IdentityError::VerificationFailed("invalid classical signature length".into())
     })?;
     verify_with_pubkey(classical_pk, data, &classical_array)?;
-    let pq_sig = pqcrypto_dilithium::dilithium3::DetachedSignature::from_bytes(&signature.pq)
+    let pq_sig = pqcrypto_mldsa::mldsa65::DetachedSignature::from_bytes(&signature.pq)
         .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
-    pqcrypto_dilithium::dilithium3::verify_detached_signature(&pq_sig, data, pq_pk)
+    pqcrypto_mldsa::mldsa65::verify_detached_signature(&pq_sig, data, pq_pk)
         .map_err(|e| IdentityError::VerificationFailed(e.to_string()))?;
     Ok(())
 }
