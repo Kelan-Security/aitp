@@ -71,6 +71,36 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
     .execute(pool)
     .await?;
 
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS federated_orgs (
+        id TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        remote_org_id TEXT NOT NULL,
+        remote_org_name TEXT NOT NULL,
+        remote_root_pubkey TEXT NOT NULL,
+        federation_level TEXT NOT NULL DEFAULT 'RESTRICTED',
+        allowed_intents TEXT NOT NULL DEFAULT '["ModelInference"]',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        UNIQUE(org_id, remote_org_id)
+    )"#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS federated_sessions (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        local_org_id TEXT NOT NULL,
+        remote_org_id TEXT NOT NULL,
+        ftt_id TEXT NOT NULL,
+        federation_level TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+    )"#,
+    )
+    .execute(pool)
+    .await?;
+
     // Indexes
     for idx in &[
         "CREATE INDEX IF NOT EXISTS idx_sessions_org ON sessions(org_id)",
@@ -79,6 +109,8 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_events_org ON audit_events(org_id)",
         "CREATE INDEX IF NOT EXISTS idx_events_type ON audit_events(event_type)",
         "CREATE INDEX IF NOT EXISTS idx_events_time ON audit_events(created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_fed_orgs_remote ON federated_orgs(remote_org_id)",
+        "CREATE INDEX IF NOT EXISTS idx_fed_sessions_remote ON federated_sessions(remote_org_id)",
     ] {
         sqlx::query(idx).execute(pool).await?;
     }

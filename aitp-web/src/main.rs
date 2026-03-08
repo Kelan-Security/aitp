@@ -14,6 +14,8 @@ mod auth;
 mod bridge;
 mod db;
 mod error;
+mod federation;
+pub mod metrics;
 mod sentinel;
 mod state;
 mod ws;
@@ -97,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
     let mut app = Router::new()
         .nest("/", api::router())
         .route("/ws", get(ws::ws_handler))
+        .route("/metrics", get(metrics::handler))
         .with_state(app_state)
         .layer(cors);
 
