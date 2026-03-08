@@ -171,13 +171,20 @@ async fn main() -> anyhow::Result<()> {
                         c.bytes_received += bytes as u64;
                     }
                 }
-                TransportEvent::PacketDropped { .. } => {
+                TransportEvent::PacketDropped { peer_addr, reason } => {
                     state_bridge
                         .stats
                         .blocked_packets
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let msg = format!("AITP_DROP({}) from {}", reason, peer_addr);
+                    state_bridge.push_log(LogEntry::new(LogLevel::Warn, msg));
                 }
-                TransportEvent::HandshakeRejected { .. } => {}
+                TransportEvent::HandshakeRejected {
+                    peer_addr, reason, ..
+                } => {
+                    let msg = format!("Handshake REJECTED from {}: {}", peer_addr, reason);
+                    state_bridge.push_log(LogEntry::new(LogLevel::Alert, msg));
+                }
             }
         }
     });
