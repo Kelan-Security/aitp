@@ -39,6 +39,7 @@ proptest! {
             timestamp,
             nonce,
             signature,
+            pq_signature: [0u8; 3309],
         };
         let bytes = header.to_bytes();
         let parsed = AitpHeader::from_bytes(&bytes).unwrap();
@@ -53,6 +54,7 @@ proptest! {
         assert_eq!(parsed.timestamp, timestamp);
         assert_eq!(parsed.nonce, nonce);
         assert_eq!(parsed.signature, signature);
+        assert_eq!(parsed.pq_signature, [0u8; 3309]);
     }
 
     #[test]

@@ -45,11 +45,11 @@ function initThree() {
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   
   const material = new THREE.PointsMaterial({
-    color: 0x00f5ff,
-    size: 0.5,
+    color: 0x000000,
+    size: 2.0,
     transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending
+    opacity: 0.15,
+    blending: THREE.NormalBlending
   })
 
   particles = new THREE.Points(geometry, material)
@@ -58,10 +58,10 @@ function initThree() {
   // Lines (Connections)
   const lineGeometry = new THREE.BufferGeometry()
   const lineMaterial = new THREE.LineBasicMaterial({
-    color: 0x00f5ff,
+    color: 0x000000,
     transparent: true,
-    opacity: 0.1,
-    blending: THREE.AdditiveBlending
+    opacity: 0.08,
+    blending: THREE.NormalBlending
   })
 
   lines = new THREE.LineSegments(lineGeometry, lineMaterial)

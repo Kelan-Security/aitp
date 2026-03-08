@@ -43,6 +43,7 @@ colored = { workspace = true }
 rustyline = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
+x25519-dalek = { version = "2", features = ["reusable_secrets"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
