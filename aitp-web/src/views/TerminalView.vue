@@ -251,6 +251,18 @@ function handleKey(e) {
   else if (v.includes('replay')) run('replay')
   else if (v.includes('status')) run('status')
   else if (v.includes('revoke')) run('revoke')
+  else if (v.includes('sentinel')) showSentinelModal()
+}
+
+const sentinelAnomalies = ref([])
+const showSentinelModal = async () => {
+    try {
+        const r = await fetch('/api/sentinel/anomalies?limit=10')
+        sentinelAnomalies.value = await r.json()
+        modalOpen.value = 'sentinel'
+    } catch(e) {
+        clog(err(`Failed to fetch sentinel logs: ${e.message}`))
+    }
 }
 
 const avgTrust = () => S.trustScores.length ? Math.round(S.trustScores.reduce((a, b) => a + b) / S.trustScores.length) : '—'
@@ -263,28 +275,33 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[100] bg-[#04080e] text-[#b8ccd8] font-mono text-[11.5px] flex flex-col overflow-hidden">
+  <div class="fixed inset-0 z-[100] bg-white text-black font-mono text-[13px] flex flex-col overflow-hidden">
     
     <!-- TOP BAR -->
-    <div class="h-[42px] bg-[#080f18] border-b border-[#132030] flex items-center px-4 gap-3.5 shrink-0 relative">
-      <div class="font-['Orbitron'] font-black text-[15px] text-[#00e5ff] tracking-[4px] shadow-[0_0_20px_rgba(0,229,255,0.5)]">AITP <span class="text-[9px] text-[#4a6a7a] tracking-[1px] ml-0.5">v0.2.0</span></div>
-      <div class="w-px h-5 bg-[#132030]"></div>
-      <div class="flex items-center gap-1.5 bg-[#0d1620] border border-[#132030] rounded-[3px] px-2.5 py-[3px] text-[10px] cursor-pointer hover:border-[#c77dff] transition-all" @click="modalOpen = true">
-        <div class="w-[7px] h-[7px] rounded-full bg-[#c77dff] shadow-[0_0_8px_#c77dff] animate-pulse"></div>
-        <span class="text-[#c77dff] font-bold tracking-[1px]">{{ S.config.provider.toUpperCase() }}</span>
-        <span class="text-[#4a6a7a]">{{ S.config.model }}</span>
-        <span class="text-[#2a4050] ml-1">▾ configure</span>
+    <div class="h-[52px] bg-white border-b border-black flex items-center px-6 gap-5 shrink-0 relative">
+      <div class="font-['Orbitron'] font-black text-[18px] text-black tracking-[3px]">AITP <span class="text-[11px] text-gray-500 tracking-[1px] ml-1">v0.2.0</span></div>
+      <div class="w-px h-6 bg-gray-300"></div>
+      <div class="flex items-center gap-2 bg-gray-100 border border-black rounded-[4px] px-3 py-[5px] text-[11px] cursor-pointer hover:bg-black hover:text-white transition-all group" @click="modalOpen = 'config'">
+        <div class="w-[8px] h-[8px] rounded-full bg-black group-hover:bg-white transition-colors"></div>
+        <span class="font-bold tracking-[1px]">{{ S.config.provider.toUpperCase() }}</span>
+        <span>{{ S.config.model }}</span>
+        <span class="ml-1 opacity-60">▾ configure</span>
       </div>
-      <div class="w-px h-5 bg-[#132030]"></div>
-      <div class="flex gap-3 ml-auto">
-        <div class="text-[10px] text-[#4a6a7a] flex items-center gap-1.5 font-bold uppercase tracking-widest px-3 py-1.5 border border-[#00ff88]/30 bg-[#00ff88]/5 text-[#00ff88] rounded-sm">
-          <div class="w-1.5 h-1.5 bg-[#00ff88] rounded-full animate-pulse"></div>
+      <div class="w-px h-6 bg-gray-300"></div>
+      <div class="flex items-center gap-2 bg-gray-100 border border-black rounded-[4px] px-3 py-[5px] text-[11px] cursor-pointer hover:bg-black hover:text-white transition-all" @click="showSentinelModal()">
+        <span class="font-bold tracking-[1px]">SENTINEL</span>
+        <span class="ml-1 opacity-60">LOGS</span>
+      </div>
+      <div class="w-px h-6 bg-gray-300"></div>
+      <div class="flex gap-4 ml-auto">
+        <div class="text-[11px] text-black flex items-center gap-2 font-bold uppercase tracking-widest px-4 py-2 border border-black rounded-sm">
+          <div class="w-2 h-2 bg-black rounded-full animate-pulse"></div>
           PROTOCOL ACTIVE
         </div>
-        <div class="text-[10px] text-[#4a6a7a] flex items-center gap-1.2 justify-center">SESSIONS <span class="text-[#00e5ff] font-bold ml-1">{{ S.sessions }}</span></div>
-        <div class="text-[10px] text-[#4a6a7a] flex items-center gap-1.2 justify-center">BLOCKED <span class="text-[#ff2244] font-bold ml-1">{{ S.blocked }}</span></div>
-        <div class="text-[10px] text-[#4a6a7a] flex items-center gap-1.2 justify-center">TRUST AVG <span class="text-[#00ff88] font-bold ml-1">{{ avgTrust() }}</span></div>
-        <div class="text-[10px] text-[#4a6a7a] flex items-center gap-1.2 justify-center">eBPF <span class="text-[#00ff88] font-bold ml-1">ENFORCING</span></div>
+        <div class="text-[11px] text-gray-600 flex items-center gap-1.5 justify-center">SESSIONS <span class="text-black font-bold ml-1">{{ S.sessions }}</span></div>
+        <div class="text-[11px] text-gray-600 flex items-center gap-1.5 justify-center">BLOCKED <span class="text-black font-bold ml-1">{{ S.blocked }}</span></div>
+        <div class="text-[11px] text-gray-600 flex items-center gap-1.5 justify-center">TRUST AVG <span class="text-black font-bold ml-1">{{ avgTrust() }}</span></div>
+        <div class="text-[11px] text-gray-600 flex items-center gap-1.5 justify-center">eBPF <span class="text-black font-bold ml-1">ENFORCING</span></div>
       </div>
     </div>
 
@@ -293,76 +310,77 @@ onMounted(() => {
       
       <!-- SERVER PANEL -->
       <div class="flex flex-col overflow-hidden min-w-0">
-        <div class="h-9 bg-[#080f18] border-b border-[#132030] flex items-center px-3 gap-2 shrink-0">
-          <div class="flex gap-1.25">
-             <div class="w-2.25 h-2.25 rounded-full bg-[#ff5f57]"></div>
-             <div class="w-2.25 h-2.25 rounded-full bg-[#febc2e]"></div>
-             <div class="w-2.25 h-2.25 rounded-full bg-[#28c840]"></div>
+        <div class="h-12 bg-gray-50 border-b border-black flex items-center px-4 gap-3 shrink-0">
+          <div class="flex gap-1.5">
+             <div class="w-3 h-3 rounded-full border border-black"></div>
+             <div class="w-3 h-3 rounded-full border border-black"></div>
+             <div class="w-3 h-3 rounded-full border border-black bg-black"></div>
           </div>
-          <div class="text-[10px] font-bold tracking-[2px] uppercase text-[#00ff88] ml-1">⬡ SERVER NODE — ALPHA</div>
-          <div class="ml-auto flex items-center gap-1.2 text-[10px] font-bold text-[#00ff88]">
-            <div class="w-[5px] h-[5px] rounded-full bg-[#00ff88] shadow-[0_0_6px_#00ff88] animate-pulse"></div>
+          <div class="text-[12px] font-bold tracking-[2px] uppercase text-black ml-2">⬡ SERVER NODE — ALPHA</div>
+          <div class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-black">
+            <div class="w-[6px] h-[6px] rounded-full bg-black animate-pulse"></div>
             LISTENING
           </div>
-          <div class="bg-[#0d1620] border border-[#132030] rounded-[2px] px-1.75 py-0.5 text-[9px] text-[#4a6a7a]">0.0.0.0:9999/UDP</div>
+          <div class="bg-white border border-black rounded-[3px] px-2 py-1 text-[10px] text-black">0.0.0.0:9999/UDP</div>
         </div>
 
-        <div class="bg-[#0d1620] border-b border-[#132030] px-3 py-1.5 shrink-0">
-          <div class="text-[9px] text-[#4a6a7a] uppercase tracking-[2px] mb-1.25">● connected clients ({{ S.clients.length }})</div>
-          <div class="flex flex-col gap-0.75 max-h-[72px] overflow-hidden">
-            <div v-if="!S.clients.length" class="text-[#2a4050] text-[10px] italic">No clients connected yet.</div>
-            <div v-for="c in S.clients" :key="c.name" class="flex items-center gap-1.5 text-[10px] py-0.5 border-b border-white/2 overflow-hidden text-ellipsis whitespace-nowrap">
-              <div class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ background: c.trust > 150 ? '#00ff88' : '#ffaa00', boxShadow: '0 0 6px ' + (c.trust>150?'#00ff88':'#ffaa00') }"></div>
-              <div class="text-[#00e5ff] min-w-[100px]">{{ c.name }}</div>
-              <div class="text-[#4a6a7a] min-w-[120px] text-[9px]">{{ c.ip }}:{{ c.port }}</div>
-              <div class="font-bold min-w-8" :class="c.trust > 150 ? 'text-[#00ff88]' : 'text-[#ffaa00]'">{{ c.trust }}</div>
-              <div class="text-[#c77dff] text-[9px] ml-auto">{{ c.intent }}</div>
+        <div class="bg-gray-50 border-b border-black px-4 py-3 shrink-0">
+          <div class="text-[10px] text-gray-600 uppercase tracking-[2px] mb-2">● connected clients ({{ S.clients.length }})</div>
+          <div class="flex flex-col gap-1.5 max-h-[100px] overflow-hidden">
+            <div v-if="!S.clients.length" class="text-gray-500 text-[11px] italic">No clients connected yet.</div>
+            <div v-for="c in S.clients" :key="c.name" class="flex items-center gap-2 text-[12px] py-1 border-b border-gray-200 overflow-hidden text-ellipsis whitespace-nowrap">
+              <div class="w-2 h-2 rounded-full shrink-0 bg-black"></div>
+              <div class="text-black font-bold min-w-[120px]">{{ c.name }}</div>
+              <div class="text-gray-600 min-w-[140px] text-[11px]">{{ c.ip }}:{{ c.port }}</div>
+              <div class="font-bold min-w-10 text-black border border-black px-1.5 rounded-sm">{{ c.trust }}</div>
+              <div class="text-gray-500 text-[10px] ml-auto uppercase tracking-wide">{{ c.intent }}</div>
             </div>
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-[10px_12px] scrollbar-thin scrollbar-thumb-[#1e3040] scrollbar-track-transparent" ref="serverLogContainer">
-          <div v-for="(l, i) in serverLogs" :key="i" class="mb-0.25 flex gap-2 animate-fade-slide">
-            <span class="text-[#2a4050] text-[10px] whitespace-nowrap pt-0.5">{{ l.time }}</span>
-            <div class="lm overflow-hidden" v-html="l.html"></div>
+        <div class="flex-1 overflow-y-auto p-[14px_16px] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent bg-white" ref="serverLogContainer">
+          <div v-for="(l, i) in serverLogs" :key="i" class="mb-1.5 flex gap-3 animate-fade-slide">
+            <span class="text-gray-400 text-[11px] whitespace-nowrap pt-0.5">{{ l.time }}</span>
+            <div class="lm overflow-hidden text-black" v-html="l.html"></div>
           </div>
         </div>
 
-        <div class="h-16 bg-[#080f18] border-t border-[#132030] grid grid-cols-5 shrink-0">
-          <div class="text-center p-[7px_4px] border-r border-[#132030]"><div class="font-['Orbitron'] text-base font-bold text-[#00ff88] shadow-[0_0_10px_rgba(0,255,136,0.4)]">{{ S.sessions }}</div><div class="text-[8px] text-[#4a6a7a] tracking-[1px] uppercase mt-0.25">Sessions</div></div>
-          <div class="text-center p-[7px_4px] border-r border-[#132030]"><div class="font-['Orbitron'] text-base font-bold text-[#00e5ff] shadow-[0_0_10px_rgba(0,229,255,0.4)]">{{ avgTrust() }}</div><div class="text-[8px] text-[#4a6a7a] tracking-[1px] uppercase mt-0.25">Avg Trust</div></div>
-          <div class="text-center p-[7px_4px] border-r border-[#132030]"><div class="font-['Orbitron'] text-base font-bold text-[#ff2244] shadow-[0_0_10px_rgba(255,34,68,0.4)]">{{ S.blocked }}</div><div class="text-[8px] text-[#4a6a7a] tracking-[1px] uppercase mt-0.25">Blocked</div></div>
-          <div class="text-center p-[7px_4px] border-r border-[#132030]"><div class="font-['Orbitron'] text-base font-bold text-[#ffaa00] shadow-[0_0_10px_rgba(255,170,0,0.4)]">{{ S.alerts }}</div><div class="text-[8px] text-[#4a6a7a] tracking-[1px] uppercase mt-0.25">Alerts</div></div>
-          <div class="text-center p-[7px_4px]"><div class="font-['Orbitron'] text-base font-bold text-[#c77dff] shadow-[0_0_10px_rgba(199,125,255,0.4)]">{{ S.aiCalls }}</div><div class="text-[8px] text-[#4a6a7a] tracking-[1px] uppercase mt-0.25">AI Evals</div></div>
+        <div class="h-20 bg-gray-50 border-t border-black grid grid-cols-5 shrink-0">
+          <div class="text-center p-[10px_6px] border-r border-black flex flex-col justify-center"><div class="font-['Orbitron'] text-xl font-bold text-black">{{ S.sessions }}</div><div class="text-[9px] text-gray-600 tracking-[1px] uppercase mt-1">Sessions</div></div>
+          <div class="text-center p-[10px_6px] border-r border-black flex flex-col justify-center"><div class="font-['Orbitron'] text-xl font-bold text-black">{{ avgTrust() }}</div><div class="text-[9px] text-gray-600 tracking-[1px] uppercase mt-1">Avg Trust</div></div>
+          <div class="text-center p-[10px_6px] border-r border-black flex flex-col justify-center bg-gray-100"><div class="font-['Orbitron'] text-xl font-bold text-black">{{ S.blocked }}</div><div class="text-[9px] text-black font-bold tracking-[1px] uppercase mt-1">Blocked</div></div>
+          <div class="text-center p-[10px_6px] border-r border-black flex flex-col justify-center"><div class="font-['Orbitron'] text-xl font-bold text-black">{{ S.alerts }}</div><div class="text-[9px] text-gray-600 tracking-[1px] uppercase mt-1">Alerts</div></div>
+          <div class="text-center p-[10px_6px] flex flex-col justify-center"><div class="font-['Orbitron'] text-xl font-bold text-black">{{ S.aiCalls }}</div><div class="text-[9px] text-gray-600 tracking-[1px] uppercase mt-1">AI Evals</div></div>
         </div>
       </div>
 
       <!-- CLIENT PANEL -->
-      <div class="flex flex-col overflow-hidden min-w-0 border-l border-[#132030]">
-        <div class="h-9 bg-[#080f18] border-b border-[#132030] flex items-center px-3 gap-2 shrink-0">
-          <div class="flex gap-1.25">
-             <div class="w-2.25 h-2.25 rounded-full bg-[#ff5f57]"></div>
-             <div class="w-2.25 h-2.25 rounded-full bg-[#febc2e]"></div>
-             <div class="w-2.25 h-2.25 rounded-full bg-[#00e5ff]"></div>
+      <div class="flex flex-col overflow-hidden min-w-0 border-l border-black">
+        <div class="h-12 bg-gray-50 border-b border-black flex items-center px-4 gap-3 shrink-0">
+          <div class="flex gap-1.5">
+             <div class="w-3 h-3 rounded-full border border-black"></div>
+             <div class="w-3 h-3 rounded-full border border-black"></div>
+             <div class="w-3 h-3 rounded-full border border-black bg-black"></div>
           </div>
-          <div class="text-[10px] font-bold tracking-[2px] uppercase text-[#00e5ff] ml-1">◈ CLIENT NODE — BETA</div>
-          <div class="ml-auto flex items-center gap-1.2 text-[10px] font-bold" :class="S.connected ? 'text-[#00ff88]' : 'text-[#4a6a7a]'">
-            <div class="w-[5px] h-[5px] rounded-full animate-pulse" :style="{ background: S.connected ? '#00ff88' : '#00e5ff', boxShadow: '0 0 6px ' + (S.connected?'#00ff88':'#00e5ff') }"></div>
+          <div class="text-[12px] font-bold tracking-[2px] uppercase text-black ml-2">◈ CLIENT NODE — BETA</div>
+          <div class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-black">
+            <div class="w-[6px] h-[6px] rounded-full animate-pulse bg-black" v-if="S.connected"></div>
+            <div class="w-[6px] h-[6px] rounded-full border border-black" v-else></div>
             {{ S.connected ? 'CONNECTED' : 'READY' }}
           </div>
-          <div class="bg-[#0d1620] border border-[#132030] rounded-[2px] px-1.75 py-0.5 text-[9px] text-[#4a6a7a] tracking-tight uppercase">{{ S.connected ? '192.168.1.100:9999' : 'NOT CONNECTED' }}</div>
+          <div class="bg-white border border-black rounded-[3px] px-2 py-1 text-[10px] text-black tracking-tight uppercase">{{ S.connected ? '192.168.1.100:9999' : 'NOT CONNECTED' }}</div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-[10px_12px] scrollbar-thin scrollbar-thumb-[#1e3040] scrollbar-track-transparent" ref="clientLogContainer">
-          <div v-for="(l, i) in clientLogs" :key="i" class="mb-0.25 flex gap-2 animate-fade-slide">
-            <span class="text-[#2a4050] text-[10px] whitespace-nowrap pt-0.5">{{ l.time }}</span>
-            <div class="lm overflow-hidden" v-html="l.html"></div>
+        <div class="flex-1 overflow-y-auto p-[14px_16px] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent bg-white" ref="clientLogContainer">
+          <div v-for="(l, i) in clientLogs" :key="i" class="mb-1.5 flex gap-3 animate-fade-slide">
+            <span class="text-gray-400 text-[11px] whitespace-nowrap pt-0.5">{{ l.time }}</span>
+            <div class="lm overflow-hidden text-black" v-html="l.html"></div>
           </div>
         </div>
 
-        <div class="bg-[#080f18] border-t border-[#132030] p-2 shrink-0">
-          <div class="text-[9px] text-[#2a4050] uppercase tracking-[2px] mb-2 px-1">▸ commands</div>
-          <div class="flex gap-1.25 flex-wrap px-1 mb-1">
+        <div class="bg-gray-50 border-t border-black p-4 shrink-0">
+          <div class="text-[10px] text-black font-bold uppercase tracking-[2px] mb-3 px-1">▸ Commands</div>
+          <div class="flex gap-2 flex-wrap px-1 mb-1">
             <button class="cb" @click="run('connect')"><span class="cbn">🔗 Connect</span><span class="cbc">--connect</span></button>
             <button class="cb ai-cmd" @click="run('inference')"><span class="cbn">🤖 Infer</span><span class="cbc">ModelInference</span></button>
             <button class="cb ai-cmd" @click="run('agent')"><span class="cbn">🕸 Agent</span><span class="cbc">AgentCoordinate</span></button>
@@ -372,34 +390,62 @@ onMounted(() => {
             <button class="cb danger" @click="run('replay')"><span class="cbn">↩ Replay</span><span class="cbc">--test replay</span></button>
             <button class="cb" @click="run('status')"><span class="cbn">📊 Status</span><span class="cbc">--status</span></button>
             <button class="cb danger" @click="run('revoke')"><span class="cbn">🚫 Revoke</span><span class="cbc">--revoke</span></button>
+            <button class="cb" @click="showSentinelModal()"><span class="cbn">👀 Sentinel</span><span class="cbc">anomaly logs</span></button>
           </div>
         </div>
 
-        <div class="h-10 bg-[#080f18] border-t border-[#132030] flex items-center px-4 shrink-0">
-          <span class="text-[#00e5ff] font-bold text-xs whitespace-nowrap mr-2">aitp-client $</span>
-          <input v-model="commandInput" class="flex-1 bg-transparent border-none outline-none text-[#b8ccd8] font-['JetBrains_Mono'] text-[11.5px] caret-[#00e5ff] placeholder:text-[#2a4050]" placeholder="aitp_client --server 192.168.1.100:9999 --intent ModelInference" @keydown="handleKey"/>
+        <div class="h-14 bg-white border-t border-black flex items-center px-5 shrink-0">
+          <span class="text-black font-bold text-[13px] whitespace-nowrap mr-3">aitp-client $</span>
+          <input v-model="commandInput" class="flex-1 bg-transparent border-none outline-none text-black font-['JetBrains_Mono'] text-[13px] placeholder:text-gray-400" placeholder="aitp_client --server 127.0.0.1:9999 --intent ModelInference" @keydown="handleKey"/>
         </div>
       </div>
     </div>
 
-    <!-- MODAL -->
-    <div v-if="modalOpen" class="fixed inset-0 bg-black/75 flex items-center justify-center z-[200]">
-      <div class="bg-[#080f18] border border-[#132030] rounded-md w-[460px] p-5 shadow-[0_0_60px_rgba(0,229,255,0.1)]">
-        <div class="font-['Orbitron'] text-[13px] text-[#00e5ff] tracking-[2px] mb-4 flex items-center gap-2">⚙ AI TRUST ENGINE CONFIG</div>
-        <div class="mb-3">
-          <div class="text-[9px] text-[#4a6a7a] tracking-[1.5px] uppercase mb-1.25">AI Provider</div>
-          <select v-model="S.config.provider" class="w-full bg-[#0d1620] border border-[#132030] text-[#b8ccd8] p-2 rounded-sm text-xs outline-none focus:border-[#00e5ff] transition-all">
+    <!-- CONFIG MODAL -->
+    <div v-if="modalOpen === 'config'" class="fixed inset-0 bg-white/90 flex items-center justify-center z-[200] backdrop-blur-sm">
+      <div class="bg-white border-[2px] border-black rounded-none w-[500px] p-8 shadow-[12px_12px_0_0_rgba(0,0,0,1)]">
+        <div class="font-['Orbitron'] text-[16px] font-bold text-black tracking-[2px] mb-6 flex items-center gap-2 border-b-2 border-black pb-4">⚙ AI TRUST ENGINE CONFIG</div>
+        <div class="mb-5">
+          <div class="text-[11px] text-black font-bold tracking-[1.5px] uppercase mb-2">AI Provider</div>
+          <select v-model="S.config.provider" class="w-full bg-white border-2 border-black text-black p-3 rounded-none text-[13px] outline-none hover:bg-gray-50 focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all cursor-pointer">
             <option value="gemini">Google Gemini</option>
             <option value="rules">Rules Only (No AI)</option>
           </select>
         </div>
-        <div v-if="S.config.provider !== 'rules'" class="mb-3">
-          <div class="text-[9px] text-[#4a6a7a] tracking-[1.5px] uppercase mb-1.25">API Key</div>
-          <input v-model="S.config.apiKey" type="password" class="w-full bg-[#0d1620] border border-[#132030] text-[#b8ccd8] p-2 rounded-sm text-xs outline-none focus:border-[#00e5ff] transition-all" placeholder="Paste your API key here..."/>
+        <div v-if="S.config.provider !== 'rules'" class="mb-5">
+          <div class="text-[11px] text-black font-bold tracking-[1.5px] uppercase mb-2">API Key</div>
+          <input v-model="S.config.apiKey" type="password" class="w-full bg-white border-2 border-black text-black p-3 rounded-none text-[13px] outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-all" placeholder="Paste your API key here..."/>
         </div>
-        <div class="flex gap-2 mt-4">
-          <button class="flex-1 bg-[#00e5ff]/10 border border-[#00e5ff] text-[#00e5ff] font-bold p-2 text-xs rounded-sm hover:bg-[#00e5ff]/20 transition-all uppercase tracking-widest" @click="modalOpen = false">Apply Config</button>
-          <button class="bg-[#0d1620] border border-[#132030] text-[#4a6a7a] px-4 py-2 text-xs rounded-sm hover:border-[#4a6a7a] transition-all" @click="modalOpen = false">Close</button>
+        <div class="flex gap-3 mt-8">
+          <button class="flex-1 bg-black text-white font-bold p-3 text-[13px] rounded-none hover:bg-gray-800 transition-all uppercase tracking-widest border-2 border-black" @click="modalOpen = null">Apply Config</button>
+          <button class="bg-white border-2 border-black text-black font-bold px-6 py-3 text-[13px] rounded-none hover:bg-gray-100 transition-all uppercase" @click="modalOpen = null">Close</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- SENTINEL MODAL -->
+    <div v-if="modalOpen === 'sentinel'" class="fixed inset-0 bg-white/90 flex items-center justify-center z-[200] backdrop-blur-sm">
+      <div class="bg-white border-[2px] border-black rounded-none w-[700px] h-[500px] flex flex-col p-8 shadow-[12px_12px_0_0_rgba(0,0,0,1)]">
+        <div class="font-['Orbitron'] text-[16px] font-bold text-black tracking-[2px] mb-6 flex items-center justify-between border-b-2 border-black pb-4">
+           <span>👀 SENTINEL ANOMALY LOG</span>
+           <button class="text-black hover:bg-black hover:text-white px-3 py-1 border-2 border-transparent hover:border-black font-bold transition-all" @click="modalOpen = null">✕ CLOSE</button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto bg-gray-50 border-2 border-black p-5 space-y-4 font-mono">
+            <div v-for="an in sentinelAnomalies" :key="an.detected_at" class="border-b-2 border-gray-200 pb-4 last:border-0">
+                <div class="flex justify-between items-center mb-2">
+                    <span :class="an.severity === 'Critical' ? 'bg-black text-white px-2 py-0.5 font-bold uppercase tracking-wider text-[11px]' : 'border border-black px-2 py-0.5 font-bold uppercase tracking-wider text-[11px]'">[{{ an.anomaly_type }}]</span>
+                    <span class="text-gray-500 text-[11px] font-bold">{{ new Date(an.detected_at * 1000).toLocaleTimeString() }}</span>
+                </div>
+                <div class="text-black text-[13px] font-medium leading-relaxed my-2">{{ an.description }}</div>
+                <div class="text-[11px] text-gray-500 mt-2 flex justify-between bg-white p-2 border border-black">
+                    <span class="font-bold">Entity: <span class="text-black">{{ an.entity_id.substring(0,8) }}...</span></span>
+                    <span class="font-bold uppercase text-black">Action: {{ an.recommended_action }}</span>
+                </div>
+            </div>
+            <div v-if="!sentinelAnomalies.length" class="text-center mt-16 text-black font-bold tracking-widest uppercase opacity-50 text-[14px]">
+               No anomalies detected in the last 24h
+            </div>
         </div>
       </div>
     </div>
@@ -408,65 +454,59 @@ onMounted(() => {
 </template>
 
 <style>
-@keyframes fadeSlide { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
-.animate-fade-slide { animation: fadeSlide .25s ease forwards; }
+@keyframes fadeSlide { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.animate-fade-slide { animation: fadeSlide .3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-.lm b { color: #fff; font-weight: 700; }
-.lm .vc { color: var(--cyan); }
-.lm .vg { color: var(--green); }
-.lm .vr { color: var(--red); }
-.lm .va { color: var(--amber); }
-.lm .vp { color: var(--purple); }
-.lm .vd { color: var(--text2); font-size: 10.5px; }
-.lm .hash { color: var(--text3); font-size: 10px; }
+.lm b { color: #000; font-weight: 800; }
+.lm .vc { color: #000; font-weight: bold; }
+.lm .vg { color: #000; font-weight: bold; }
+.lm .vr { color: #000; font-weight: bold; background: #eee; padding: 0 4px; }
+.lm .va { color: #000; font-weight: bold; border-bottom: 2px solid #000; }
+.lm .vp { color: #000; font-style: italic; font-weight: bold; }
+.lm .vd { color: #666; font-size: 11px; }
+.lm .hash { color: #666; font-size: 11px; font-family: monospace; }
 
-.lv { font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 2px; flex-shrink: 0; align-self: flex-start; margin-top: 2px; letter-spacing: .8px; white-space: nowrap; }
-.v-ok { background: rgba(0,255,136,.1); color: #00ff88; border: 1px solid rgba(0,255,136,.25); }
-.v-info { background: rgba(68,136,255,.1); color: #4488ff; border: 1px solid rgba(68,136,255,.25); }
-.v-warn { background: rgba(255,170,0,.1); color: #ffaa00; border: 1px solid rgba(255,170,0,.25); }
-.v-err { background: rgba(255,34,68,.15); color: #ff2244; border: 1px solid rgba(255,34,68,.35); animation: alertGlow 1s ease 2; }
-.v-ai { background: rgba(199,125,255,.1); color: #c77dff; border: 1px solid rgba(199,125,255,.25); }
-.v-net { background: rgba(0,229,255,.08); color: #00e5ff; border: 1px solid rgba(0,229,255,.2); }
-.v-sys { background: rgba(255,255,255,.04); color: #4a6a7a; border: 1px solid #132030; }
+.lv { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 0; flex-shrink: 0; align-self: flex-start; margin-top: 1px; letter-spacing: 1px; white-space: nowrap; border: 1px solid #000; }
+.v-ok { background: #fff; color: #000; border: 2px solid #000; }
+.v-info { background: #f3f4f6; color: #000; }
+.v-warn { background: #e5e7eb; color: #000; border-bottom: 2px solid #000; }
+.v-err { background: #000; color: #fff; border: 2px solid #000; }
+.v-ai { background: #fff; color: #000; border: 1px dashed #000; }
+.v-net { background: #fff; color: #000; border-left: 3px solid #000; border-right: none; border-top: none; border-bottom: none;}
+.v-sys { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
 
-@keyframes alertGlow { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 10px #ff2244; } }
 
-.alert-block { margin: 6px 0; border: 1px solid #ff2244; background: rgba(255,34,68,.07); border-radius: 3px; padding: 7px 10px; animation: alertIn .3s ease; }
-@keyframes alertIn { from { opacity: 0; transform: scaleY(.8); } to { opacity: 1; transform: none; } }
-.ab-head { color: #ff2244; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
-.ab-row { font-size: 10.5px; color: #b8ccd8; margin: 1px 0; display: flex; gap: 8px; }
-.ab-key { color: #4a6a7a; min-width: 80px; }
-.ab-val { color: #ff2244; }
-.ab-val.vg { color: #00ff88; }
+.alert-block { margin: 8px 0; border: 2px solid #000; background: #fff; border-radius: 0; padding: 10px 14px; box-shadow: 4px 4px 0 0 #000; animation: alertIn .3s ease; }
+@keyframes alertIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ab-head { color: #000; font-size: 12px; font-weight: 900; letter-spacing: 2px; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px;}
+.ab-row { font-size: 12px; color: #000; margin: 3px 0; display: flex; gap: 12px; font-weight: 500;}
+.ab-key { color: #666; min-width: 90px; font-weight: 700; text-transform: uppercase; font-size: 10px; pt-0.5}
+.ab-val { color: #000; font-weight: 800;}
+.ab-val.vg { color: #000; background: #eee; padding: 0 4px; }
 
-.flow-line { display: flex; align-items: center; gap: 6px; font-size: 10px; padding: 2px 0; margin: 1px 0; }
-.flow-src { color: #00e5ff; min-width: 110px; font-size: 10px; }
-.flow-arrow { color: #4a6a7a; flex-shrink: 0; }
-.flow-dst { color: #00ff88; min-width: 110px; font-size: 10px; }
-.flow-bytes { color: #4a6a7a; font-size: 9px; margin-left: 4px; }
-.flow-intent { color: #c77dff; font-size: 9px; }
-.flow-trust { font-weight: 700; font-size: 10px; }
+.flow-line { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 4px 0; margin: 2px 0; border-bottom: 1px dashed #ccc;}
+.flow-src { color: #000; min-width: 130px; font-size: 11px; font-weight: 700; }
+.flow-arrow { color: #999; flex-shrink: 0; font-weight: bold;}
+.flow-dst { color: #000; min-width: 130px; font-size: 11px; font-weight: 700; }
+.flow-bytes { color: #666; font-size: 10px; margin-left: auto; font-family: monospace;}
+.flow-intent { color: #000; font-size: 10px; font-style: italic; font-weight: 600;}
+.flow-trust { font-weight: 900; font-size: 11px; border: 1px solid #000; padding: 1px 4px; background: #fff;}
+.flow-trust.vg { background: #f3f4f6; }
+.flow-trust.va { border-bottom-width: 3px; }
+.flow-trust.vr { background: #000; color: #fff;}
 
-.cb { background: #0d1620; border: 1px solid #132030; color: #b8ccd8; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; padding: 5px 8px; border-radius: 3px; cursor: pointer; transition: all .15s; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 80px; }
-.cb:hover { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,.04); }
-.cb:active { transform: scale(.97); }
-.cb .cbn { font-size: 10px; font-weight: 700; }
-.cb .cbc { font-size: 8.5px; color: #4a6a7a; }
-.cb.danger { border-color: rgba(255,34,68,.3); }
-.cb.danger:hover { border-color: #ff2244; color: #ff2244; }
-.cb.ai-cmd { border-color: rgba(199,125,255,.3); }
-.cb.ai-cmd:hover { border-color: #c77dff; color: #c77dff; }
+.cb { background: #fff; border: 2px solid #000; color: #000; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 8px 12px; border-radius: 0; cursor: pointer; transition: all .2s; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 100px; box-shadow: 2px 2px 0 0 #000;}
+.cb:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 0 #000; background: #f9fafb;}
+.cb:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 #000; }
+.cb .cbn { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;}
+.cb .cbc { font-size: 10px; color: #666; font-weight: 600;}
+.cb.danger { border-color: #000; }
+.cb.danger:hover { background: #000; }
+.cb.danger:hover .cbn, .cb.danger:hover .cbc { color: #fff; }
+.cb.ai-cmd { border-style: dashed; }
+.cb.ai-cmd:hover { background: #eee; border-style: solid;}
 
-.arrow-r { color: #00ff88; }
-.arrow-l { color: #00e5ff; }
+.arrow-r { color: #000; font-weight: 900;}
+.arrow-l { color: #000; font-weight: 900;}
 
-:root {
-  --cyan: #00e5ff;
-  --green: #00ff88;
-  --red: #ff2244;
-  --amber: #ffaa00;
-  --purple: #c77dff;
-  --text2: #4a6a7a;
-  --text3: #2a4050;
-}
 </style>

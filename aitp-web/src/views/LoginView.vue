@@ -177,174 +177,184 @@ async function doSignup() {
 </template>
 
 <style scoped>
-/* Inject Enterprise Variables strictly into this view */
 .auth-view {
-  --bg:#04080e; --surf:#080f18; --surf2:#0d1620; --surf3:#111d28;
-  --primary:#00e5ff; --blue:#00b8cc; --blue-l:#004d55; --blue-m:#008b99;
-  --green:#00ff88; --green-l:#005930; --red:#ff2244; --red-l:#590c18;
-  --amber:#ffaa00; --amber-l:#593b00; --slate:#475569; --slate-l:#94a3b8;
-  --border:#132030; --border2:#1e3040; --text:#b8ccd8; --text2:#4a6a7a; --text3:#2a4050;
+  --bg: #fff; 
+  --surf: #fafafa;
+  --text: #000;
+  --text2: #333;
+  --text3: #666;
+  --border: #e5e7eb;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
-.bg-bg { background-color: var(--bg); }
 .text-text3 { color: var(--text3); }
 
-/* Custom Overrides from user CSS */
+/* Minimalist B&W background pattern */
 .auth-grid {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.35;
+  background-image: 
+    linear-gradient(#f3f4f6 1px, transparent 1px), 
+    linear-gradient(90deg, #f3f4f6 1px, transparent 1px);
+  background-size: 30px 30px;
+  opacity: 0.8;
 }
 
 .auth-card {
-  background: var(--surf);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 36px;
-  width: 400px; /* Force consistent width like the snippet */
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,.04), 0 20px 40px -8px rgba(0,0,0,.07);
-  animation: cardIn .35s ease;
+  background: var(--bg);
+  border: 2px solid #000;
+  padding: 40px;
+  width: 440px;
+  box-shadow: 8px 8px 0 0 #000;
+  animation: cardIn .4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes cardIn {
-  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
 
 .auth-mark {
-  width: 38px;
-  height: 38px;
-  background: transparent;
-  border: 1px solid var(--primary);
-  border-radius: 9px;
+  width: 42px;
+  height: 42px;
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--primary);
-  letter-spacing: .5px;
-  margin-bottom: 14px;
-  box-shadow: 0 0 10px rgba(0,229,255,0.2);
+  font-weight: 900;
+  font-size: 14px;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  box-shadow: 4px 4px 0 0 #ccc;
 }
 
 .auth-title {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
-  font-size: 21px;
-  color: var(--text);
-  margin-bottom: 3px;
+  font-size: 24px;
+  color: #000;
+  margin-bottom: 6px;
+  letter-spacing: -0.5px;
 }
 
 .auth-sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text3);
-  margin-bottom: 22px;
+  margin-bottom: 28px;
+  font-weight: 500;
 }
 
 .tabs {
   display: flex;
-  gap: 3px;
-  background: var(--surf2);
-  border-radius: 8px;
-  padding: 3px;
-  margin-bottom: 20px;
+  background: #f9fafb;
+  border: 2px solid #000;
+  padding: 4px;
+  margin-bottom: 24px;
+  box-shadow: 2px 2px 0 0 #ccc;
 }
 
 .tab {
   flex: 1;
-  padding: 7px;
-  border-radius: 6px;
+  padding: 10px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   background: transparent;
-  color: var(--text2);
-  transition: all .15s;
+  color: var(--text3);
+  transition: all .2s;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .tab.on {
-  background: var(--surf);
-  color: var(--primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,.3);
-  border: 1px solid var(--border);
+  background: #000;
+  color: #fff;
 }
 
-.fg { margin-bottom: 13px; }
+.fg { margin-bottom: 16px; }
 .fl {
   font-size: 11px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 5px;
+  font-weight: 800;
+  color: #000;
+  margin-bottom: 6px;
   display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .fi {
   width: 100%;
-  padding: 9px 11px;
-  background: var(--surf);
-  border: 1.5px solid var(--border);
-  border-radius: 7px;
-  font-size: 13px;
-  color: var(--text);
-  transition: border .15s;
+  padding: 12px 14px;
+  background: #fff;
+  border: 2px solid #ccc;
+  font-size: 14px;
+  color: #000;
+  transition: border .2s;
+  font-weight: 500;
 }
 
 .fi:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  border-color: #000;
   outline: none;
+  box-shadow: 2px 2px 0 0 #ccc;
 }
 
-.fi::placeholder { color: var(--text3); }
+.fi::placeholder { color: #9ca3af; font-weight: 400; }
 
 .fr {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 16px;
 }
 
 .btn-p {
   width: 100%;
-  padding: 10px;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--primary);
-  border: 1px solid var(--primary);
-  font-size: 13px;
-  font-weight: 600;
-  transition: all .15s;
+  padding: 14px;
+  background: #000;
+  color: #fff;
+  border: 2px solid #000;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all .2s;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(0,229,255,0.1) inset;
+  box-shadow: 4px 4px 0 0 #ccc;
+  margin-top: 8px;
 }
 
 .btn-p:hover { 
-  background: rgba(0,229,255,0.1); 
-  box-shadow: 0 0 15px rgba(0,229,255,0.2) inset;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 #ccc;
 }
-.btn-p:disabled { opacity: .6; cursor: wait; }
+
+.btn-p:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 #ccc;
+}
+
+.btn-p:disabled { opacity: .7; cursor: wait; }
 
 .msg {
-  padding: 8px 11px;
-  border-radius: 6px;
-  font-size: 12px;
-  margin-bottom: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
   display: block;
+  border: 2px solid #000;
+  border-left-width: 6px;
 }
 
 .msg.err {
-  background: var(--red-l);
-  border: 1px solid #fecaca;
-  color: var(--red);
+  background: #fff;
+  border-color: #000;
 }
 
 .msg.ok {
-  background: var(--green-l);
-  border: 1px solid #bbf7d0;
-  color: var(--green);
+  background: #f9fafb;
 }
 
 .border-border {

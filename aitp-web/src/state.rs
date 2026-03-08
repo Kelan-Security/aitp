@@ -12,4 +12,5 @@ pub struct AppState {
     pub hub: crate::ws::WsHub,
     pub config: AppConfig,
     pub start_time: Instant,
+    pub sentinel: std::sync::Arc<crate::sentinel::Sentinel>,
 }
