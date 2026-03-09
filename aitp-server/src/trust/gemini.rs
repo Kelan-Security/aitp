@@ -136,7 +136,8 @@ impl GeminiTrustEngine {
             self.model, self.api_key
         );
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .json(&request)
             .send()
@@ -162,8 +163,25 @@ impl GeminiTrustEngine {
             .map(|p| p.text)
             .ok_or_else(|| "Empty response from Gemini".to_string())?;
 
-        let gemini_result: GeminiTrustResponse = serde_json::from_str(&text)
-            .map_err(|e| format!("Failed to parse Gemini JSON: {} — raw: {}", e, text))?;
+        let gemini_result: GeminiTrustResponse = match serde_json::from_str(&text) {
+            Ok(res) => res,
+            Err(e) => {
+                let start = text.find('{');
+                let end = text.rfind('}');
+
+                if let (Some(s), Some(e)) = (start, end) {
+                    let cleaned = &text[s..=e];
+                    serde_json::from_str::<GeminiTrustResponse>(cleaned).map_err(|_| {
+                        format!("Failed to parse cleaned Gemini JSON: {} — raw: {}", e, text)
+                    })?
+                } else {
+                    return Err(format!(
+                        "No JSON object found in Gemini response: {} — raw: {}",
+                        e, text
+                    ));
+                }
+            }
+        };
 
         Ok(TrustResult {
             trust_score: gemini_result.trust_score,

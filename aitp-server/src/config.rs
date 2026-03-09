@@ -37,7 +37,7 @@ impl AppConfig {
             db_path: std::env::var("AITP_DB_PATH").unwrap_or_else(|_| "./data/aitp.db".into()),
             gemini_api_key: std::env::var("GEMINI_API_KEY").unwrap_or_else(|_| String::new()),
             gemini_model: std::env::var("AITP_GEMINI_MODEL")
-                .unwrap_or_else(|_| "gemini-2.5-flash-preview-05-20".into()),
+                .unwrap_or_else(|_| "gemini-2.0-flash".into()),
             trust_mode: std::env::var("AITP_TRUST_MODE").unwrap_or_else(|_| "hybrid".into()),
             trust_alpha: std::env::var("AITP_TRUST_ALPHA")
                 .unwrap_or_else(|_| "0.4".into())
