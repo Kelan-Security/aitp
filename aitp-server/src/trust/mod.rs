@@ -131,7 +131,13 @@ impl HybridTrustEngine {
                 let rules_result = self.rules.evaluate(ctx);
 
                 let ai_result = if let Some(ref gemini) = self.gemini {
-                    gemini.evaluate(ctx).await.ok()
+                    match gemini.evaluate(ctx).await {
+                        Ok(res) => Some(res),
+                        Err(e) => {
+                            eprintln!("AI Evaluation Error: {}", e);
+                            None
+                        }
+                    }
                 } else {
                     None
                 };

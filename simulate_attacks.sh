@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+# Source .env to get GEMINI_API_KEY
+if [ -f .env ]; then
+  # Use a simpler way to source that handles potential spaces/comments
+  export $(grep -v '^#' .env | xargs)
+fi
+
 BASE="http://localhost:3000/api"
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -52,7 +58,7 @@ ENTITY_C=$(auth -X POST $BASE/entities \
        "department":"Finance","clearance_level":3}' | jq -r '.entity_id')
 
 if [ "$ENTITY_A" = "null" ] || [ -z "$ENTITY_A" ]; then
-  echo -e "${RED}ERROR: Entity creation failed.${NC}"
+  echo -e "${RED}ERROR: Entity creation failed. Check server logs.${NC}"
   exit 1
 fi
 
@@ -151,8 +157,8 @@ echo -e "${BOLD} ATTACK 7 — DDoS Flood Simulation                     ${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
 echo ""
 
-echo "Sending 20 rapid sessions..."
-for i in $(seq 1 20); do
+echo "Sending 10 rapid sessions..."
+for i in $(seq 1 10); do
   auth -X POST $BASE/entities/$ENTITY_A/test-session \
     -d "{\"dest_entity_id\":\"$ENTITY_B\",\"intent\":\"Heartbeat\"}" > /dev/null &
 done
@@ -173,8 +179,9 @@ echo "Total Blocked:    $(echo $FINAL | jq '.blocked_today // 0')"
 echo ""
 
 echo -e "${BLUE}[AI CHECK]${NC} Verifying Gemini reasoning..."
+# Use GEMINI_API_KEY from .env
 VERIFY=$(auth -X POST $BASE/config/verify-key \
-  -d '{"provider":"gemini","model":"gemini-1.5-flash","api_key":"'${AITP_GEMINI_API_KEY:-}'"}' \
+  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
   2>/dev/null || echo '{"test_evaluation":{"reasoning":"API call failed"}}')
 
 REASONING=$(echo $VERIFY | jq -r '.test_evaluation.reasoning // "not available"')

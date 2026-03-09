@@ -1,0 +1,55 @@
+[1mAITP Attack Simulation Suite (Throttled for Free Tier)[0m
+--- Setup ---
+1. Baseline...
+{
+  "evaluation_source": "rules",
+  "primary_risk": "New entity — trust capped",
+  "reasoning": "New entity — trust capped; Known peer bonus",
+  "session_id": "deb8e880-85ed-43ed-8034-709192e2d955",
+  "trust_score": 115,
+  "verdict": "Monitor"
+}
+2. Clearance Violation...
+{
+  "evaluation_source": "rules",
+  "primary_risk": "New entity — trust capped",
+  "reasoning": "New entity — trust capped; Known peer bonus",
+  "session_id": "1c78a0c7-21f0-47a5-99be-6fb1041f7165",
+  "trust_score": 115,
+  "verdict": "Monitor"
+}
+3. ControlSignal Abuse...
+{
+  "evaluation_source": "rules",
+  "primary_risk": "ControlSignal intent",
+  "reasoning": "New entity — trust capped; ControlSignal intent penalized; Known peer bonus",
+  "session_id": "385945b2-b420-443e-bb21-3777a8f6a5cd",
+  "trust_score": 90,
+  "verdict": "Monitor"
+}
+4. Lateral Movement...
+{
+  "evaluation_source": "rules",
+  "primary_risk": "1 anomaly flag(s)",
+  "reasoning": "New entity — trust capped; 1 behavioral anomalies detected; Known peer bonus",
+  "session_id": "bf756b66-fef5-4a23-8699-e6dec26ac023",
+  "trust_score": 85,
+  "verdict": "Monitor"
+}
+5. Exfiltration...
+{
+  "error": "Invalid or expired token: Invalid token: InvalidSignature",
+  "type": "error"
+}
+
+--- Final Stats ---
+{
+  "error": "Invalid or expired token: Invalid token: InvalidSignature",
+  "type": "error"
+}
+
+Verifying AI Reasoning...
+{
+  "error": "Invalid or expired token: Invalid token: InvalidSignature",
+  "type": "error"
+}
