@@ -190,6 +190,7 @@ pub struct VerifyKeyReq {
 pub struct AuthResp {
     pub token: String,
     pub org: Organisation,
+    pub expires_at: String,
 }
 
 #[derive(Debug, Serialize)]
