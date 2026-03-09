@@ -24,10 +24,47 @@ mod ws;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 1. Load .env
+    // 1. Load .env first so JWT_SECRET is available for generate-token
     dotenv().ok();
 
-    // 2. Init tracing
+    // 2. Handle CLI subcommands BEFORE connecting to the database
+    //    generate-token only needs the JWT secret from .env, no DB required.
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 && args[1] == "generate-token" {
+        let mut org_id = "test-org".to_string();
+        let mut org_name = "Test Org".to_string();
+        let mut email = "admin@test.com".to_string();
+        let mut role = "admin".to_string();
+
+        for i in 2..args.len() {
+            match args[i].as_str() {
+                "--org-id" => {
+                    if i + 1 < args.len() {
+                        org_id = args[i + 1].clone();
+                    }
+                }
+                "--org-name" => {
+                    if i + 1 < args.len() {
+                        org_name = args[i + 1].clone();
+                    }
+                }
+                "--email" => {
+                    if i + 1 < args.len() {
+                        email = args[i + 1].clone();
+                    }
+                }
+                "--role" => {
+                    if i + 1 < args.len() {
+                        role = args[i + 1].clone();
+                    }
+                }
+                _ => {}
+            }
+        }
+        return cmd_generate_token(&org_id, &org_name, &email, &role).await;
+    }
+
+    // 3. Init tracing (only needed for server mode)
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -35,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    // 3. Load config
+    // 4. Load config
     let app_config = config::AppConfig::from_env();
 
     // 4. Connect SQLite, run migrations
@@ -139,13 +176,43 @@ async fn main() -> anyhow::Result<()> {
     // 8. Print startup banner
     print_banner(&app_config);
 
-    // 9. Start server
+    // 10. Start server
     let addr = format!("0.0.0.0:{}", app_config.http_port);
     tracing::info!("AITP Intelligence Core Server listening on http://{}", addr);
 
     let listener = TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
+    Ok(())
+}
+
+pub async fn cmd_generate_token(
+    org_id: &str,
+    org_name: &str,
+    email: &str,
+    role: &str,
+) -> anyhow::Result<()> {
+    let config = crate::auth::TokenConfig::from_env().expect("AITP_JWT_SECRET must be set in .env");
+
+    let token = crate::auth::create_token(&config, org_id, org_name, email, role)
+        .expect("Token generation failed");
+
+    let expiry = chrono::Utc::now() + chrono::Duration::hours(config.expiry_hours);
+
+    println!("\n=== AITP JWT Token ===");
+    println!("Org:     {} ({})", org_name, org_id);
+    println!("Email:   {}", email);
+    println!("Role:    {}", role);
+    println!("Expires: {} UTC", expiry.format("%Y-%m-%d %H:%M:%S"));
+    println!("\n-- Token --");
+    println!("{}", token);
+    println!("\n-- Shell Variable --");
+    println!("TOKEN=\"{}\"", token);
+    println!("\n-- REST Test --");
+    println!("curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer $TOKEN\" | jq");
+    println!("\n-- WebSocket Test --");
+    println!("websocat \"ws://localhost:3000/ws?token=$TOKEN\"");
+    println!();
     Ok(())
 }
 

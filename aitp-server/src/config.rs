@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Application configuration loaded from environment variables.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub jwt_secret: String,
+    pub token_config: crate::auth::TokenConfig,
     pub http_port: u16,
     pub udp_port: u16,
     pub db_path: String,
@@ -20,9 +20,12 @@ pub struct AppConfig {
 impl AppConfig {
     /// Load configuration from environment variables with sensible defaults.
     pub fn from_env() -> Self {
+        let token_config = crate::auth::TokenConfig::from_env().unwrap_or_else(|e| {
+            panic!("Critical error loading token config: {}", e);
+        });
+
         Self {
-            jwt_secret: std::env::var("AITP_JWT_SECRET")
-                .unwrap_or_else(|_| "dev_secret_key_change_in_production_12345".into()),
+            token_config,
             http_port: std::env::var("AITP_HTTP_PORT")
                 .unwrap_or_else(|_| "3000".into())
                 .parse()

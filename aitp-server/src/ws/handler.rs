@@ -1,44 +1,51 @@
-use crate::{auth, db::models::WsEvent, state::AppState};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        State,
     },
+    http::StatusCode,
     response::IntoResponse,
 };
-use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Deserialize)]
-pub struct WsParams {
-    pub token: Option<String>,
-}
+use crate::{
+    auth::{validate_token, AitpClaims},
+    db::models::WsEvent,
+    state::AppState,
+};
 
 /// WebSocket upgrade handler — GET /ws?token=<JWT>
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    Query(params): Query<WsParams>,
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |sock| handle_socket(sock, state, params.token))
-}
+    let token = match params.get("token") {
+        Some(t) => t.clone(),
+        None => return (StatusCode::UNAUTHORIZED, "Missing token").into_response(),
+    };
 
-async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, token: Option<String>) {
-    // Authenticate via JWT
-    let org_id = match auth::validate_token(token.as_deref(), &state.config.jwt_secret) {
-        Some(id) => id,
-        None => {
-            let _ = sock
-                .send(Message::Text(
-                    r#"{"type":"error","message":"unauthorized"}"#.into(),
-                ))
-                .await;
-            return;
+    // Validate the real JWT — NO bypasses
+    let claims = match validate_token(&state.config.token_config, &token) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("WebSocket auth failed: {}", e);
+            return (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)).into_response();
         }
     };
 
+    ws.on_upgrade(move |sock| handle_socket(sock, state, claims))
+}
+
+async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpClaims) {
+    let org_id = claims.org_id;
+
     // Look up org for welcome message
-    let org_name = state.db.get_org_by_id(&org_id).await
+    let org_name = state
+        .db
+        .get_org_by_id(&org_id)
+        .await
         .map(|o| o.name)
         .unwrap_or_else(|_| "Unknown".to_string());
 

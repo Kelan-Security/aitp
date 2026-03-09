@@ -5,7 +5,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::auth::{self, OrgId};
+use crate::auth::{self, AitpClaims};
 use crate::db::models::*;
 use crate::error::AppError;
 use crate::state::AppState;
@@ -68,10 +68,24 @@ async fn signup(
         &format!("New organisation registered: {}", org.name),
     );
 
-    let token = auth::create_token(&org_id, &state.config.jwt_secret)
-        .map_err(|e| AppError::BadRequest(format!("Failed to create token: {}", e)))?;
+    let token = auth::create_token(
+        &state.config.token_config,
+        &org_id,
+        &org.name,
+        &org.email,
+        "admin",
+    )
+    .map_err(|e| AppError::BadRequest(format!("Failed to create token: {}", e)))?;
 
-    Ok(Json(AuthResp { token, org }))
+    let expires_at = (chrono::Utc::now()
+        + chrono::Duration::hours(state.config.token_config.expiry_hours))
+    .to_rfc3339();
+
+    Ok(Json(AuthResp {
+        token,
+        org,
+        expires_at,
+    }))
 }
 
 async fn signin(
@@ -93,20 +107,34 @@ async fn signin(
         .verify_password(req.password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::Auth("Invalid credentials".into()))?;
 
-    let token = auth::create_token(&org.id, &state.config.jwt_secret)
-        .map_err(|e| AppError::BadRequest(format!("Failed to create token: {}", e)))?;
+    let token = auth::create_token(
+        &state.config.token_config,
+        &org.id,
+        &org.name,
+        &org.email,
+        "admin",
+    )
+    .map_err(|e| AppError::BadRequest(format!("Failed to create token: {}", e)))?;
+
+    let expires_at = (chrono::Utc::now()
+        + chrono::Duration::hours(state.config.token_config.expiry_hours))
+    .to_rfc3339();
 
     state
         .hub
         .log("INFO", &format!("Organisation '{}' signed in", org.name));
 
-    Ok(Json(AuthResp { token, org }))
+    Ok(Json(AuthResp {
+        token,
+        org,
+        expires_at,
+    }))
 }
 
 async fn me(
     State(state): State<Arc<AppState>>,
-    OrgId(org_id): OrgId,
+    claims: AitpClaims, // Use AitpClaims directly
 ) -> Result<Json<Organisation>, AppError> {
-    let org = state.db.get_org_by_id(&org_id).await?;
+    let org = state.db.get_org_by_id(&claims.org_id).await?;
     Ok(Json(org))
 }
