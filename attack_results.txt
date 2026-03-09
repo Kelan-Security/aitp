@@ -1,0 +1,114 @@
+
+[1m╔══════════════════════════════════════════════════════╗[0m
+[1m║        AITP Attack Simulation Suite v0.3            ║[0m
+[1m╚══════════════════════════════════════════════════════╝[0m
+
+[0;34m[AUTH][0m Authenticated as admin@acme.com
+
+[1m=== SETUP: Creating test entities ===[0m
+  Created workstation: b4fcc810c108734b...
+  Created service:     3975ddb4e324d2ce...
+  Created database:    6edce42524630a8e...
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 1 — Legitimate Session (baseline)             [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: Engineering workstation → ModelInference → ml-inference-service
+
+{
+  "evaluation_source": "rules",
+  "primary_risk": "New entity — trust capped",
+  "reasoning": "New entity — trust capped; Known peer bonus",
+  "session_id": "64df73ed-52fb-469c-841f-061464f189f1",
+  "trust_score": 115,
+  "verdict": "Monitor"
+}
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 2 — Unknown/Unregistered Entity               [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: Unregistered device tries to connect
+
+{
+  "error": "Not found",
+  "type": "error"
+}
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 3 — Clearance Violation                       [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: Clearance-1 workstation → clearance-3 finance database
+
+{
+  "evaluation_source": "rules",
+  "primary_risk": "New entity — trust capped",
+  "reasoning": "New entity — trust capped; Known peer bonus",
+  "session_id": "a71c91db-3241-4f30-9720-8fd6da402f5b",
+  "trust_score": 115,
+  "verdict": "Monitor"
+}
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 4 — ControlSignal Abuse                       [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: AI inference service declares ControlSignal intent
+
+{
+  "evaluation_source": "rules",
+  "primary_risk": "ControlSignal intent",
+  "reasoning": "New entity — trust capped; ControlSignal intent penalized; Known peer bonus",
+  "session_id": "0f213f8d-1e85-4271-be89-7897e3681e4e",
+  "trust_score": 90,
+  "verdict": "Monitor"
+}
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 5 — Lateral Movement (Compromised Service)    [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: ml-inference-service (compromised) → finance-database
+
+{
+  "evaluation_source": "rules",
+  "primary_risk": "1 anomaly flag(s)",
+  "reasoning": "New entity — trust capped; 1 behavioral anomalies detected; Known peer bonus",
+  "session_id": "b4055418-0b29-4ed5-8d00-7f56cee59068",
+  "trust_score": 85,
+  "verdict": "Monitor"
+}
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 6 — Data Exfiltration Pattern                 [0m
+[1m═══════════════════════════════════════════════════════[0m
+Scenario: Massive data transfer
+
+{
+  "evaluation_source": "rules",
+  "primary_risk": "1 anomaly flag(s)",
+  "reasoning": "New entity — trust capped; 1 behavioral anomalies detected; Known peer bonus",
+  "session_id": "57fabef6-b14a-45f4-b303-bc8386edaed3",
+  "trust_score": 85,
+  "verdict": "Monitor"
+}
+Checking sentinel anomalies...
+[]
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m ATTACK 7 — DDoS Flood Simulation                     [0m
+[1m═══════════════════════════════════════════════════════[0m
+
+Sending 20 rapid sessions...
+Flood complete.
+
+
+[1m═══════════════════════════════════════════════════════[0m
+[1m                   FINAL REPORT                       [0m
+[1m═══════════════════════════════════════════════════════[0m
+
+Total Evaluated:  25
+Total Blocked:    0
+
+[0;34m[AI CHECK][0m Verifying Gemini reasoning...
+  Gemini says:  not available
+
+[1mSimulation complete.[0m
+

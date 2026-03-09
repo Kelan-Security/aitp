@@ -100,8 +100,13 @@ async fn main() -> anyhow::Result<()> {
 
     db::migrations::run(&db_pool).await?;
 
-    // 5. Create AppState
     let sentinel_instance = sentinel::Sentinel::new();
+    let trust_engine = crate::trust::HybridTrustEngine::new(
+        &app_config.gemini_api_key,
+        &app_config.gemini_model,
+        app_config.trust_alpha,
+        &app_config.trust_mode,
+    );
 
     let app_state = Arc::new(state::AppState {
         db: db::DbPool::new(db_pool),
@@ -109,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
         config: app_config.clone(),
         start_time: Instant::now(),
         sentinel: sentinel_instance.clone(),
+        trust_engine,
     });
 
     // 6. Start background tasks
@@ -199,20 +205,32 @@ pub async fn cmd_generate_token(
 
     let expiry = chrono::Utc::now() + chrono::Duration::hours(config.expiry_hours);
 
-    println!("\n=== AITP JWT Token ===");
-    println!("Org:     {} ({})", org_name, org_id);
-    println!("Email:   {}", email);
-    println!("Role:    {}", role);
-    println!("Expires: {} UTC", expiry.format("%Y-%m-%d %H:%M:%S"));
-    println!("\n-- Token --");
+    // Metadata to stderr
+    eprintln!("\n╔══════════════════════════════════════════════════════╗");
+    eprintln!("║           AITP JWT Token Generated                  ║");
+    eprintln!("╚══════════════════════════════════════════════════════╝");
+    eprintln!("Org ID:   {}", org_id);
+    eprintln!("Org Name: {}", org_name);
+    eprintln!("Email:    {}", email);
+    eprintln!("Role:     {}", role);
+    eprintln!("Expires:  {} UTC", expiry.format("%Y-%m-%d %H:%M:%S"));
+
+    eprintln!("\n-- Token (printed to stdout) --");
+    // Raw token to stdout
     println!("{}", token);
-    println!("\n-- Shell Variable --");
-    println!("TOKEN=\"{}\"", token);
-    println!("\n-- REST Test --");
-    println!("curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer $TOKEN\" | jq");
-    println!("\n-- WebSocket Test --");
-    println!("websocat \"ws://localhost:3000/ws?token=$TOKEN\"");
-    println!();
+
+    eprintln!("\n-- Shell Variable --");
+    eprintln!("TOKEN=\"{}\"", token);
+    eprintln!("\n-- REST Test --");
+    eprintln!("curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer $TOKEN\" | jq");
+    eprintln!("\n-- WebSocket Test --");
+    eprintln!("websocat \"ws://localhost:3000/ws?token=$TOKEN\"");
+    eprintln!();
+
+    use std::io::Write;
+    std::io::stdout().flush().ok();
+    std::io::stderr().flush().ok();
+
     Ok(())
 }
 
