@@ -13,4 +13,5 @@ pub struct AppState {
     pub config: AppConfig,
     pub start_time: Instant,
     pub sentinel: Arc<Sentinel>,
+    pub trust_engine: crate::trust::HybridTrustEngine,
 }

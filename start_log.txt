@@ -1,0 +1,26 @@
+
+[1m╔══════════════════════════════════════════════╗[0m
+[1m║        AITP Intelligence Core v0.3          ║[0m
+[1m╚══════════════════════════════════════════════╝[0m
+
+[0;33mFresh start — wiping database...[0m
+[0;33mBuilding aitp-server...[0m
+[0;33mStarting AITP Intelligence Core...[0m
+[0;33mWaiting for server to start[0m.. [0;32mready![0m
+
+[0;32m[1m✓ AITP is running[0m
+
+[1mDashboard:[0m  http://localhost:3000
+[1mAPI:[0m        http://localhost:3000/api
+
+[1m── Your token ──────────────────────────────────────────[0m
+[0;34meyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI5MTc1OTZkMy0yMmU0LTQ1NjgtOWIzZi01ZmY2MDZiNTQyOGQiLCJvcmdfaWQiOiI5MTc1OTZkMy0yMmU0LTQ1NjgtOWIzZi01ZmY2MDZiNTQyOGQiLCJvcmdfbmFtZSI6IkFjbWUgQ29ycCIsImVtYWlsIjoiYWRtaW5AYWNtZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwNzg5ODYsImV4cCI6MTc3MzE2NTM4NiwibmJmIjoxNzczMDc4OTg2LCJqdGkiOiIyMTllNjMwNS05Mjc5LTQ4YzgtODQ4Zi03ZGVlZjU0YTExYWQifQ.YEhZBJxZZewLTd1ZsF_hM8OBZd_fxkBJ096p5PqIJOE[0m
+
+[1m── Test commands ───────────────────────────────────────[0m
+
+  TOKEN="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI5MTc1OTZkMy0yMmU0LTQ1NjgtOWIzZi01ZmY2MDZiNTQyOGQiLCJvcmdfaWQiOiI5MTc1OTZkMy0yMmU0LTQ1NjgtOWIzZi01ZmY2MDZiNTQyOGQiLCJvcmdfbmFtZSI6IkFjbWUgQ29ycCIsImVtYWlsIjoiYWRtaW5AYWNtZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NzMwNzg5ODYsImV4cCI6MTc3MzE2NTM4NiwibmJmIjoxNzczMDc4OTg2LCJqdGkiOiIyMTllNjMwNS05Mjc5LTQ4YzgtODQ4Zi03ZGVlZjU0YTExYWQifQ.YEhZBJxZZewLTd1ZsF_hM8OBZd_fxkBJ096p5PqIJOE"
+  curl -s http://localhost:3000/api/auth/me -H "Authorization: Bearer $TOKEN" | jq
+  websocat "ws://localhost:3000/ws?token=$TOKEN"
+
+[1m────────────────────────────────────────────────────────[0m
+
