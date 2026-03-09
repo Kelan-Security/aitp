@@ -1,7 +1,7 @@
+use super::threat;
+use super::Sentinel;
 use crate::db::models::WsEvent;
 use crate::state::AppState;
-use super::Sentinel;
-use super::threat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -149,7 +149,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                         entity_id: entity_id.clone(),
                         anomaly_type: AnomalyType::NewPeer,
                         severity: AnomalySeverity::Warning,
-                        description: format!("Communicating with unknown peer {}", &dest_entity_id[..16.min(dest_entity_id.len())]),
+                        description: format!(
+                            "Communicating with unknown peer {}",
+                            &dest_entity_id[..16.min(dest_entity_id.len())]
+                        ),
                         recommended_action: "Verify peer identity".to_string(),
                         confidence: 0.9,
                         detected_at: chrono::Utc::now().timestamp(),
@@ -174,7 +177,9 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                             severity: AnomalySeverity::Alert,
                             description: format!(
                                 "Intent {} usage {:.0}% vs baseline {:.0}%",
-                                intent, current_pct * 100.0, baseline_pct * 100.0
+                                intent,
+                                current_pct * 100.0,
+                                baseline_pct * 100.0
                             ),
                             recommended_action: "Investigate intent usage".to_string(),
                             confidence: 0.85,
@@ -228,7 +233,9 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
             } else {
                 0.0
             };
-            if avg_recent_bytes > baseline.avg_payload_bytes * 5.0 && baseline.avg_payload_bytes > 100.0 {
+            if avg_recent_bytes > baseline.avg_payload_bytes * 5.0
+                && baseline.avg_payload_bytes > 100.0
+            {
                 anomalies_found.push(Anomaly {
                     entity_id: entity_id.clone(),
                     anomaly_type: AnomalyType::ExfiltrationPattern,
@@ -318,6 +325,8 @@ pub async fn check_critical_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sent
     drop(anomalies); // Release lock before async work
 
     for anomaly in critical {
-        threat::activate_threat_response(state, sentinel, &anomaly).await;
+        // Use the Gemini-powered agentic threat response engine.
+        // Falls back to rule-based response if no API key is configured.
+        crate::agent::activate_agent(state, &anomaly).await;
     }
 }

@@ -5,6 +5,7 @@ use tokio::net::TcpListener;
 use tokio::time::{interval, Duration, Instant};
 use tower_http::cors::{Any, CorsLayer};
 
+mod agent;
 mod api;
 mod auth;
 mod config;
@@ -117,6 +118,37 @@ async fn main() -> anyhow::Result<()> {
         trust_engine,
     });
 
+    // 5. Handle trigger-agent subcommand
+    if args.contains(&"trigger-agent".to_string()) {
+        let mut target_id = "test-entity-123".to_string();
+        for i in 1..args.len() {
+            if args[i] == "--entity-id" && i + 1 < args.len() {
+                target_id = args[i + 1].clone();
+            }
+        }
+
+        println!(
+            "🚀 Triggering Agentic Threat Response for entity: {}",
+            target_id
+        );
+
+        let now = chrono::Utc::now().timestamp();
+        let anomaly = sentinel::Anomaly {
+            entity_id: target_id.clone(),
+            anomaly_type: sentinel::AnomalyType::LateralMovement,
+            severity: sentinel::AnomalySeverity::Critical,
+            description: "Manual agent trigger for investigative forensic analysis".to_string(),
+            recommended_action: "Investigate and report".to_string(),
+            confidence: 1.0,
+            detected_at: now,
+        };
+
+        crate::agent::activate_agent(&app_state, &anomaly).await;
+
+        println!("✅ Agent investigation complete. Results persisted to database.");
+        return Ok(());
+    }
+
     // 6. Start background tasks
     // a. Sentinel monitoring loop
     if app_config.sentinel_enabled {
@@ -177,6 +209,10 @@ async fn main() -> anyhow::Result<()> {
         .merge(api::router())
         .route("/ws", get(ws::ws_handler))
         .with_state(app_state.clone())
+        .fallback_service(
+            tower_http::services::ServeDir::new("static")
+                .fallback(tower_http::services::ServeFile::new("static/index.html")),
+        )
         .layer(cors);
 
     // 8. Print startup banner

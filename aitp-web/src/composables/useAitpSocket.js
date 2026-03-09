@@ -1,5 +1,4 @@
 import { ref, onMounted, onUnmounted } from 'vue'
-import { io } from 'socket.io-client'
 import { useAitpStore } from '../stores/aitp'
 
 export function useAitpSocket() {
@@ -7,34 +6,50 @@ export function useAitpSocket() {
     const socket = ref(null)
 
     onMounted(() => {
-        socket.value = io(import.meta.env.VITE_AITP_WS_URL || 'http://localhost:8080', {
-            transports: ['websocket'],
-            autoConnect: true
-        })
+        const token = localStorage.getItem('aitp_token')
+        if (!token) return
 
-        socket.value.on('connect', () => {
-            console.log('Connected to AITP Terminal')
-        })
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`
 
-        socket.value.on('session.established', (data) => {
-            store.addSession(data)
-        })
+        socket.value = new WebSocket(wsUrl)
 
-        socket.value.on('session.revoked', (data) => {
-            store.revokeSession(data.session_id)
-        })
+        socket.value.onopen = () => {
+            console.log('Connected to AITP Intelligence Core')
+        }
 
-        socket.value.on('metrics.update', (data) => {
-            store.updateMetrics(data)
-        })
+        socket.value.onmessage = (event) => {
+            const msg = JSON.parse(event.data)
 
-        socket.value.on('attack.detected', (data) => {
-            store.addAttackEvent(data)
-        })
+            if (msg.type === 'stats') {
+                store.updateMetrics({
+                    activeSessions: msg.active_sessions,
+                    trustScoreAvg: msg.avg_trust,
+                    threatsBlocked: msg.blocked_today,
+                    geminiCalls: msg.ai_calls,
+                    entitiesOnline: msg.entities_online
+                })
+            } else if (msg.type === 'session_new') {
+                store.addSession({
+                    id: msg.session_id,
+                    source: msg.source_entity,
+                    intent: msg.intent,
+                    trust_score: msg.trust_score,
+                    verdict: 'Allow',
+                    status: 'ACTIVE'
+                })
+            } else if (msg.type === 'alert' || msg.type === 'threat_incident' || msg.type === 'anomaly_detected') {
+                store.addAttackEvent(msg)
+            }
+        }
+
+        socket.value.onclose = () => {
+            console.log('AITP connection closed')
+        }
     })
 
     onUnmounted(() => {
-        if (socket.value) socket.value.disconnect()
+        if (socket.value) socket.value.close()
     })
 
     return { socket }

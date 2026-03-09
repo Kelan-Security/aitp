@@ -1,11 +1,14 @@
 /// Run all database migrations (idempotent).
 pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
     // Enable WAL mode and foreign keys
-    sqlx::query("PRAGMA journal_mode=WAL;").execute(pool).await?;
+    sqlx::query("PRAGMA journal_mode=WAL;")
+        .execute(pool)
+        .await?;
     sqlx::query("PRAGMA foreign_keys=ON;").execute(pool).await?;
 
     // ── Core identity registry ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS organisations (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -15,10 +18,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             trust_mode TEXT DEFAULT 'hybrid',
             created_at INTEGER NOT NULL
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Entity registry ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS entities (
             id TEXT PRIMARY KEY,
             org_id TEXT REFERENCES organisations(id),
@@ -35,10 +42,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             last_seen INTEGER,
             enrolled_at INTEGER NOT NULL
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Sessions ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
@@ -57,10 +68,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             ended_at INTEGER,
             close_reason TEXT
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Immutable audit chain ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS audit_chain (
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
             org_id TEXT NOT NULL,
@@ -74,10 +89,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             entry_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Entity baselines ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS entity_baselines (
             entity_id TEXT PRIMARY KEY,
             avg_sessions_per_hour REAL DEFAULT 0,
@@ -90,15 +109,20 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             sample_count INTEGER DEFAULT 0,
             last_updated INTEGER NOT NULL
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Security incidents ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS security_incidents (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
             severity TEXT NOT NULL,
             attack_type TEXT NOT NULL,
+            summary TEXT,
             entry_point_entity_id TEXT,
             affected_entities TEXT DEFAULT '[]',
             attack_timeline TEXT NOT NULL,
@@ -106,13 +130,19 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             vulnerability TEXT,
             remediation TEXT,
             status TEXT DEFAULT 'open',
+            confidence REAL DEFAULT 0,
+            investigation_steps INTEGER DEFAULT 0,
             detected_at INTEGER NOT NULL,
             resolved_at INTEGER
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Communication policies ──
-    sqlx::query(r#"
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS comm_policies (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
@@ -126,7 +156,10 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             priority INTEGER DEFAULT 100,
             created_at INTEGER NOT NULL
         )
-    "#).execute(pool).await?;
+    "#,
+    )
+    .execute(pool)
+    .await?;
 
     // ── Indexes ──
     for idx in &[
