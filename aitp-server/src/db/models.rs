@@ -126,6 +126,8 @@ pub struct SignupReq {
     pub org_name: String,
     pub email: String,
     pub password: String,
+    pub industry: Option<String>,
+    pub gemini_api_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

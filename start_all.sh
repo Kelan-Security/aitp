@@ -22,9 +22,9 @@ else
 fi
 
 # 2. Start frontend
-echo -e "${AMBER}Starting frontend (aitp-dashboard)...${NC}"
-cd aitp-dashboard
-npm run dev &
+echo -e "${AMBER}Starting frontend (aitp-web)...${NC}"
+cd aitp-web
+npm run dev -- --port 5173 &
 FRONTEND_PID=$!
 cd ..
 echo -e "${GREEN}✓ Frontend starting at http://localhost:5173${NC}"
