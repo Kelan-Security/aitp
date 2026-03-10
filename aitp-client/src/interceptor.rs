@@ -26,7 +26,10 @@ impl Interceptor {
                 Ok(())
             }
             other => {
-                warn!("Unknown interception mode '{}' — falling back to none", other);
+                warn!(
+                    "Unknown interception mode '{}' — falling back to none",
+                    other
+                );
                 Ok(())
             }
         }

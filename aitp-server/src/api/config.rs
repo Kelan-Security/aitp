@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, routing::post, Json, Router};
 use std::sync::Arc;
 
 use crate::auth::OrgId;
@@ -25,9 +21,15 @@ async fn update_ai_config(
     let trust_mode = req.trust_mode.as_deref().unwrap_or("hybrid");
     let api_key_enc = req.api_key.as_deref();
 
-    state.db.update_org_ai_config(&org_id, api_key_enc, trust_mode).await?;
+    state
+        .db
+        .update_org_ai_config(&org_id, api_key_enc, trust_mode)
+        .await?;
 
-    state.hub.log("INFO", &format!("AI config updated: trust_mode={}", trust_mode));
+    state.hub.log(
+        "INFO",
+        &format!("AI config updated: trust_mode={}", trust_mode),
+    );
 
     Ok(Json(serde_json::json!({
         "status": "updated",
@@ -44,13 +46,26 @@ async fn verify_key(
 
     match engine.verify_key().await {
         Ok(result) => {
-            let _ = state.db.insert_audit(
-                &org_id, "AiKeyVerified", "info",
-                None, None,
-                &format!("Gemini API key verified — model: {}", req.model), "{}",
-            ).await;
+            let _ = state
+                .db
+                .insert_audit(
+                    &org_id,
+                    "AiKeyVerified",
+                    "info",
+                    None,
+                    None,
+                    &format!("Gemini API key verified — model: {}", req.model),
+                    "{}",
+                )
+                .await;
 
-            state.hub.log("INFO", &format!("Gemini key verified — model={} score={}", req.model, result.trust_score));
+            state.hub.log(
+                "INFO",
+                &format!(
+                    "Gemini key verified — model={} score={}",
+                    req.model, result.trust_score
+                ),
+            );
 
             Ok(Json(serde_json::json!({
                 "status": "verified",
@@ -66,8 +81,13 @@ async fn verify_key(
             })))
         }
         Err(e) => {
-            state.hub.log("ERROR", &format!("Gemini key verification failed: {}", e));
-            Err(AppError::BadRequest(format!("API key verification failed: {}", e)))
+            state
+                .hub
+                .log("ERROR", &format!("Gemini key verification failed: {}", e));
+            Err(AppError::BadRequest(format!(
+                "API key verification failed: {}",
+                e
+            )))
         }
     }
 }

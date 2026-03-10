@@ -212,6 +212,7 @@ impl DbPool {
 
     // ═══ Audit Chain ═══
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_audit(
         &self,
         org_id: &str,
@@ -308,6 +309,7 @@ impl DbPool {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_policy(
         &self,
         id: &str,

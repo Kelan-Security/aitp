@@ -1,5 +1,5 @@
 .PHONY: build release test test-integration test-gemini fmt fmt-check clippy \
-       docker-up docker-down docker-build validate logs clean doc
+       docker-up docker-down docker-build validate logs clean doc dev dev-full
 
 # ───────────────── Build ─────────────────
 build:
@@ -75,3 +75,14 @@ example-revoke:
 clean:
 	cargo clean
 	docker compose down -v --remove-orphans 2>/dev/null || true
+	pkill -f "aitp_server" 2>/dev/null || true
+	pkill -f "npm.*aitp-web" 2>/dev/null || true
+
+# ───────────────── Development ─────────────────
+# Start EVERYTHING: Frontend, Backend, Server, Docker, Database
+dev:
+	./start_all.sh --docker
+
+# Start local only: Frontend + Backend
+dev-local:
+	./start_all.sh

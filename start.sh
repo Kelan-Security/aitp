@@ -32,24 +32,40 @@ banner() {
 }
 
 stop_server() {
+  echo -e "${AMBER}Cleaning up existing server instances...${NC}"
   if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
     if kill -0 "$PID" 2>/dev/null; then
-      echo -e "${AMBER}Stopping AITP server (PID $PID)...${NC}"
-      kill "$PID"
-      rm -f "$PID_FILE"
-      echo -e "${GREEN}Stopped.${NC}"
-    else
-      rm -f "$PID_FILE"
+      kill "$PID" 2>/dev/null || true
+      sleep 1
     fi
-  else
-    pkill -f "aitp_server" 2>/dev/null || true
+    rm -f "$PID_FILE"
   fi
+  
+  # Kill anything on port 3000 (most robust)
+  PORT_PID=$(lsof -t -i:3000)
+  if [ -z "$PORT_PID" ]; then
+    # Fallback to pkill if lsof empty
+    pkill -f "aitp_server" 2>/dev/null || true
+  else
+    echo -e "${AMBER}Killing process $PORT_PID on port 3000...${NC}"
+    kill -9 $PORT_PID 2>/dev/null || true
+  fi
+  
+  sleep 1
 }
 
 wait_for_server() {
+  local SERVER_PID=$!
   echo -ne "${AMBER}Waiting for server to start${NC}"
   for i in $(seq 1 30); do
+    # Check if the process we just started is still alive
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+      echo -e " ${RED}FAILED (server process died)${NC}"
+      echo -e "${RED}Check logs in $LOG_FILE${NC}"
+      exit 1
+    fi
+    
     if curl -s http://localhost:3000/api/stats > /dev/null 2>&1; then
       echo -e " ${GREEN}ready!${NC}"
       return 0

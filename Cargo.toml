@@ -7,7 +7,6 @@ members = [
     "aitp-control-plane",
     "aitp-sdk",
     "aitp-observability",
-    "aitp-web",
     "aitp-server",
     "aitp-client",
     # aitp-ebpf excluded — requires Linux + clang for BPF compilation

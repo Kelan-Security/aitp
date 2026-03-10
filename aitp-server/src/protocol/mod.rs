@@ -96,7 +96,7 @@ impl AitpHeader {
     /// Total header size in bytes.
     /// 1 (version) + 1 (flags) + 2 (intent) + 8 (session_id) + 8 (timestamp)
     /// + 12 (nonce) + 32 (source_id) + 32 (dest_id) + 64 (signature) + 4 (payload_len)
-    /// = 164 bytes.
+    ///   = 164 bytes.
     pub const SIZE: usize = 164;
 
     /// Create a new header (signature zeroed — call sign() before sending).

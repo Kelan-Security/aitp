@@ -1,49 +1,87 @@
 #!/usr/bin/env bash
-# Starts backend + frontend + runs attack simulations
+# AITP Master Orchestrator — Starts backend, frontend, and infrastructure.
 
 set -e
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 AMBER='\033[0;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo ""
-echo -e "${BOLD}AITP — Starting full stack${NC}"
-echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║        AITP Full Stack Orchestrator         ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 
-# 1. Start backend (if not running)
-if ! curl -s http://localhost:3000/api/stats > /dev/null 2>&1; then
-  echo -e "${AMBER}Starting backend...${NC}"
-  ./start.sh &
-  sleep 8
-else
-  echo -e "${GREEN}✓ Backend already running${NC}"
+# 1. Cleanup existing processes
+echo -e "${AMBER}Cleaning up stale local processes...${NC}"
+# Kill frontend (Vite/npm)
+FE_PID=$(lsof -t -i:5173 2>/dev/null || true)
+if [ -n "$FE_PID" ]; then
+    echo -e "  Killing frontend on port 5173 (PID $FE_PID)..."
+    kill -9 $FE_PID 2>/dev/null || true
 fi
 
-# 2. Start frontend
-echo -e "${AMBER}Starting frontend (aitp-web)...${NC}"
+# Kill backend via its own script
+./start.sh stop > /dev/null 2>&1 || true
+
+# 2. Infrastructure (Docker)
+if [ "$1" == "--docker" ] || [ "$AITP_USE_DOCKER" == "true" ]; then
+    echo -e "${AMBER}Checking Docker infrastructure...${NC}"
+    
+    # Try to resolve Mac socket issues by setting common paths
+    if [ "$(uname)" == "Darwin" ]; then
+        export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
+    fi
+
+    if docker compose version >/dev/null 2>&1; then
+        echo -e "  Starting containers..."
+        docker compose up -d --build || {
+            echo -e "${RED}⚠️ Docker connection failed.${NC}"
+            echo -e "It looks like your Docker CLI can't talk to Docker Desktop."
+            echo -e "Please ${BOLD}Manually Stop${NC} the 'aitp' containers in Docker Desktop UI to free up port 3000."
+        }
+    else
+        echo -e "${RED}⚠️ Docker CLI not found or unreachable.${NC}"
+        echo -e "Please ensure Docker Desktop is running. Proceeding with local stack only..."
+    fi
+fi
+
+# 3. Backend (Intelligence Core)
+echo -e "${AMBER}Starting Intelligence Core (Backend)...${NC}"
+# We don't exit on error here because we want to see the "Address already in use" if it happens
+./start.sh start || {
+    echo -e "${RED}❌ Backend failed to start.${NC}"
+    if lsof -i :3000 >/dev/null 2>&1; then
+        echo -e "${RED}Reason: Port 3000 is still occupied.${NC}"
+        echo -e "Check your Docker Desktop and stop the 'grafana' container."
+    fi
+    exit 1
+}
+
+# 4. Frontend (Admin Dashboard)
+echo -e "${AMBER}Starting Admin Dashboard (Frontend)...${NC}"
 cd aitp-web
-npm run dev -- --port 5173 &
-FRONTEND_PID=$!
-cd ..
+# Run in background, redirect logs
+npm run dev -- --port 5173 > ../.aitp_frontend.log 2>&1 &
 echo -e "${GREEN}✓ Frontend starting at http://localhost:5173${NC}"
+cd ..
 
-sleep 3
-
-# 3. Print access info
-TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/signin \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@acme.com","password":"supersecret123"}' | jq -r '.token')
-
+# 5. Final Status
 echo ""
-echo -e "${GREEN}${BOLD}✓ AITP Stack Running${NC}"
+echo -e "${GREEN}${BOLD}🚀 AITP STACK IS READY${NC}"
 echo ""
-echo "  Backend API:   http://localhost:3000"
-echo "  Dashboard:     http://localhost:5173"
+echo "  Intelligence Core: http://localhost:3000"
+echo "  Admin Dashboard:   http://localhost:5173"
+if [ "$1" == "--docker" ]; then
+    echo "  Grafana Metrics:   http://localhost:3001"
+    echo "  Control Plane:     http://localhost:8080"
+fi
 echo ""
-echo "  TOKEN=\"$TOKEN\""
+echo -e "${BLUE}Logs:${NC}"
+echo "  Backend:  tail -f .aitp_server.log"
+echo "  Frontend: tail -f .aitp_frontend.log"
 echo ""
-echo -e "${AMBER}Run attack simulations:${NC}"
-echo "  ./simulate_attacks.sh"
+echo -e "${AMBER}Run simulations:${NC} ./simulate_attacks.sh"
 echo ""

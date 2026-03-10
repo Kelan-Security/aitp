@@ -158,8 +158,7 @@ impl GeminiTrustEngine {
         let text = api_response
             .candidates
             .and_then(|c| c.into_iter().next())
-            .map(|c| c.content.parts.into_iter().next())
-            .flatten()
+            .and_then(|c| c.content.parts.into_iter().next())
             .map(|p| p.text)
             .ok_or_else(|| "Empty response from Gemini".to_string())?;
 

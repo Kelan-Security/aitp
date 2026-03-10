@@ -37,7 +37,10 @@ pub struct SessionEntry {
 pub async fn query_status() -> Result<StatusResponse> {
     let path = PathBuf::from(IPC_SOCKET_PATH);
     if !path.exists() {
-        anyhow::bail!("AITP daemon is not running (socket not found: {})", IPC_SOCKET_PATH);
+        anyhow::bail!(
+            "AITP daemon is not running (socket not found: {})",
+            IPC_SOCKET_PATH
+        );
     }
     let mut stream = UnixStream::connect(&path).await?;
     stream.write_all(b"STATUS\n").await?;
@@ -49,9 +52,7 @@ pub async fn query_status() -> Result<StatusResponse> {
 }
 
 /// Start the IPC server in the background and handle `STATUS` queries.
-pub async fn start_ipc_server(
-    daemon_state: std::sync::Arc<DaemonState>,
-) -> Result<()> {
+pub async fn start_ipc_server(daemon_state: std::sync::Arc<DaemonState>) -> Result<()> {
     let path = PathBuf::from(IPC_SOCKET_PATH);
     // Remove stale socket file
     let _ = std::fs::remove_file(&path);

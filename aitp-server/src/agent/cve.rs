@@ -36,6 +36,7 @@ impl CveIntelligence {
     }
 
     /// Search by keyword in descriptions.
+    #[allow(dead_code)]
     pub fn search(&self, keyword: &str) -> Vec<CveEntry> {
         let kw = keyword.to_lowercase();
         self.entries
@@ -53,11 +54,8 @@ impl CveIntelligence {
 
 fn version_affected(affected: &str, ver: &[u32]) -> bool {
     // Simple check: if affected says "< X.Y.Z", check if ver is less
-    if affected.starts_with("< ") {
-        let target: Vec<u32> = affected[2..]
-            .split('.')
-            .filter_map(|v| v.parse().ok())
-            .collect();
+    if let Some(rest) = affected.strip_prefix("< ") {
+        let target: Vec<u32> = rest.split('.').filter_map(|v| v.parse().ok()).collect();
         return ver_less_than(ver, &target);
     }
     if affected.contains(" - ") {

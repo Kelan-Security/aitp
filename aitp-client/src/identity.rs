@@ -43,7 +43,7 @@ impl EntityIdentity {
         let public_key_bytes = public_key.to_bytes();
 
         // entity_id = SHA-256(public_key)
-        let entity_id: [u8; 32] = Sha256::digest(&public_key_bytes).into();
+        let entity_id: [u8; 32] = Sha256::digest(public_key_bytes).into();
 
         Ok(Self {
             entity_id,
@@ -64,12 +64,12 @@ impl EntityIdentity {
 
     /// Return entity ID as full hex string.
     pub fn entity_id_full_hex(&self) -> String {
-        hex::encode(&self.entity_id)
+        hex::encode(self.entity_id)
     }
 
     /// Return public key as hex string.
     pub fn public_key_hex(&self) -> String {
-        hex::encode(&self.public_key)
+        hex::encode(self.public_key)
     }
 
     fn key_path(config: &ClientConfig) -> PathBuf {
