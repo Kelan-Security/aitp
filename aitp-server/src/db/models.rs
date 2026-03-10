@@ -126,7 +126,9 @@ pub struct SignupReq {
     pub org_name: String,
     pub email: String,
     pub password: String,
+    #[allow(dead_code)]
     pub industry: Option<String>,
+    #[allow(dead_code)]
     pub gemini_api_key: Option<String>,
 }
 

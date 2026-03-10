@@ -395,7 +395,7 @@ impl HandshakeCoordinator {
 
             // 1. Classical (X25519)
             let server_x25519_sk =
-                x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::OsRng);
+                x25519_dalek::EphemeralSecret::random_from_rng(rand::rngs::OsRng);
             let server_x25519_pk = x25519_dalek::PublicKey::from(&server_x25519_sk);
             let classical_ss =
                 server_x25519_sk.diffie_hellman(&x25519_dalek::PublicKey::from(client_x25519_pk));

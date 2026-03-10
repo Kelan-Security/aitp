@@ -1,5 +1,5 @@
-use crate::state::AppState;
 use super::Sentinel;
+use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -42,6 +42,7 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         Err(_) => return,
     };
 
+    #[allow(clippy::type_complexity)]
     let mut grouped: HashMap<String, Vec<(i64, String, i64, String, i64, i64)>> = HashMap::new();
     for row in &rows {
         let entity_id: String = row.get("source_entity_id");
@@ -52,10 +53,14 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         let bytes_tx: i64 = row.get("bytes_tx");
         let bytes_rx: i64 = row.get("bytes_rx");
 
-        grouped
-            .entry(entity_id)
-            .or_default()
-            .push((started_at, intent, trust_score, dest_id, bytes_tx, bytes_rx));
+        grouped.entry(entity_id).or_default().push((
+            started_at,
+            intent,
+            trust_score,
+            dest_id,
+            bytes_tx,
+            bytes_rx,
+        ));
     }
 
     let mut baselines_lock = sentinel.baselines.write().await;
@@ -77,8 +82,12 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
             total_trust += *trust_score;
             total_bytes += *bytes_tx + *bytes_rx;
 
-            if *started_at < earliest { earliest = *started_at; }
-            if *started_at > latest { latest = *started_at; }
+            if *started_at < earliest {
+                earliest = *started_at;
+            }
+            if *started_at > latest {
+                latest = *started_at;
+            }
 
             // Track active hours
             let hour = (started_at % 86400) / 3600;
@@ -98,7 +107,9 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         };
 
         let mut hours_span = (chrono::Utc::now().timestamp() - earliest) as f64 / 3600.0;
-        if hours_span < 0.1 { hours_span = 0.1; }
+        if hours_span < 0.1 {
+            hours_span = 0.1;
+        }
         let avg_sessions_per_hour = session_count as f64 / hours_span;
 
         let learning_complete = session_count >= 50;
@@ -122,5 +133,7 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         baselines_lock.insert(entity_id, baseline);
     }
 
-    state.hub.log("AI", "Sentinel: behavioral baselines updated");
+    state
+        .hub
+        .log("AI", "Sentinel: behavioral baselines updated");
 }

@@ -29,16 +29,19 @@ async fn get_threat(
     OrgId(_org_id): OrgId,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let incident = state.db.get_incident(&id).await
+    let incident = state
+        .db
+        .get_incident(&id)
+        .await
         .map_err(|_| AppError::NotFound)?;
 
     // Parse the JSON fields for richer response
-    let timeline: serde_json::Value = serde_json::from_str(&incident.attack_timeline)
-        .unwrap_or(serde_json::Value::Null);
-    let affected: serde_json::Value = serde_json::from_str(&incident.affected_entities)
-        .unwrap_or(serde_json::Value::Null);
-    let mitre: serde_json::Value = serde_json::from_str(&incident.mitre_ttps)
-        .unwrap_or(serde_json::Value::Null);
+    let timeline: serde_json::Value =
+        serde_json::from_str(&incident.attack_timeline).unwrap_or(serde_json::Value::Null);
+    let affected: serde_json::Value =
+        serde_json::from_str(&incident.affected_entities).unwrap_or(serde_json::Value::Null);
+    let mitre: serde_json::Value =
+        serde_json::from_str(&incident.mitre_ttps).unwrap_or(serde_json::Value::Null);
 
     Ok(Json(serde_json::json!({
         "id": incident.id,
@@ -67,13 +70,24 @@ async fn resolve_threat(
         return Err(AppError::NotFound);
     }
 
-    let _ = state.db.insert_audit(
-        &org_id, "IncidentResolved", "info",
-        None, None,
-        &format!("Security incident {} resolved", id), "{}",
-    ).await;
+    let _ = state
+        .db
+        .insert_audit(
+            &org_id,
+            "IncidentResolved",
+            "info",
+            None,
+            None,
+            &format!("Security incident {} resolved", id),
+            "{}",
+        )
+        .await;
 
-    state.hub.log("INFO", &format!("Security incident {} resolved", id));
+    state
+        .hub
+        .log("INFO", &format!("Security incident {} resolved", id));
 
-    Ok(Json(serde_json::json!({ "status": "resolved", "incident_id": id })))
+    Ok(Json(
+        serde_json::json!({ "status": "resolved", "incident_id": id }),
+    ))
 }

@@ -42,7 +42,7 @@ impl EnforcementPlane for SoftwareEnforcement {
         self.permits.insert(session_id.to_string(), permit);
         self.entity_index
             .entry(entity_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(session_id.to_string());
 
         tracing::debug!(

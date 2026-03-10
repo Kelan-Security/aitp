@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, routing::get, Json, Router};
 use std::sync::Arc;
 
 use crate::auth::OrgId;
@@ -24,18 +20,18 @@ async fn status(
     let anomalies = state.sentinel.anomalies.lock().await;
 
     let twenty_four_h_ago = chrono::Utc::now().timestamp() - 86400;
-    let anomalies_24h = anomalies.iter()
+    let anomalies_24h = anomalies
+        .iter()
         .filter(|a| a.detected_at > twenty_four_h_ago)
         .count();
 
-    let critical_24h = anomalies.iter()
+    let critical_24h = anomalies
+        .iter()
         .filter(|a| a.detected_at > twenty_four_h_ago)
         .filter(|a| matches!(a.severity, crate::sentinel::AnomalySeverity::Critical))
         .count();
 
-    let learning_count = baselines.values()
-        .filter(|b| !b.learning_complete)
-        .count();
+    let learning_count = baselines.values().filter(|b| !b.learning_complete).count();
 
     Ok(Json(serde_json::json!({
         "monitoring": state.config.sentinel_enabled,

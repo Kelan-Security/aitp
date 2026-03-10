@@ -1,6 +1,6 @@
+use super::{Anomaly, AnomalyType, Sentinel};
 use crate::db::models::WsEvent;
 use crate::state::AppState;
-use super::{Anomaly, AnomalyType, Sentinel};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -36,7 +36,7 @@ pub struct SecurityIncident {
     pub mitre_ttps: Vec<String>,
     pub vulnerability: Option<String>,
     pub remediation: Option<String>,
-    pub status: String,     // "open" | "investigating" | "resolved"
+    pub status: String, // "open" | "investigating" | "resolved"
     pub detected_at: i64,
     pub resolved_at: Option<i64>,
 }
@@ -53,7 +53,8 @@ pub async fn activate_threat_response(
 
     tracing::warn!(
         "THREAT RESPONSE: Activated for entity {} — {:?}",
-        entity_id, anomaly.anomaly_type
+        entity_id,
+        anomaly.anomaly_type
     );
 
     // 1. Immediately quarantine the flagged entity
@@ -152,7 +153,10 @@ pub async fn activate_threat_response(
         "CRITICAL",
         &format!(
             "Threat response complete: entity={} sessions_killed={} affected={} incident={}",
-            entity_id, sessions_killed, affected.len(), incident.id
+            entity_id,
+            sessions_killed,
+            affected.len(),
+            incident.id
         ),
     );
 }
@@ -197,22 +201,21 @@ async fn reconstruct_attack_chain(state: &Arc<AppState>, entity_id: &str) -> Att
 
     let timeline_events: Vec<AttackTimelineEvent> = events
         .iter()
-        .map(|row| {
-            AttackTimelineEvent {
-                timestamp: row.get("created_at"),
-                event_type: row.get("event_type"),
-                entity_id: row.get::<String, _>("source_entity_id"),
-                description: row.get("description"),
-                mitre_tactic: None,
-            }
+        .map(|row| AttackTimelineEvent {
+            timestamp: row.get("created_at"),
+            event_type: row.get("event_type"),
+            entity_id: row.get::<String, _>("source_entity_id"),
+            description: row.get("description"),
+            mitre_tactic: None,
         })
         .collect();
 
-    let duration = if let (Some(first), Some(last)) = (timeline_events.first(), timeline_events.last()) {
-        last.timestamp - first.timestamp
-    } else {
-        0
-    };
+    let duration =
+        if let (Some(first), Some(last)) = (timeline_events.first(), timeline_events.last()) {
+            last.timestamp - first.timestamp
+        } else {
+            0
+        };
 
     AttackTimeline {
         events: timeline_events,
@@ -288,9 +291,15 @@ fn classify_attack(anomaly_type: &AnomalyType) -> String {
 /// Detect potential vulnerability based on anomaly.
 fn detect_vulnerability(anomaly_type: &AnomalyType) -> Option<String> {
     match anomaly_type {
-        AnomalyType::ControlSignalSpike => Some("Insufficient command validation — control signals not rate-limited".to_string()),
-        AnomalyType::ExfiltrationPattern => Some("Missing data loss prevention — outbound transfer limits not enforced".to_string()),
-        AnomalyType::LateralMovement => Some("Flat network segmentation — entities can reach arbitrary peers".to_string()),
+        AnomalyType::ControlSignalSpike => {
+            Some("Insufficient command validation — control signals not rate-limited".to_string())
+        }
+        AnomalyType::ExfiltrationPattern => {
+            Some("Missing data loss prevention — outbound transfer limits not enforced".to_string())
+        }
+        AnomalyType::LateralMovement => {
+            Some("Flat network segmentation — entities can reach arbitrary peers".to_string())
+        }
         _ => None,
     }
 }

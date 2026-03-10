@@ -131,7 +131,7 @@ services:
     container_name: aitp-grafana
     networks: [ aitp-net ]
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=aitp_admin

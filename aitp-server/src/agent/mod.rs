@@ -108,7 +108,7 @@ pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
         &format!(
             "🤖 Incident {} — {} (confidence: {:.0}%, {} steps, {} actions)",
             &report.id[..report.id.len().min(8)],
-            report.summary[..report.summary.len().min(60)].to_string(),
+            &report.summary[..report.summary.len().min(60)],
             report.confidence * 100.0,
             report.investigation_steps,
             report.automated_actions_taken.len(),

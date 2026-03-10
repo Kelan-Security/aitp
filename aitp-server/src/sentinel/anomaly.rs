@@ -1,4 +1,3 @@
-use super::threat;
 use super::Sentinel;
 use crate::db::models::WsEvent;
 use crate::state::AppState;

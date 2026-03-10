@@ -114,6 +114,7 @@ impl ClientConfig {
     }
 
     /// Save configuration to the default path.
+    #[allow(dead_code)]
     pub fn save(&self) -> Result<()> {
         let path = Self::default_config_path();
         if let Some(parent) = path.parent() {

@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, routing::get, Json, Router};
 use std::sync::Arc;
 
 use crate::auth::OrgId;
@@ -11,8 +7,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub fn router() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/api/stats", get(stats))
+    Router::new().route("/api/stats", get(stats))
 }
 
 async fn stats(

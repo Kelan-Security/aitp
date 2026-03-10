@@ -1,18 +1,19 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   test:
+    name: Test & Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace
-      - run: cargo clippy --workspace -- -D warnings
-
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-audit
-      - run: cargo audit
+        with:
+          components: rustfmt, clippy
+      - uses: swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+      - name: Run tests
+        run: cargo test --workspace

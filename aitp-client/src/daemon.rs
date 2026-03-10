@@ -212,7 +212,7 @@ pub async fn enroll_device(config: &ClientConfig, identity: &EntityIdentity) -> 
         let body: serde_json::Value = reg_resp.json().await.unwrap_or_default();
         if body["error"]
             .as_str()
-            .map_or(false, |e| e.contains("already"))
+            .is_some_and(|e| e.contains("already"))
         {
             println!(
                 "✓ Already enrolled: {} ({})",
