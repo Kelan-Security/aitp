@@ -1,80 +1,92 @@
-# AITP — Adaptive Intent Transport Protocol
+# AITP — Adaptive Intent Transport Protocol (v0.4.2)
 
-> TCP was built in 1984 for bytes. AITP is built for AI.
+> **TCP was built in 1984 for bytes. AITP is built for AI.**
 
-AITP is an open-source transport protocol that adds **identity**, **intent**,
-and **AI-verified trust** to every network connection — natively at the
-protocol level.
+AITP is an AI-native transport protocol that adds **Identity**, **Intent**, and **Autonomous Logic** to every network connection. It replaces static firewall rules with a continuous, agentic reasoning loop that evaluates the "Why" behind every packet.
 
-## Why AITP?
+---
 
-| TCP/IP (1984)        | AITP (2025)                    |
-|----------------------|--------------------------------|
-| Connects hosts       | Connects identities            |
-| No intent awareness  | Every packet declares intent   |
-| Trust bolted on      | Trust built into the protocol  |
-| Static authorization | Continuous AI re-evaluation    |
-| Manual revocation    | Sub-millisecond revocation     |
+## 🚀 The AITP Advantage
 
-## Quickstart (5 minutes)
+| Feature | TCP/IP (Standard) | AITP (v0.4) |
+|:---|:---:|:---|
+| **Primary Unit** | IP Address | Cryptographic Identity |
+| **Trust Model** | Perimeter-based | Continuous AI Evaluation |
+| **Awareness** | Byte-stream only | Intent-Declared (Declared + Verified) |
+| **Defense** | Static Filters | Agentic Threat Response (ReAct) |
+| **Revocation** | Manual Firewall Ops | Sub-millisecond Autonomous Kill |
 
-### Prerequisites
-- Docker + Docker Compose
-- Linux or macOS
+---
 
-### Install & Run
+## 🧠 Intelligence Core: The 4-Layer Defense
 
-#### Option 1: One-line install
-```bash
-curl -fsSL https://get.aitp.dev | bash
-```
+AITP doesn't just "block IPs." It uses a multi-layered intelligence stack to protect your network:
 
-#### Option 2: Docker Compose
+1.  **Deterministic Layer**: Ed25519 signature verification and Role-Based Access Control (RBAC).
+2.  **Sentinel Layer (Behavioral)**: Real-time anomaly detection based on rolling 7-day entity baselines.
+3.  **Hybrid Trust Engine (LLM)**: Gemini 2.0/2.5 Flash evaluates session intent against the broader network context.
+4.  **Agentic Threat Response**: When a high-severity anomaly is detected, a **ReAct AI Agent** autonomously investigates the audit chain, maps it to MITRE ATT&CK techniques, and generates a forensic report.
+
+---
+
+## ⚡ Quickstart (The "God-Mode" Startup)
+
+The entire AITP stack (Backend, Frontend, Docker Infrastructure, and Database) can be started with a single command.
+
+### 1. Prerequisites
+- **Rust** (Stable)
+- **Node.js** (v18+)
+- **Docker Desktop**
+- **Gemini API Key** (Set as `AITP_GEMINI_API_KEY` in `.env`)
+
+### 2. Start the Stack
 ```bash
 git clone https://github.com/Tanush-Jain/AITP.git
 cd AITP
-cp .env.example .env
-# Add your Gemini API key to .env (optional — runs without it)
-echo "AITP_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]" >> .env
-docker compose up -d
+make dev
 ```
 
-#### Verify it's running
-```bash
-curl http://localhost:8080/health
-```
+### 3. Access the SOC
+- **Admin Dashboard**: [http://localhost:3000](http://localhost:3000) (Self-served from Intelligence Core)
+- **Local Dev App**: [http://localhost:5173](http://localhost:5173)
+- **Grafana Metrics**: [http://localhost:3001](http://localhost:3001)
 
-#### Watch a live handshake between two nodes
-```bash
-docker compose logs -f aitp-node-alpha aitp-node-beta
-```
+---
 
-Open Grafana: [http://localhost:3000](http://localhost:3000) (admin / aitp_admin)
+## 🛠️ Key Operational Commands
 
-## Architecture
+| Command | Action |
+|:---|:---|
+| `make dev` | **Start Everything**: Backend + Frontend + Docker + DB |
+| `./simulate_attacks.sh` | Run the **Attack Suite**: Verifies AI reasoning against real exploits. |
+| `make test` | Run internal unit and protocol tests. |
+| `make clean` | Full cleanup of stale processes, Docker containers, and temporary logs. |
 
-![AITP Architecture Diagram](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/architecture.png)
+---
 
-## AITP Web Dashboard
+## 🏗️ Technical Architecture
 
-The official AITP Web Dashboard provides real-time observability, control plane identity management, and node visualization.
+- **Backend**: High-performance Rust (Axum, SQLx, SQLite).
+- **Core Protocol**: Custom binary header (164-byte wire format) with identity-nonce binding.
+- **Frontend**: Real-time SOC dashboard using WebSockets and CSS-optimized security aesthetics.
+- **Infrastructure**: Containerized Prometheus/Grafana monitoring cluster.
 
-![AITP Dashboard Overview](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/dashboard_overview.png)
-*Live Network Graph, Trust Distribution, and Active Sessions.*
+---
 
-![Test Lab Simulation](https://raw.githubusercontent.com/Tanush-Jain/AITP/main/docs/assets/dashboard_testlab.png)
-*Defense verification test lab simulating inbound malicious intent.*
+## 🔒 Security Posture
 
-## Documentation
-- [Quick Start Guide](docs/quickstart.md)
-- [Protocol Specification](docs/spec.md)
-- [API Reference](docs/api.md)
-- [Deployment Guide](docs/deployment.md)
+AITP implements **Zero-Trust for the AI Age**:
+- **Identity-First**: No session starts without an Ed25519-signed handshake.
+- **Micro-segmentation**: Dynamic clearance levels enforced at the protocol header.
+- **Audit Stability**: Every security event is chained and hashed for forensic integrity.
 
-## Status
-![Tests](https://github.com/Tanush-Jain/AITP/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/badge/license-BUSL%201.1-blue)
-![Docker Pulls](https://img.shields.io/docker/pulls/tanushjain/aitp)
+---
+
+## 🗺️ Roadmap
+- [x] v0.3: Agentic Threat Response Loop
+- [x] v0.4: Integrated Admin SOC Dashboard
+- [ ] v0.5: Distributed eBPF Enforcement Plane (Production hardening)
+- [ ] v1.0: Multi-Cloud Intelligence Mesh
 
 ---
 © 2026 AITP Contributors. Licensed under BSL 1.1.
