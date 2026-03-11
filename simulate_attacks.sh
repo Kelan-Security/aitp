@@ -181,7 +181,7 @@ echo ""
 echo -e "${BLUE}[AI CHECK]${NC} Verifying Gemini reasoning..."
 # Use GEMINI_API_KEY from .env
 VERIFY=$(auth -X POST $BASE/config/verify-key \
-  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
+  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.0-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
   2>/dev/null || echo '{"test_evaluation":{"reasoning":"API call failed"}}')
 
 REASONING=$(echo $VERIFY | jq -r '.test_evaluation.reasoning // "not available"')
