@@ -1,4 +1,5 @@
 use crate::db::models::WsEvent;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub mod handler;
@@ -7,19 +8,25 @@ pub use handler::ws_handler;
 /// WebSocket hub — broadcasts events to all connected dashboard clients.
 #[derive(Clone)]
 pub struct WsHub {
-    pub tx: broadcast::Sender<String>,
+    pub tx: broadcast::Sender<Arc<WsEvent>>,
+    pub budget: Arc<crate::budget::MemoryBudget>,
 }
 
 impl WsHub {
-    pub fn new() -> Self {
-        let (tx, _) = broadcast::channel(4096);
-        WsHub { tx }
+    pub fn new(budget: Arc<crate::budget::MemoryBudget>) -> Self {
+        let (tx, _) = broadcast::channel(512);
+        WsHub { tx, budget }
     }
 
-    /// Broadcast a WsEvent to all connected clients.
+    /// Broadcast an event to all connected clients.
     pub fn broadcast(&self, event: WsEvent) {
-        if let Ok(json) = serde_json::to_string(&event) {
-            let _ = self.tx.send(json);
+        // Backpressure: Only broadcast if we have a budget slot
+        if self.tx.receiver_count() > 0 {
+            if self.budget.ws_semaphore.try_acquire().is_ok() {
+                let _ = self.tx.send(Arc::new(event));
+            } else {
+                tracing::warn!("WebSocket broadcast dropped due to backpressure");
+            }
         }
     }
 

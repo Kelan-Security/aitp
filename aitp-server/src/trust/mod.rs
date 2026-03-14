@@ -1,6 +1,10 @@
 pub mod gemini;
 pub mod rules;
 
+use moka::future::Cache;
+use std::time::Duration;
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 // ────────────────────────── Trust Types ──────────────────────────
@@ -69,6 +73,23 @@ pub struct SessionContext {
     pub time_of_day_hour: u8,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct TrustCacheKey {
+    pub source_entity_id: String,
+    pub dest_entity_id: String,
+    pub intent: String,
+}
+
+impl From<&SessionContext> for TrustCacheKey {
+    fn from(ctx: &SessionContext) -> Self {
+        Self {
+            source_entity_id: ctx.source_entity_id.clone(),
+            dest_entity_id: ctx.dest_entity_id.clone(),
+            intent: ctx.intent.clone(),
+        }
+    }
+}
+
 // ────────────────────────── Hybrid Engine ──────────────────────────
 
 /// Hybrid trust engine combining deterministic rules and AI evaluation.
@@ -77,6 +98,7 @@ pub struct HybridTrustEngine {
     pub gemini: Option<gemini::GeminiTrustEngine>,
     pub alpha: f64,   // weight for rules vs AI (alpha=rules weight)
     pub mode: String, // "hybrid" | "rules" | "ai_only"
+    pub cache: Cache<TrustCacheKey, Arc<TrustResult>>,
 }
 
 impl HybridTrustEngine {
@@ -87,16 +109,36 @@ impl HybridTrustEngine {
             None
         };
 
+        let cache = Cache::builder()
+            .max_capacity(10_000)
+            .time_to_live(Duration::from_secs(300))    // 5 min TTL
+            .time_to_idle(Duration::from_secs(60))     // Evict if unused 1 min
+            .build();
+
         Self {
             rules: rules::RulesEngine::new(),
             gemini,
             alpha,
             mode: mode.to_string(),
+            cache,
         }
     }
 
     /// Evaluate trust for a session context.
     pub async fn evaluate(&self, ctx: &SessionContext) -> TrustResult {
+        let cache_key = TrustCacheKey::from(ctx);
+
+        if let Some(cached) = self.cache.get(&cache_key).await {
+            tracing::debug!(entity_id = %ctx.source_entity_id, "Trust cache hit");
+            return (*cached).clone();
+        }
+
+        let result = self.evaluate_uncached(ctx).await;
+        self.cache.insert(cache_key, Arc::new(result.clone())).await;
+        result
+    }
+
+    async fn evaluate_uncached(&self, ctx: &SessionContext) -> TrustResult {
         let start = std::time::Instant::now();
 
         match self.mode.as_str() {

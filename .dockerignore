@@ -1,5 +1,14 @@
 target/
-.git/
+data/
+keys/
+logs/
+certs/
 .env
 *.log
-.DS_Store
+*.db
+*.db-shm
+*.db-wal
+node_modules/
+aitp-dashboard/node_modules/
+.git/
+docker-compose.prod.yml

@@ -79,8 +79,15 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
             // Forward broadcast events to this client
             result = rx.recv() => {
                 match result {
-                    Ok(json) => {
-                        if sock.send(Message::Text(json)).await.is_err() {
+                    Ok(event) => {
+                        let json_str = match serde_json::to_string(&*event) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                tracing::warn!("Failed to serialize WsEvent: {}", e);
+                                continue;
+                            }
+                        };
+                        if sock.send(Message::Text(json_str)).await.is_err() {
                             break; // Client disconnected
                         }
                     }

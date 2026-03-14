@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use axum::{extract::Host, http::Uri, response::Redirect, routing::get, Router};
 use dotenvy::dotenv;
 use std::net::SocketAddr;
@@ -8,6 +11,7 @@ use tower_http::cors::{Any, CorsLayer};
 mod agent;
 mod api;
 mod auth;
+mod budget;
 mod config;
 mod db;
 #[allow(dead_code)]
@@ -24,8 +28,19 @@ mod tls;
 mod trust;
 mod ws;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    let cpu_count = num_cpus::get();
+
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(cpu_count.min(8))
+        .max_blocking_threads(4)
+        .thread_stack_size(2 * 1024 * 1024)
+        .enable_all()
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
     // 1. Load .env first so JWT_SECRET is available for generate-token
     dotenv().ok();
 
@@ -99,13 +114,16 @@ async fn main() -> anyhow::Result<()> {
         &app_config.trust_mode,
     );
 
+    let memory_budget = Arc::new(budget::MemoryBudget::new());
+
     let app_state = Arc::new(state::AppState {
         db: db_pool,
-        hub: ws::WsHub::new(),
+        hub: ws::WsHub::new(memory_budget.clone()),
         config: app_config.clone(),
         start_time: Instant::now(),
         sentinel: sentinel_instance.clone(),
         trust_engine,
+        memory_budget,
     });
 
     // 6. Handle trigger-agent subcommand

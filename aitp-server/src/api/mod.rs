@@ -9,6 +9,7 @@ pub mod threat;
 
 use crate::state::AppState;
 use axum::Router;
+use tower_http::compression::CompressionLayer;
 use std::sync::Arc;
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -21,4 +22,5 @@ pub fn router() -> Router<Arc<AppState>> {
         .merge(policies::router())
         .merge(config::router())
         .merge(stats::router())
+        .layer(CompressionLayer::new())
 }
