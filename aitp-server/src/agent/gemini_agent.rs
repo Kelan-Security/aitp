@@ -59,6 +59,7 @@ pub struct ThreatResponseAgent {
     hub: Arc<WsHub>,
     cve: CveIntelligence,
     auto_quarantine: bool,
+    memory_budget: Arc<crate::budget::MemoryBudget>,
 }
 
 impl ThreatResponseAgent {
@@ -68,6 +69,7 @@ impl ThreatResponseAgent {
         db: DbPool,
         hub: Arc<WsHub>,
         auto_quarantine: bool,
+        memory_budget: Arc<crate::budget::MemoryBudget>,
     ) -> Self {
         Self {
             api_key,
@@ -80,6 +82,7 @@ impl ThreatResponseAgent {
             hub,
             cve: CveIntelligence::new(),
             auto_quarantine,
+            memory_budget,
         }
     }
 
@@ -115,6 +118,9 @@ impl ThreatResponseAgent {
         }));
 
         for step_num in 1..=MAX_STEPS {
+            // Acquire AI slot permit to limit concurrency
+            let _permit = self.memory_budget.acquire_ai_slot().await;
+
             // Call Gemini
             let response = match self.call_gemini(&conversation).await {
                 Ok(text) => text,

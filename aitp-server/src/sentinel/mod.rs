@@ -6,7 +6,8 @@ use crate::state::AppState;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, Duration, Instant};
+use dashmap::DashMap;
 
 pub use anomaly::{Anomaly, AnomalySeverity, AnomalyType};
 pub use baseline::EntityBaseline;
@@ -17,6 +18,7 @@ pub struct Sentinel {
     pub baselines: RwLock<HashMap<String, EntityBaseline>>,
     pub anomalies: Mutex<VecDeque<Anomaly>>, // ring buffer, last 1000
     pub incidents: Mutex<Vec<SecurityIncident>>,
+    pub dirty_entities: DashMap<String, Instant>,
 }
 
 impl Sentinel {
@@ -25,7 +27,13 @@ impl Sentinel {
             baselines: RwLock::new(HashMap::new()),
             anomalies: Mutex::new(VecDeque::with_capacity(1000)),
             incidents: Mutex::new(Vec::new()),
+            dirty_entities: DashMap::new(),
         })
+    }
+
+    /// Mark an entity as dirty so it will be scanned in the next pass.
+    pub fn mark_dirty(&self, entity_id: &str) {
+        self.dirty_entities.insert(entity_id.to_string(), Instant::now());
     }
 }
 

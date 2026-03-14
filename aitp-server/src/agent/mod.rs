@@ -29,6 +29,7 @@ pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
         state.db.clone(),
         Arc::new(state.hub.clone()),
         state.config.auto_quarantine,
+        state.memory_budget.clone(),
     );
 
     let report = agent.investigate(anomaly).await;

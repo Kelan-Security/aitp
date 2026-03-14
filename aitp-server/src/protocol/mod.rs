@@ -2,6 +2,7 @@ pub mod handshake;
 pub mod session;
 
 use serde::{Deserialize, Serialize};
+use zerocopy::{AsBytes, FromBytes, FromZeroes, Ref, Unaligned};
 
 // ────────────────────────── Flags ──────────────────────────
 
@@ -77,7 +78,22 @@ impl std::fmt::Display for IntentCode {
 
 // ────────────────────────── AitpHeader ──────────────────────────
 
-/// AITP packet header — 162 bytes on the wire.
+#[derive(Debug, AsBytes, FromBytes, FromZeroes, Unaligned)]
+#[repr(C, packed)]
+pub struct AitpHeaderWire {
+    pub version:     u8,
+    pub flags:       u8,
+    pub intent:      [u8; 2],   // big-endian u16
+    pub session_id:  [u8; 8],   // big-endian u64
+    pub timestamp:   [u8; 8],
+    pub nonce:       [u8; 12],
+    pub source_id:   [u8; 32],
+    pub dest_id:     [u8; 32],
+    pub signature:   [u8; 64],
+    pub payload_len: [u8; 4],
+}
+
+/// AITP packet header — 164 bytes on the wire.
 #[derive(Debug, Clone)]
 pub struct AitpHeader {
     pub version: u8,
@@ -147,47 +163,31 @@ impl AitpHeader {
         buf
     }
 
-    /// Deserialize from a byte buffer.
+    /// Deserialize from a byte buffer using zero-copy.
     pub fn from_bytes(buf: &[u8]) -> Result<Self, &'static str> {
         if buf.len() < Self::SIZE {
             return Err("buffer too short for AITP header");
         }
 
-        let version = buf[0];
-        if version != 1 {
+        let wire = Ref::<_, AitpHeaderWire>::new_unaligned(&buf[..Self::SIZE])
+            .ok_or("failed to align AITP header")?
+            .into_ref();
+
+        if wire.version != 1 {
             return Err("unsupported AITP version");
         }
 
-        let flags = buf[1];
-        let intent = u16::from_be_bytes([buf[2], buf[3]]);
-        let session_id = u64::from_be_bytes(buf[4..12].try_into().unwrap());
-        let timestamp = u64::from_be_bytes(buf[12..20].try_into().unwrap());
-
-        let mut nonce = [0u8; 12];
-        nonce.copy_from_slice(&buf[20..32]);
-
-        let mut source_id = [0u8; 32];
-        source_id.copy_from_slice(&buf[32..64]);
-
-        let mut dest_id = [0u8; 32];
-        dest_id.copy_from_slice(&buf[64..96]);
-
-        let mut signature = [0u8; 64];
-        signature.copy_from_slice(&buf[96..160]);
-
-        let payload_len = u32::from_be_bytes([buf[160], buf[161], buf[162], buf[163]]);
-
         Ok(Self {
-            version,
-            flags,
-            intent,
-            session_id,
-            timestamp,
-            nonce,
-            source_id,
-            dest_id,
-            signature,
-            payload_len,
+            version: wire.version,
+            flags: wire.flags,
+            intent: u16::from_be_bytes(wire.intent),
+            session_id: u64::from_be_bytes(wire.session_id),
+            timestamp: u64::from_be_bytes(wire.timestamp),
+            nonce: wire.nonce,
+            source_id: wire.source_id,
+            dest_id: wire.dest_id,
+            signature: wire.signature,
+            payload_len: u32::from_be_bytes(wire.payload_len),
         })
     }
 

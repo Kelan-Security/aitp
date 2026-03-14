@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  kernex-server:
+    image: ghcr.io/kernex-security/kernex-core:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://kernex:${POSTGRES_PASSWORD}@postgres:5432/kernex
+      AITP_JWT_SECRET: ${AITP_JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      AITP_TRUST_MODE: hybrid
+      AITP_SENTINEL_ENABLED: "true"
+      AITP_AUTO_QUARANTINE: "true"
+      RUST_LOG: aitp_server=info
+    volumes:
+      - kernex_data:/app/data
+      - kernex_keys:/app/keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kernex_internal
+      - kernex_web
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kernex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: kernex
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - kernex_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kernex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/kernex.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    depends_on:
+      - kernex-server
+    networks:
+      - kernex_web
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done"
+
+volumes:
+  kernex_data:
+  kernex_keys:
+  pg_data:
+  certbot_www:
+  certbot_conf:
+
+networks:
+  kernex_internal:
+    internal: true
+  kernex_web:

@@ -68,7 +68,7 @@ pub struct Anomaly {
 
 /// Scan for anomalies across all entities with learned baselines.
 pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
-    let baselines = sentinel.baselines.read().await;
+    let _baselines = sentinel.baselines.read().await;
     let fifteen_mins_ago = chrono::Utc::now().timestamp() - 900;
     
     use sqlx::Row;
@@ -135,12 +135,26 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         recent_grouped.entry(sess.source_entity_id.clone()).or_default().push(sess);
     }
 
-    for (entity_id, baseline) in baselines.iter() {
+    // Only scan entities that are marked dirty (had activity)
+    let dirty_list: Vec<String> = sentinel.dirty_entities.iter()
+        .filter(|e| e.value().elapsed() < std::time::Duration::from_secs(30))
+        .map(|e| e.key().clone())
+        .collect();
+
+    for entity_id in dirty_list {
+        let baseline_map = sentinel.baselines.read().await;
+        let baseline = match baseline_map.get(&entity_id) {
+            Some(b) => b,
+            None => {
+                sentinel.dirty_entities.remove(&entity_id);
+                continue;
+            }
+        };
         if !baseline.learning_complete {
             continue;
         }
 
-        let recent = recent_grouped.get(entity_id);
+        let recent = recent_grouped.get(&entity_id);
         let recent_count = recent.map(|v| v.len()).unwrap_or(0);
         let current_rate = recent_count as f64 * 4.0; // 15 min × 4 = per hour
 
@@ -361,6 +375,9 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                 log.push_back(anomaly);
             }
         }
+        
+        // Remove from dirty list after scan
+        sentinel.dirty_entities.remove(&entity_id);
     }
 }
 

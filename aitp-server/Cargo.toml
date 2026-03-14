@@ -23,7 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = "9"
 argon2 = "0.5"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower-http = { version = "0.5", features = ["compression-gzip", "cors", "fs"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 rustls-pemfile = "2"
 tracing = "0.1"
@@ -36,6 +36,11 @@ dotenvy = "0.15"
 hex = "0.4"
 base64 = "0.21"
 dashmap = "6"
+num_cpus = "1.17.0"
+moka = { version = "0.12.14", features = ["future"] }
+zerocopy = { version = "0.7", features = ["derive"] }
+mimalloc = { version = "0.1", default-features = false }
+http = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util", "full"] }
