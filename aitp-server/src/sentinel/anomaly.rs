@@ -1,5 +1,5 @@
-use super::Sentinel;
-use crate::db::models::WsEvent;
+use crate::db::models::{Session, WsEvent};
+use crate::sentinel::Sentinel;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -69,30 +69,70 @@ pub struct Anomaly {
 /// Scan for anomalies across all entities with learned baselines.
 pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
     let baselines = sentinel.baselines.read().await;
-    let pool = state.db.inner();
-
     let fifteen_mins_ago = chrono::Utc::now().timestamp() - 900;
-    let query = "
-        SELECT id, source_entity_id, started_at, intent, trust_score, dest_entity_id, bytes_tx, bytes_rx
-        FROM sessions
-        WHERE started_at > ?
-    ";
-
+    
     use sqlx::Row;
-    let recent_sessions = match sqlx::query(query)
-        .bind(fifteen_mins_ago)
-        .fetch_all(pool)
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => return,
+    let recent_sessions: Vec<Session> = match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            sqlx::query("SELECT * FROM sessions WHERE started_at > $1")
+                .bind(fifteen_mins_ago)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| Session {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    source_entity_id: r.get("source_entity_id"),
+                    dest_entity_id: r.get("dest_entity_id"),
+                    intent: r.get("intent"),
+                    trust_score: r.get("trust_score"),
+                    verdict: r.get("verdict"),
+                    ai_reasoning: r.get("ai_reasoning"),
+                    ai_latency_ms: r.get("ai_latency_ms"),
+                    status: r.get("status"),
+                    bytes_tx: r.get("bytes_tx"),
+                    bytes_rx: r.get("bytes_rx"),
+                    anomaly_flags: r.get("anomaly_flags"),
+                    started_at: r.get("started_at"),
+                    ended_at: r.get("ended_at"),
+                    close_reason: r.get("close_reason"),
+                })
+                .collect()
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            sqlx::query("SELECT * FROM sessions WHERE started_at > ?")
+                .bind(fifteen_mins_ago)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| Session {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    source_entity_id: r.get("source_entity_id"),
+                    dest_entity_id: r.get("dest_entity_id"),
+                    intent: r.get("intent"),
+                    trust_score: r.get("trust_score"),
+                    verdict: r.get("verdict"),
+                    ai_reasoning: r.get("ai_reasoning"),
+                    ai_latency_ms: r.get("ai_latency_ms"),
+                    status: r.get("status"),
+                    bytes_tx: r.get("bytes_tx"),
+                    bytes_rx: r.get("bytes_rx"),
+                    anomaly_flags: r.get("anomaly_flags"),
+                    started_at: r.get("started_at"),
+                    ended_at: r.get("ended_at"),
+                    close_reason: r.get("close_reason"),
+                })
+                .collect()
+        }
     };
 
     // Group recent sessions by entity
-    let mut recent_grouped: HashMap<String, Vec<_>> = HashMap::new();
-    for row in recent_sessions {
-        let entity_id: String = row.get("source_entity_id");
-        recent_grouped.entry(entity_id).or_default().push(row);
+    let mut recent_grouped: HashMap<String, Vec<Session>> = HashMap::new();
+    for sess in recent_sessions {
+        recent_grouped.entry(sess.source_entity_id.clone()).or_default().push(sess);
     }
 
     for (entity_id, baseline) in baselines.iter() {
@@ -123,17 +163,18 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         }
 
         if let Some(recent_list) = recent {
+            let recent_list: &Vec<Session> = recent_list;
             let mut recent_control_signal = 0u32;
             let mut new_peers_last_hour = 0u32;
             let mut recent_trust_total: i64 = 0;
             let mut total_bytes_tx: i64 = 0;
             let mut intent_counts: HashMap<String, u32> = HashMap::new();
 
-            for row in recent_list {
-                let intent: String = row.get("intent");
-                let dest_entity_id: String = row.get("dest_entity_id");
-                let trust_score: i64 = row.get("trust_score");
-                let bytes_tx: i64 = row.get("bytes_tx");
+            for sess in recent_list {
+                let intent = &sess.intent;
+                let dest_entity_id = &sess.dest_entity_id;
+                let trust_score = sess.trust_score;
+                let bytes_tx = sess.bytes_tx;
 
                 *intent_counts.entry(intent.clone()).or_insert(0) += 1;
 
@@ -142,7 +183,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                 }
 
                 // ── Check 2: New peer ──
-                if !baseline.known_peers.contains(&dest_entity_id) {
+                if !baseline.known_peers.contains(dest_entity_id.as_str()) {
                     new_peers_last_hour += 1;
                     anomalies_found.push(Anomaly {
                         entity_id: entity_id.clone(),
@@ -273,7 +314,6 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         // Store anomalies
         if !anomalies_found.is_empty() {
             let mut log = sentinel.anomalies.lock().await;
-            let pool = state.db.inner();
 
             for anomaly in anomalies_found {
                 // Broadcast via WebSocket
@@ -287,15 +327,32 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                 });
 
                 // Write to audit chain
-                let _ = sqlx::query(
-                    "INSERT INTO audit_chain (org_id, event_type, severity, source_entity_id, description, metadata, prev_hash, entry_hash, created_at) VALUES ('system', 'SentinelAnomaly', ?, ?, ?, '{}', '', '', ?)"
-                )
-                .bind(anomaly.severity.as_str())
-                .bind(&anomaly.entity_id)
-                .bind(&anomaly.description)
-                .bind(anomaly.detected_at)
-                .execute(pool)
-                .await;
+                let sql_pg = "INSERT INTO audit_chain (id, org_id, event_type, severity, source_entity_id, description, metadata, prev_hash, entry_hash, created_at) VALUES ($1, 'system', 'SentinelAnomaly', $2, $3, $4, '{}', '', '', $5)";
+                let sql_sq = "INSERT INTO audit_chain (id, org_id, event_type, severity, source_entity_id, description, metadata, prev_hash, entry_hash, created_at) VALUES (?, 'system', 'SentinelAnomaly', ?, ?, ?, '{}', '', '', ?)";
+                let new_audit_id = uuid::Uuid::new_v4().to_string();
+                
+                match &state.db {
+                    crate::db::DbPool::Postgres(pool) => {
+                        let _ = sqlx::query(sql_pg)
+                            .bind(&new_audit_id)
+                            .bind(anomaly.severity.as_str())
+                            .bind(&anomaly.entity_id)
+                            .bind(&anomaly.description)
+                            .bind(anomaly.detected_at)
+                            .execute(pool)
+                            .await;
+                    }
+                    crate::db::DbPool::Sqlite(pool) => {
+                        let _ = sqlx::query(sql_sq)
+                            .bind(&new_audit_id)
+                            .bind(anomaly.severity.as_str())
+                            .bind(&anomaly.entity_id)
+                            .bind(&anomaly.description)
+                            .bind(anomaly.detected_at)
+                            .execute(pool)
+                            .await;
+                    }
+                }
 
                 // Ring buffer — keep last 1000
                 if log.len() >= 1000 {

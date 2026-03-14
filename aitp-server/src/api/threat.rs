@@ -79,7 +79,7 @@ async fn resolve_threat(
             None,
             None,
             &format!("Security incident {} resolved", id),
-            "{}",
+            Some("{}"),
         )
         .await;
 

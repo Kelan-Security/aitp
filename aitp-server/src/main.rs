@@ -1,7 +1,7 @@
-use axum::{routing::get, Router};
+use axum::{extract::Host, http::Uri, response::Redirect, routing::get, Router};
 use dotenvy::dotenv;
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::TcpListener;
 use tokio::time::{interval, Duration, Instant};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -19,6 +19,7 @@ mod identity;
 mod protocol;
 mod sentinel;
 mod state;
+mod tls;
 #[allow(dead_code)]
 mod trust;
 mod ws;
@@ -76,30 +77,19 @@ async fn main() -> anyhow::Result<()> {
     // 4. Load config
     let app_config = config::AppConfig::from_env();
 
-    // 4. Connect SQLite, run migrations
-    let db_path_str = &app_config.db_path;
-    let db_path = std::path::Path::new(db_path_str);
-
-    if let Some(parent) = db_path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
+    // 5. Connect Database, run migrations
+    let db_pool = match db::DbPool::connect(&app_config.db_path).await {
+        Ok(pool) => pool,
+        Err(e) => {
+            tracing::error!("Failed to connect to database at {}: {:?}", app_config.db_path, e);
+            std::process::exit(1);
         }
-    }
-    if !db_path.exists() {
-        std::fs::File::create(db_path)?;
-    }
+    };
 
-    let mut conn_str = app_config.db_path.clone();
-    if !conn_str.starts_with("sqlite:") {
-        conn_str = format!("sqlite:{}", conn_str);
+    if let Err(e) = db::migrations::run(&db_pool).await {
+        tracing::error!("Database migrations failed: {:?}", e);
+        std::process::exit(1);
     }
-
-    let db_pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(10)
-        .connect(&conn_str)
-        .await?;
-
-    db::migrations::run(&db_pool).await?;
 
     let sentinel_instance = sentinel::Sentinel::new();
     let trust_engine = crate::trust::HybridTrustEngine::new(
@@ -110,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let app_state = Arc::new(state::AppState {
-        db: db::DbPool::new(db_pool),
+        db: db_pool,
         hub: ws::WsHub::new(),
         config: app_config.clone(),
         start_time: Instant::now(),
@@ -118,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
         trust_engine,
     });
 
-    // 5. Handle trigger-agent subcommand
+    // 6. Handle trigger-agent subcommand
     if args.contains(&"trigger-agent".to_string()) {
         let mut target_id = "test-entity-123".to_string();
         for i in 1..args.len() {
@@ -149,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // 6. Start background tasks
+    // 7. Start background tasks
     // a. Sentinel monitoring loop
     if app_config.sentinel_enabled {
         let s = app_state.clone();
@@ -199,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    // 7. Build Axum router
+    // 8. Build Axum router
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -215,15 +205,52 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(cors);
 
-    // 8. Print startup banner
+    // 9. Print startup banner
     print_banner(&app_config);
 
-    // 10. Start server
-    let addr = format!("0.0.0.0:{}", app_config.http_port);
-    tracing::info!("AITP Intelligence Core Server listening on http://{}", addr);
+    // 10. Start server — auto-select HTTP or HTTPS
+    match tls::detect_mode(&app_config) {
+        tls::ServerMode::Http { port } => {
+            let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
+            tracing::info!("Listening on http://{}", addr);
+            axum_server::bind(addr)
+                .serve(app.into_make_service())
+                .await?;
+        }
+        tls::ServerMode::Https {
+            http_port,
+            https_port,
+            cert,
+            key,
+        } => {
+            let rustls_config = tls::load_rustls_config(&cert, &key).await?;
+            let https_addr: SocketAddr = format!("0.0.0.0:{}", https_port).parse()?;
 
-    let listener = TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
+            // Spawn HTTP→HTTPS redirect on port 80
+            let redirect_app = Router::new().fallback(
+                |Host(host): Host, uri: Uri| async move {
+                    let target = format!("https://{}{}", host, uri);
+                    Redirect::permanent(&target)
+                },
+            );
+
+            tokio::spawn(async move {
+                let http_addr: SocketAddr = format!("0.0.0.0:{}", http_port)
+                    .parse()
+                    .expect("Invalid HTTP redirect address");
+                tracing::info!("HTTP→HTTPS redirect listening on http://{}", http_addr);
+                axum_server::bind(http_addr)
+                    .serve(redirect_app.into_make_service())
+                    .await
+                    .expect("HTTP redirect server failed");
+            });
+
+            tracing::info!("Listening on https://{}", https_addr);
+            axum_server::bind_rustls(https_addr, rustls_config)
+                .serve(app.into_make_service())
+                .await?;
+        }
+    }
 
     Ok(())
 }
@@ -271,22 +298,48 @@ pub async fn cmd_generate_token(
 }
 
 fn print_banner(config: &config::AppConfig) {
-    let banner = r#"
+    let (mode_line, api_line, dashboard_line) = if config.tls_enabled() {
+        (
+            "║  Mode:      HTTPS PRODUCTION                    ║".to_string(),
+            format!(
+                "║  API:       https://0.0.0.0:{:<5}             ║",
+                config.https_port
+            ),
+            format!(
+                "║  Dashboard: https://localhost:{:<5}           ║",
+                config.https_port
+            ),
+        )
+    } else {
+        (
+            "║  Mode:      HTTP DEV (set TLS_* vars for prod)  ║".to_string(),
+            format!(
+                "║  API:       http://0.0.0.0:{:<5}                ║",
+                config.http_port
+            ),
+            format!(
+                "║  Dashboard: http://localhost:{:<5}              ║",
+                config.http_port
+            ),
+        )
+    };
 
-    ╔═══════════════════════════════════════════════════════════════╗
-    ║                                                               ║
-    ║              AITP INTELLIGENCE CORE SERVER                    ║
-    ║              ═════════════════════════════                    ║
-    ║                                                               ║
-    ║    Adaptive Intent Transport Protocol — Security Gateway      ║
-    ║    Identity-First • Intent-Bound • Zero-Trust                 ║
-    ║                                                               ║
-    ╚═══════════════════════════════════════════════════════════════╝
-
-"#;
-    println!("{}", banner);
-    println!("    Version:     0.3.0");
-    println!("    Config:      {}", config.summary());
-    println!("    Status:      ONLINE");
+    println!();
+    println!("    ╔═══════════════════════════════════════════════════╗");
+    println!("    ║         Kernex Intelligence Core v0.3             ║");
+    println!("    ╠═══════════════════════════════════════════════════╣");
+    println!("    {}", mode_line);
+    println!("    {}", api_line);
+    println!("    {}", dashboard_line);
+    println!(
+        "    ║  AITP/UDP:  0.0.0.0:{:<5}                        ║",
+        config.udp_port
+    );
+    println!("    ║  Sentinel:  ACTIVE                                ║");
+    println!("    ╚═══════════════════════════════════════════════════╝");
+    println!();
+    println!("    Version:  0.3.0");
+    println!("    Config:   {}", config.summary());
+    println!("    Status:   ONLINE");
     println!();
 }

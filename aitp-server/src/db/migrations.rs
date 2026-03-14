@@ -1,14 +1,19 @@
+use crate::db::DbPool;
+
 /// Run all database migrations (idempotent).
-pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
-    // Enable WAL mode and foreign keys
-    sqlx::query("PRAGMA journal_mode=WAL;")
-        .execute(pool)
-        .await?;
-    sqlx::query("PRAGMA foreign_keys=ON;").execute(pool).await?;
+pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
+    // Enable WAL mode and foreign keys for SQLite only
+    if let DbPool::Sqlite(sqlite_pool) = pool {
+        sqlx::query("PRAGMA journal_mode=WAL;")
+            .execute(sqlite_pool)
+            .await?;
+        sqlx::query("PRAGMA foreign_keys=ON;")
+            .execute(sqlite_pool)
+            .await?;
+    }
 
     // ── Core identity registry ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS organisations (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -18,14 +23,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             trust_mode TEXT DEFAULT 'hybrid',
             created_at INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Entity registry ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS entities (
             id TEXT PRIMARY KEY,
             org_id TEXT REFERENCES organisations(id),
@@ -34,7 +39,7 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             public_key TEXT NOT NULL,
             department TEXT,
             clearance_level INTEGER DEFAULT 0,
-            allowed_intents TEXT DEFAULT '["ModelInference","Heartbeat","DataSync"]',
+            allowed_intents TEXT,
             trust_score_avg REAL DEFAULT 128,
             session_count INTEGER DEFAULT 0,
             blocked_count INTEGER DEFAULT 0,
@@ -42,14 +47,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             last_seen INTEGER,
             enrolled_at INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Sessions ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
@@ -63,60 +68,61 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             status TEXT DEFAULT 'active',
             bytes_tx INTEGER DEFAULT 0,
             bytes_rx INTEGER DEFAULT 0,
-            anomaly_flags TEXT DEFAULT '[]',
+            anomaly_flags TEXT,
             started_at INTEGER NOT NULL,
             ended_at INTEGER,
             close_reason TEXT
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Immutable audit chain ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS audit_chain (
-            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
+            seq INTEGER,
             org_id TEXT NOT NULL,
             event_type TEXT NOT NULL,
             severity TEXT NOT NULL,
             source_entity_id TEXT,
             session_id TEXT,
             description TEXT NOT NULL,
-            metadata TEXT DEFAULT '{}',
+            metadata TEXT,
             prev_hash TEXT,
             entry_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Entity baselines ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS entity_baselines (
             entity_id TEXT PRIMARY KEY,
             avg_sessions_per_hour REAL DEFAULT 0,
-            intent_distribution TEXT DEFAULT '{}',
+            intent_distribution TEXT,
             avg_trust_score REAL DEFAULT 128,
-            known_peers TEXT DEFAULT '[]',
+            known_peers TEXT,
             avg_payload_bytes REAL DEFAULT 0,
-            normal_hours TEXT DEFAULT '[]',
+            normal_hours TEXT,
             learning_complete INTEGER DEFAULT 0,
             sample_count INTEGER DEFAULT 0,
             last_updated INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Security incidents ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS security_incidents (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
@@ -124,9 +130,9 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             attack_type TEXT NOT NULL,
             summary TEXT,
             entry_point_entity_id TEXT,
-            affected_entities TEXT DEFAULT '[]',
+            affected_entities TEXT,
             attack_timeline TEXT NOT NULL,
-            mitre_ttps TEXT DEFAULT '[]',
+            mitre_ttps TEXT,
             vulnerability TEXT,
             remediation TEXT,
             status TEXT DEFAULT 'open',
@@ -135,14 +141,14 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             detected_at INTEGER NOT NULL,
             resolved_at INTEGER
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Communication policies ──
-    sqlx::query(
-        r#"
+    let sql = r#"
         CREATE TABLE IF NOT EXISTS comm_policies (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
@@ -156,10 +162,11 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
             priority INTEGER DEFAULT 100,
             created_at INTEGER NOT NULL
         )
-    "#,
-    )
-    .execute(pool)
-    .await?;
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
 
     // ── Indexes ──
     for idx in &[
@@ -176,7 +183,10 @@ pub async fn run(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_incidents_status ON security_incidents(status)",
         "CREATE INDEX IF NOT EXISTS idx_policies_org ON comm_policies(org_id)",
     ] {
-        sqlx::query(idx).execute(pool).await?;
+        match pool {
+            DbPool::Sqlite(p) => { sqlx::query(idx).execute(p).await?; }
+            DbPool::Postgres(p) => { sqlx::query(idx).execute(p).await?; }
+        }
     }
 
     tracing::info!("Database migrations complete — 7 tables, 12 indexes");

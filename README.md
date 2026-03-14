@@ -53,6 +53,17 @@ make dev
 
 ---
 
+## 🗄️ Database Support
+
+AITP supports both **SQLite** and **PostgreSQL** from the same codebase.
+
+- **SQLite (Dev)**: No setup required. Default `DATABASE_URL=sqlite://./data/aitp.db`.
+- **PostgreSQL (Prod)**: High-concurrency support.
+  1. Start Postgres: `docker compose -f docker-compose.dev.yml up -d`
+  2. Set `DATABASE_URL=postgresql://kernex:kernex_dev@localhost:5432/kernex` in `.env`.
+
+---
+
 ## 🛠️ Key Operational Commands
 
 | Command | Action |
@@ -64,9 +75,29 @@ make dev
 
 ---
 
+## 🔒 Production Hardening & TLS
+
+AITP supports high-performance HTTPS via `tokio-rustls`. For local development, you can generate self-signed certificates:
+
+```bash
+cd aitp-server
+./scripts/generate_certs.sh
+```
+
+Then, enable HTTPS in your `.env`:
+```env
+TLS_CERT_PATH=./certs/cert.pem
+TLS_KEY_PATH=./certs/key.pem
+AITP_HTTPS_PORT=8443
+AITP_REDIRECT_PORT=8080
+```
+
+---
+
 ## 🏗️ Technical Architecture
 
-- **Backend**: High-performance Rust (Axum, SQLx, SQLite).
+- **Backend**: High-performance Rust (Axum, SQLx).
+- **Core Database**: Dual-driver support for **SQLite** (Dev) and **PostgreSQL** (Prod).
 - **Core Protocol**: Custom binary header (164-byte wire format) with identity-nonce binding.
 - **Frontend**: Real-time SOC dashboard using WebSockets and CSS-optimized security aesthetics.
 - **Infrastructure**: Containerized Prometheus/Grafana monitoring cluster.

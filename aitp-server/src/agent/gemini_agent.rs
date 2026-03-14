@@ -442,39 +442,62 @@ impl ThreatResponseAgent {
         end: i64,
         _event_types: &[String],
     ) -> String {
-        let pool = self.db.inner();
         use sqlx::Row;
 
-        let rows = if let Some(eid) = entity_id {
-            sqlx::query(
-                "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE source_entity_id = ? AND created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 30"
-            )
-            .bind(eid).bind(start).bind(end)
-            .fetch_all(pool).await.unwrap_or_default()
-        } else {
-            sqlx::query(
-                "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 30"
-            )
-            .bind(start).bind(end)
-            .fetch_all(pool).await.unwrap_or_default()
+        let entries: Vec<Value> = match &self.db {
+            crate::db::DbPool::Postgres(pool) => {
+                let rows = if let Some(eid) = entity_id {
+                    sqlx::query(
+                        "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE source_entity_id = $1 AND created_at BETWEEN $2 AND $3 ORDER BY created_at DESC LIMIT 30"
+                    )
+                    .bind(eid).bind(start).bind(end)
+                    .fetch_all(pool).await.unwrap_or_default()
+                } else {
+                    sqlx::query(
+                        "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at DESC LIMIT 30"
+                    )
+                    .bind(start).bind(end)
+                    .fetch_all(pool).await.unwrap_or_default()
+                };
+                rows.into_iter().map(|r| {
+                    serde_json::json!({
+                        "event_type": r.get::<String, _>("event_type"),
+                        "severity": r.get::<String, _>("severity"),
+                        "entity_id": r.get::<Option<String>, _>("source_entity_id"),
+                        "description": r.get::<String, _>("description"),
+                        "created_at": r.get::<i64, _>("created_at"),
+                    })
+                }).collect()
+            }
+            crate::db::DbPool::Sqlite(pool) => {
+                let rows = if let Some(eid) = entity_id {
+                    sqlx::query(
+                        "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE source_entity_id = ? AND created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 30"
+                    )
+                    .bind(eid).bind(start).bind(end)
+                    .fetch_all(pool).await.unwrap_or_default()
+                } else {
+                    sqlx::query(
+                        "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 30"
+                    )
+                    .bind(start).bind(end)
+                    .fetch_all(pool).await.unwrap_or_default()
+                };
+                rows.into_iter().map(|r| {
+                    serde_json::json!({
+                        "event_type": r.get::<String, _>("event_type"),
+                        "severity": r.get::<String, _>("severity"),
+                        "entity_id": r.get::<Option<String>, _>("source_entity_id"),
+                        "description": r.get::<String, _>("description"),
+                        "created_at": r.get::<i64, _>("created_at"),
+                    })
+                }).collect()
+            }
         };
 
-        if rows.is_empty() {
+        if entries.is_empty() {
             return "No audit events found in the specified time range.".to_string();
         }
-
-        let entries: Vec<Value> = rows
-            .iter()
-            .map(|r| {
-                serde_json::json!({
-                    "event_type": r.get::<String, _>("event_type"),
-                    "severity": r.get::<String, _>("severity"),
-                    "entity_id": r.get::<String, _>("source_entity_id"),
-                    "description": r.get::<String, _>("description"),
-                    "created_at": r.get::<i64, _>("created_at"),
-                })
-            })
-            .collect();
 
         serde_json::to_string_pretty(&entries).unwrap_or_default()
     }
@@ -518,60 +541,85 @@ impl ThreatResponseAgent {
     }
 
     async fn query_related_entities(&self, entity_id: &str, window_secs: i64) -> String {
-        let pool = self.db.inner();
         let since = chrono::Utc::now().timestamp() - window_secs;
 
         use sqlx::Row;
-        let rows = sqlx::query(
-            "SELECT DISTINCT dest_entity_id as peer, intent, trust_score FROM sessions WHERE source_entity_id = ? AND started_at > ? UNION SELECT DISTINCT source_entity_id as peer, intent, trust_score FROM sessions WHERE dest_entity_id = ? AND started_at > ?"
-        )
-        .bind(entity_id).bind(since).bind(entity_id).bind(since)
-        .fetch_all(pool).await.unwrap_or_default();
-
-        if rows.is_empty() {
-            return "No related entities found in the time window.".to_string();
-        }
-
-        let peers: Vec<Value> = rows
-            .iter()
-            .map(|r| {
-                serde_json::json!({
+        
+        let peers: Vec<Value> = match &self.db {
+            crate::db::DbPool::Postgres(pool) => {
+                let rows = sqlx::query(
+                    "SELECT DISTINCT dest_entity_id as peer, intent, trust_score FROM sessions WHERE source_entity_id = $1 AND started_at > $2 UNION SELECT DISTINCT source_entity_id as peer, intent, trust_score FROM sessions WHERE dest_entity_id = $3 AND started_at > $4"
+                )
+                .bind(entity_id).bind(since).bind(entity_id).bind(since)
+                .fetch_all(pool).await.unwrap_or_default();
+                
+                rows.iter().map(|r| serde_json::json!({
                     "peer_entity_id": r.get::<String, _>("peer"),
                     "intent": r.get::<String, _>("intent"),
                     "trust_score": r.get::<i64, _>("trust_score"),
-                })
-            })
-            .collect();
+                })).collect()
+            }
+            crate::db::DbPool::Sqlite(pool) => {
+                let rows = sqlx::query(
+                    "SELECT DISTINCT dest_entity_id as peer, intent, trust_score FROM sessions WHERE source_entity_id = ? AND started_at > ? UNION SELECT DISTINCT source_entity_id as peer, intent, trust_score FROM sessions WHERE dest_entity_id = ? AND started_at > ?"
+                )
+                .bind(entity_id).bind(since).bind(entity_id).bind(since)
+                .fetch_all(pool).await.unwrap_or_default();
+                
+                rows.iter().map(|r| serde_json::json!({
+                    "peer_entity_id": r.get::<String, _>("peer"),
+                    "intent": r.get::<String, _>("intent"),
+                    "trust_score": r.get::<i64, _>("trust_score"),
+                })).collect()
+            }
+        };
+
+        if peers.is_empty() {
+            return "No related entities found in the time window.".to_string();
+        }
 
         serde_json::to_string_pretty(&peers).unwrap_or_default()
     }
 
     async fn get_network_topology(&self) -> String {
-        let pool = self.db.inner();
         use sqlx::Row;
 
-        let rows = sqlx::query(
-            "SELECT source_entity_id, dest_entity_id, intent, COUNT(*) as session_count, AVG(trust_score) as avg_trust FROM sessions WHERE started_at > ? GROUP BY source_entity_id, dest_entity_id, intent ORDER BY session_count DESC LIMIT 50"
-        )
-        .bind(chrono::Utc::now().timestamp() - 86400)
-        .fetch_all(pool).await.unwrap_or_default();
-
-        if rows.is_empty() {
-            return "No active network topology data (no recent sessions).".to_string();
-        }
-
-        let edges: Vec<Value> = rows
-            .iter()
-            .map(|r| {
-                serde_json::json!({
+        let edges: Vec<Value> = match &self.db {
+            crate::db::DbPool::Postgres(pool) => {
+                let rows = sqlx::query(
+                    "SELECT source_entity_id, dest_entity_id, intent, COUNT(*) as session_count, AVG(trust_score) as avg_trust FROM sessions WHERE started_at > $1 GROUP BY source_entity_id, dest_entity_id, intent ORDER BY session_count DESC LIMIT 50"
+                )
+                .bind(chrono::Utc::now().timestamp() - 86400)
+                .fetch_all(pool).await.unwrap_or_default();
+                
+                rows.iter().map(|r| serde_json::json!({
                     "source": r.get::<String, _>("source_entity_id"),
                     "dest": r.get::<String, _>("dest_entity_id"),
                     "intent": r.get::<String, _>("intent"),
-                    "sessions": r.get::<i32, _>("session_count"),
+                    "sessions": r.get::<i64, _>("session_count"),
                     "avg_trust": r.get::<f64, _>("avg_trust"),
-                })
-            })
-            .collect();
+                })).collect()
+            }
+            crate::db::DbPool::Sqlite(pool) => {
+                let rows = sqlx::query(
+                    "SELECT source_entity_id, dest_entity_id, intent, COUNT(*) as session_count, AVG(trust_score) as avg_trust FROM sessions WHERE started_at > ? GROUP BY source_entity_id, dest_entity_id, intent ORDER BY session_count DESC LIMIT 50"
+                )
+                .bind(chrono::Utc::now().timestamp() - 86400)
+                .fetch_all(pool).await.unwrap_or_default();
+                
+                rows.iter().map(|r| serde_json::json!({
+                    "source": r.get::<String, _>("source_entity_id"),
+                    "dest": r.get::<String, _>("dest_entity_id"),
+                    "intent": r.get::<String, _>("intent"),
+                    "sessions": r.get::<i64, _>("session_count"),
+                    "avg_trust": r.get::<f64, _>("avg_trust"),
+                })).collect()
+            }
+        };
+
+        if edges.is_empty() {
+            return "No active network topology data (no recent sessions).".to_string();
+        }
 
         serde_json::to_string_pretty(&edges).unwrap_or_default()
     }

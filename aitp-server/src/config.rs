@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub token_config: crate::auth::TokenConfig,
-    pub http_port: u16,
+    pub http_port: u16,                // AITP_HTTP_PORT, default 3000
+    pub https_port: u16,               // AITP_HTTPS_PORT, default 8443
+    pub redirect_port: u16,            // AITP_REDIRECT_PORT, default 8080
     pub udp_port: u16,
     pub db_path: String,
     pub gemini_api_key: String,
@@ -15,6 +17,10 @@ pub struct AppConfig {
     pub sentinel_scan_interval_secs: u64,
     pub auto_quarantine: bool,
     pub log_level: String,
+    /// Path to TLS certificate PEM file (TLS_CERT_PATH)
+    pub tls_cert_path: Option<String>,
+    /// Path to TLS private key PEM file (TLS_KEY_PATH)
+    pub tls_key_path: Option<String>,
 }
 
 impl AppConfig {
@@ -30,12 +36,31 @@ impl AppConfig {
                 .unwrap_or_else(|_| "3000".into())
                 .parse()
                 .unwrap_or(3000),
+            https_port: std::env::var("AITP_HTTPS_PORT")
+                .unwrap_or_else(|_| "8443".into())
+                .parse()
+                .unwrap_or(8443),
+            redirect_port: std::env::var("AITP_REDIRECT_PORT")
+                .unwrap_or_else(|_| "8080".into())
+                .parse()
+                .unwrap_or(8080),
             udp_port: std::env::var("AITP_UDP_PORT")
                 .unwrap_or_else(|_| "9999".into())
                 .parse()
                 .unwrap_or(9999),
-            db_path: std::env::var("AITP_DB_PATH").unwrap_or_else(|_| "./data/aitp.db".into()),
-            gemini_api_key: std::env::var("GEMINI_API_KEY").unwrap_or_else(|_| String::new()),
+            db_path: {
+                let raw = std::env::var("DATABASE_URL")
+                    .or_else(|_| std::env::var("AITP_DB_PATH"))
+                    .unwrap_or_else(|_| "./data/aitp.db".into());
+                if !raw.contains("://") {
+                    format!("sqlite://{}", raw)
+                } else {
+                    raw
+                }
+            },
+            gemini_api_key: std::env::var("AITP_AI_ENGINE_GEMINI_API_KEY")
+                .or_else(|_| std::env::var("GEMINI_API_KEY"))
+                .unwrap_or_default(),
             gemini_model: std::env::var("AITP_GEMINI_MODEL")
                 .unwrap_or_else(|_| "gemini-2.0-flash".into()),
             trust_mode: std::env::var("AITP_TRUST_MODE").unwrap_or_else(|_| "hybrid".into()),
@@ -56,13 +81,20 @@ impl AppConfig {
                 .parse()
                 .unwrap_or(true),
             log_level: std::env::var("AITP_LOG_LEVEL").unwrap_or_else(|_| "info".into()),
+            tls_cert_path: std::env::var("TLS_CERT_PATH").ok(),
+            tls_key_path:  std::env::var("TLS_KEY_PATH").ok(),
         }
     }
 
     /// Print a summary of the configuration (masking secrets).
     pub fn summary(&self) -> String {
+        let tls = match &self.tls_cert_path {
+            Some(_) => "HTTPS PRODUCTION",
+            None    => "HTTP DEV",
+        };
         format!(
-            "HTTP={} UDP={} DB={} Trust={} Alpha={:.1} Sentinel={} AutoQ={} Gemini={}",
+            "Mode={} HTTP={} UDP={} DB={} Trust={} Alpha={:.1} Sentinel={} AutoQ={} Gemini={}",
+            tls,
             self.http_port,
             self.udp_port,
             self.db_path,
@@ -76,5 +108,10 @@ impl AppConfig {
                 "configured"
             },
         )
+    }
+
+    /// Returns true when TLS cert+key paths are both configured.
+    pub fn tls_enabled(&self) -> bool {
+        self.tls_cert_path.is_some() && self.tls_key_path.is_some()
     }
 }

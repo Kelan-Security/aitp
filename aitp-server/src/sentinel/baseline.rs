@@ -1,4 +1,5 @@
-use super::Sentinel;
+use crate::db::models::Session;
+use crate::sentinel::Sentinel;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -21,50 +22,76 @@ pub struct EntityBaseline {
 
 /// Update baselines from session history.
 pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
-    let pool = state.db.inner();
-
     // Only consider sessions from last 7 days
     let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
-
-    let query = "
-        SELECT source_entity_id, started_at, intent, trust_score, dest_entity_id, bytes_tx, bytes_rx
-        FROM sessions
-        WHERE started_at > ?
-    ";
-
+    
     use sqlx::Row;
-    let rows = match sqlx::query(query)
-        .bind(seven_days_ago)
-        .fetch_all(pool)
-        .await
-    {
-        Ok(r) => r,
-        Err(_) => return,
+    let rows: Vec<Session> = match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            sqlx::query("SELECT * FROM sessions WHERE started_at > $1")
+                .bind(seven_days_ago)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| Session {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    source_entity_id: r.get("source_entity_id"),
+                    dest_entity_id: r.get("dest_entity_id"),
+                    intent: r.get("intent"),
+                    trust_score: r.get("trust_score"),
+                    verdict: r.get("verdict"),
+                    ai_reasoning: r.get("ai_reasoning"),
+                    ai_latency_ms: r.get("ai_latency_ms"),
+                    status: r.get("status"),
+                    bytes_tx: r.get("bytes_tx"),
+                    bytes_rx: r.get("bytes_rx"),
+                    anomaly_flags: r.get("anomaly_flags"),
+                    started_at: r.get("started_at"),
+                    ended_at: r.get("ended_at"),
+                    close_reason: r.get("close_reason"),
+                })
+                .collect()
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            sqlx::query("SELECT * FROM sessions WHERE started_at > ?")
+                .bind(seven_days_ago)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|r| Session {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    source_entity_id: r.get("source_entity_id"),
+                    dest_entity_id: r.get("dest_entity_id"),
+                    intent: r.get("intent"),
+                    trust_score: r.get("trust_score"),
+                    verdict: r.get("verdict"),
+                    ai_reasoning: r.get("ai_reasoning"),
+                    ai_latency_ms: r.get("ai_latency_ms"),
+                    status: r.get("status"),
+                    bytes_tx: r.get("bytes_tx"),
+                    bytes_rx: r.get("bytes_rx"),
+                    anomaly_flags: r.get("anomaly_flags"),
+                    started_at: r.get("started_at"),
+                    ended_at: r.get("ended_at"),
+                    close_reason: r.get("close_reason"),
+                })
+                .collect()
+        }
     };
 
-    #[allow(clippy::type_complexity)]
-    let mut grouped: HashMap<String, Vec<(i64, String, i64, String, i64, i64)>> = HashMap::new();
-    for row in &rows {
-        let entity_id: String = row.get("source_entity_id");
-        let started_at: i64 = row.get("started_at");
-        let intent: String = row.get("intent");
-        let trust_score: i64 = row.get("trust_score");
-        let dest_id: String = row.get("dest_entity_id");
-        let bytes_tx: i64 = row.get("bytes_tx");
-        let bytes_rx: i64 = row.get("bytes_rx");
-
-        grouped.entry(entity_id).or_default().push((
-            started_at,
-            intent,
-            trust_score,
-            dest_id,
-            bytes_tx,
-            bytes_rx,
-        ));
+    // Group by entity_id
+    let mut grouped: HashMap<String, Vec<Session>> = HashMap::new();
+    for sess in rows {
+        grouped.entry(sess.source_entity_id.clone()).or_default().push(sess);
     }
 
     let mut baselines_lock = sentinel.baselines.write().await;
     for (entity_id, sessions) in grouped {
+        let sessions: Vec<Session> = sessions;
         let session_count = sessions.len() as u32;
 
         let mut intent_distribution: HashMap<String, u32> = HashMap::new();
@@ -76,21 +103,21 @@ pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         let mut earliest = i64::MAX;
         let mut latest = i64::MIN;
 
-        for (started_at, intent, trust_score, dest_id, bytes_tx, bytes_rx) in &sessions {
-            *intent_distribution.entry(intent.clone()).or_insert(0) += 1;
-            known_peers.insert(dest_id.clone());
-            total_trust += *trust_score;
-            total_bytes += *bytes_tx + *bytes_rx;
+        for sess in &sessions {
+            *intent_distribution.entry(sess.intent.clone()).or_insert(0) += 1;
+            known_peers.insert(sess.dest_entity_id.clone());
+            total_trust += sess.trust_score;
+            total_bytes += sess.bytes_tx + sess.bytes_rx;
 
-            if *started_at < earliest {
-                earliest = *started_at;
+            if sess.started_at < earliest {
+                earliest = sess.started_at;
             }
-            if *started_at > latest {
-                latest = *started_at;
+            if sess.started_at > latest {
+                latest = sess.started_at;
             }
 
             // Track active hours
-            let hour = (started_at % 86400) / 3600;
+            let hour = (sess.started_at % 86400) / 3600;
             hours_seen.insert(hour as u8);
         }
 

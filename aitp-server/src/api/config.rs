@@ -1,4 +1,4 @@
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{extract::State, routing::{get, post}, Json, Router};
 use std::sync::Arc;
 
 use crate::auth::OrgId;
@@ -11,6 +11,7 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/config/ai", post(update_ai_config))
         .route("/api/config/verify-key", post(verify_key))
+        .route("/api/config/ws-url", get(ws_url))
 }
 
 async fn update_ai_config(
@@ -55,7 +56,7 @@ async fn verify_key(
                     None,
                     None,
                     &format!("Gemini API key verified — model: {}", req.model),
-                    "{}",
+                    Some("{}"),
                 )
                 .await;
 
@@ -90,4 +91,19 @@ async fn verify_key(
             )))
         }
     }
+}
+
+/// GET /api/config/ws-url
+/// Returns the WebSocket base URL — ws:// in HTTP mode, wss:// in HTTPS mode.
+/// Clients read this endpoint to auto-configure their WebSocket connection.
+async fn ws_url(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let (scheme, port) = if state.config.tls_enabled() {
+        ("wss", 443u16)
+    } else {
+        ("ws", state.config.http_port)
+    };
+    let url = format!("{}://localhost:{}/ws", scheme, port);
+    Json(serde_json::json!({ "ws_url": url }))
 }

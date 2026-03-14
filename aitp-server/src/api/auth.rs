@@ -59,7 +59,7 @@ async fn signup(
             None,
             None,
             &format!("Organisation '{}' created", org.name),
-            "{}",
+            Some("{}"),
         )
         .await;
 
