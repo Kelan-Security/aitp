@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["ws", "macros"] }
-sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio-native-tls", "chrono", "uuid", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "postgres", "runtime-tokio-native-tls", "chrono", "uuid", "macros", "json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -24,6 +24,8 @@ jsonwebtoken = "9"
 argon2 = "0.5"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+rustls-pemfile = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"

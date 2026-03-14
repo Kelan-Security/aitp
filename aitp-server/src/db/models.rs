@@ -57,7 +57,7 @@ pub struct Session {
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AuditEntry {
-    pub seq: i64,
+    pub id: String,
     pub org_id: String,
     pub event_type: String,
     pub severity: String,

@@ -78,7 +78,7 @@ async fn create_entity(
             Some(&entity_id),
             None,
             &format!("Entity '{}' registered", req.name),
-            "{}",
+            Some("{}"),
         )
         .await;
 
@@ -143,7 +143,7 @@ async fn quarantine_entity(
             Some(&id),
             None,
             &format!("Entity {} quarantined by admin", id),
-            "{}",
+            Some("{}"),
         )
         .await;
 
@@ -176,7 +176,7 @@ async fn release_entity(
             Some(&id),
             None,
             &format!("Entity {} released from quarantine", id),
-            "{}",
+            Some("{}"),
         )
         .await;
 

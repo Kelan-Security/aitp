@@ -69,7 +69,7 @@ async fn revoke_session(
             None,
             Some(&id),
             &format!("Session {} manually revoked", id),
-            "{}",
+            Some("{}"),
         )
         .await;
 

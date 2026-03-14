@@ -1,5 +1,5 @@
-use super::{Anomaly, AnomalyType, Sentinel};
-use crate::db::models::WsEvent;
+use crate::db::models::{AuditEntry, WsEvent};
+use crate::sentinel::{Anomaly, AnomalyType, Sentinel};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -105,23 +105,29 @@ pub async fn activate_threat_response(
     let affected_json = serde_json::to_string(&incident.affected_entities).unwrap_or_default();
     let mitre_json = serde_json::to_string(&incident.mitre_ttps).unwrap_or_default();
 
-    let _ = sqlx::query(
-        "INSERT INTO security_incidents (id, org_id, severity, attack_type, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, detected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&incident.id)
-    .bind(&incident.org_id)
-    .bind(&incident.severity)
-    .bind(&incident.attack_type)
-    .bind(&incident.entry_point_entity_id)
-    .bind(&affected_json)
-    .bind(&timeline_json)
-    .bind(&mitre_json)
-    .bind(&incident.vulnerability)
-    .bind(&incident.remediation)
-    .bind(&incident.status)
-    .bind(incident.detected_at)
-    .execute(state.db.inner())
-    .await;
+    let sql_pg = "INSERT INTO security_incidents (id, org_id, severity, attack_type, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
+    let sql_sq = "INSERT INTO security_incidents (id, org_id, severity, attack_type, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, detected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    
+    match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            let _ = sqlx::query(sql_pg)
+                .bind(&incident.id).bind(&incident.org_id).bind(&incident.severity)
+                .bind(&incident.attack_type).bind(&incident.entry_point_entity_id)
+                .bind(&affected_json).bind(&timeline_json).bind(&mitre_json)
+                .bind(&incident.vulnerability).bind(&incident.remediation)
+                .bind(&incident.status).bind(incident.detected_at)
+                .execute(pool).await;
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            let _ = sqlx::query(sql_sq)
+                .bind(&incident.id).bind(&incident.org_id).bind(&incident.severity)
+                .bind(&incident.attack_type).bind(&incident.entry_point_entity_id)
+                .bind(&affected_json).bind(&timeline_json).bind(&mitre_json)
+                .bind(&incident.vulnerability).bind(&incident.remediation)
+                .bind(&incident.status).bind(incident.detected_at)
+                .execute(pool).await;
+        }
+    }
 
     // Store in memory
     sentinel.incidents.lock().await.push(incident.clone());
@@ -163,49 +169,91 @@ pub async fn activate_threat_response(
 
 /// Quarantine an entity — revoke all active sessions.
 async fn quarantine_entity(state: &Arc<AppState>, entity_id: &str) -> u32 {
-    let pool = state.db.inner();
-
-    // Mark entity as quarantined
-    let _ = sqlx::query("UPDATE entities SET quarantined = 1 WHERE id = ?")
-        .bind(entity_id)
-        .execute(pool)
-        .await;
-
-    // Revoke all active sessions involving this entity
-    let result = sqlx::query(
-        "UPDATE sessions SET status = 'revoked', ended_at = ?, close_reason = 'quarantine_threat_response' WHERE (source_entity_id = ? OR dest_entity_id = ?) AND status = 'active'"
-    )
-    .bind(chrono::Utc::now().timestamp())
-    .bind(entity_id)
-    .bind(entity_id)
-    .execute(pool)
-    .await;
-
-    result.map(|r| r.rows_affected() as u32).unwrap_or(0)
+    let mut updated_rows = 0;
+    
+    match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            let _ = sqlx::query("UPDATE entities SET quarantined = 1 WHERE id = $1")
+                .bind(entity_id).execute(pool).await;
+            
+            let result = sqlx::query(
+                "UPDATE sessions SET status = 'revoked', ended_at = $1, close_reason = 'quarantine_threat_response' WHERE (source_entity_id = $2 OR dest_entity_id = $3) AND status = 'active'"
+            )
+            .bind(chrono::Utc::now().timestamp()).bind(entity_id).bind(entity_id)
+            .execute(pool).await;
+            
+            if let Ok(r) = result { updated_rows = r.rows_affected() as u32; }
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            let _ = sqlx::query("UPDATE entities SET quarantined = 1 WHERE id = ?")
+                .bind(entity_id).execute(pool).await;
+            
+            let result = sqlx::query(
+                "UPDATE sessions SET status = 'revoked', ended_at = ?, close_reason = 'quarantine_threat_response' WHERE (source_entity_id = ? OR dest_entity_id = ?) AND status = 'active'"
+            )
+            .bind(chrono::Utc::now().timestamp()).bind(entity_id).bind(entity_id)
+            .execute(pool).await;
+            
+            if let Ok(r) = result { updated_rows = r.rows_affected() as u32; }
+        }
+    }
+    updated_rows
 }
 
-/// Reconstruct the attack chain from audit history.
 async fn reconstruct_attack_chain(state: &Arc<AppState>, entity_id: &str) -> AttackTimeline {
-    let pool = state.db.inner();
     let one_hour_ago = chrono::Utc::now().timestamp() - 3600;
 
     use sqlx::Row;
-    let events = sqlx::query(
-        "SELECT event_type, severity, source_entity_id, description, created_at FROM audit_chain WHERE source_entity_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50"
-    )
-    .bind(entity_id)
-    .bind(one_hour_ago)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let events: Vec<AuditEntry> = match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            sqlx::query("SELECT * FROM audit_chain WHERE source_entity_id = $1 AND created_at > $2 ORDER BY created_at ASC LIMIT 50")
+                .bind(entity_id).bind(one_hour_ago)
+                .fetch_all(pool).await.unwrap_or_default()
+                .into_iter()
+                .map(|r| AuditEntry {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    event_type: r.get("event_type"),
+                    severity: r.get("severity"),
+                    source_entity_id: r.get("source_entity_id"),
+                    session_id: r.get("session_id"),
+                    description: r.get("description"),
+                    metadata: r.get("metadata"),
+                    prev_hash: r.get("prev_hash"),
+                    entry_hash: r.get("entry_hash"),
+                    created_at: r.get("created_at"),
+                })
+                .collect()
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            sqlx::query("SELECT * FROM audit_chain WHERE source_entity_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50")
+                .bind(entity_id).bind(one_hour_ago)
+                .fetch_all(pool).await.unwrap_or_default()
+                .into_iter()
+                .map(|r| AuditEntry {
+                    id: r.get("id"),
+                    org_id: r.get("org_id"),
+                    event_type: r.get("event_type"),
+                    severity: r.get("severity"),
+                    source_entity_id: r.get("source_entity_id"),
+                    session_id: r.get("session_id"),
+                    description: r.get("description"),
+                    metadata: r.get("metadata"),
+                    prev_hash: r.get("prev_hash"),
+                    entry_hash: r.get("entry_hash"),
+                    created_at: r.get("created_at"),
+                })
+                .collect()
+        }
+    };
 
     let timeline_events: Vec<AttackTimelineEvent> = events
         .iter()
         .map(|row| AttackTimelineEvent {
-            timestamp: row.get("created_at"),
-            event_type: row.get("event_type"),
-            entity_id: row.get::<String, _>("source_entity_id"),
-            description: row.get("description"),
+            timestamp: row.created_at,
+            event_type: row.event_type.clone(),
+            entity_id: row.source_entity_id.clone().unwrap_or_default(),
+            description: row.description.clone(),
             mitre_tactic: None,
         })
         .collect();
@@ -226,23 +274,31 @@ async fn reconstruct_attack_chain(state: &Arc<AppState>, entity_id: &str) -> Att
 
 /// Find entities that communicated with the compromised entity recently.
 async fn find_affected_entities(state: &Arc<AppState>, entity_id: &str) -> Vec<String> {
-    let pool = state.db.inner();
     let one_hour_ago = chrono::Utc::now().timestamp() - 3600;
+    let mut affected = Vec::new();
 
     use sqlx::Row;
-    sqlx::query(
-        "SELECT DISTINCT dest_entity_id FROM sessions WHERE source_entity_id = ? AND started_at > ? UNION SELECT DISTINCT source_entity_id FROM sessions WHERE dest_entity_id = ? AND started_at > ?"
-    )
-    .bind(entity_id)
-    .bind(one_hour_ago)
-    .bind(entity_id)
-    .bind(one_hour_ago)
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default()
-    .iter()
-    .map(|row| row.get::<String, _>(0))
-    .collect()
+    match &state.db {
+        crate::db::DbPool::Postgres(pool) => {
+            if let Ok(rows) = sqlx::query(
+                "SELECT DISTINCT dest_entity_id FROM sessions WHERE source_entity_id = $1 AND started_at > $2 UNION SELECT DISTINCT source_entity_id FROM sessions WHERE dest_entity_id = $3 AND started_at > $4"
+            )
+            .bind(entity_id).bind(one_hour_ago).bind(entity_id).bind(one_hour_ago)
+            .fetch_all(pool).await {
+                affected = rows.iter().map(|row| row.get::<String, _>(0)).collect();
+            }
+        }
+        crate::db::DbPool::Sqlite(pool) => {
+            if let Ok(rows) = sqlx::query(
+                "SELECT DISTINCT dest_entity_id FROM sessions WHERE source_entity_id = ? AND started_at > ? UNION SELECT DISTINCT source_entity_id FROM sessions WHERE dest_entity_id = ? AND started_at > ?"
+            )
+            .bind(entity_id).bind(one_hour_ago).bind(entity_id).bind(one_hour_ago)
+            .fetch_all(pool).await {
+                affected = rows.iter().map(|row| row.get::<String, _>(0)).collect();
+            }
+        }
+    }
+    affected
 }
 
 /// Map anomaly type to MITRE ATT&CK tactics.
