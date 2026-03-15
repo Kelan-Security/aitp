@@ -1,219 +1,139 @@
-// AITP Client Agent — install.rs
-// systemd (Linux) and launchd (macOS) service installation helpers.
+// Kernex Client Agent — install.rs
+// System service install helpers: systemd (Linux), launchd (macOS).
 
-use anyhow::Result;
-use std::path::PathBuf;
-
-pub fn install_service() -> Result<()> {
+pub fn install_service() -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
-    return install_systemd();
+    install_systemd()?;
 
     #[cfg(target_os = "macos")]
-    return install_launchd();
+    install_launchd()?;
 
-    #[cfg(target_os = "windows")]
-    return install_windows_service();
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        println!("Service installation not supported on this platform.");
+        println!("Run manually: kernex-agent start");
+    }
 
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    anyhow::bail!("Service installation not supported on this platform");
+    Ok(())
 }
 
-pub fn uninstall_service() -> Result<()> {
+pub fn uninstall_service() -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
-    return uninstall_systemd();
+    uninstall_systemd()?;
 
     #[cfg(target_os = "macos")]
-    return uninstall_launchd();
+    uninstall_launchd()?;
 
-    #[cfg(target_os = "windows")]
-    return uninstall_windows_service();
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    println!("Service uninstallation not supported on this platform.");
 
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    anyhow::bail!("Service uninstallation not supported on this platform");
+    Ok(())
 }
-
-// ─── Linux (systemd) ─────────────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-fn install_systemd() -> Result<()> {
-    let exe = std::env::current_exe()?;
-    let unit_path = PathBuf::from("/etc/systemd/system/aitp-client.service");
-
+fn install_systemd() -> anyhow::Result<()> {
+    let binary = std::env::current_exe()?;
     let unit = format!(
         r#"[Unit]
-Description=AITP Client Agent — Identity-First Connection Guard
-Documentation=https://github.com/aitp-protocol/aitp
+Description=Kernex Client Agent
+Documentation=https://docs.kernex.io/agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart={exe} start
+ExecStart={bin} --config /etc/kernex/kernex-agent.toml start
+ExecStop=/bin/kill -TERM $MAINPID
 Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=aitp-client
-# Security hardening
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=read-only
-PrivateTmp=yes
+RestartSec=5s
+User=root
+PIDFile=/var/run/kernex-agent.pid
+
+# Allow iptables manipulation
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target
 "#,
-        exe = exe.display()
+        bin = binary.display()
     );
 
-    std::fs::write(&unit_path, unit)?;
-    println!("✓ Installed: {}", unit_path.display());
+    std::fs::write("/etc/systemd/system/kernex-agent.service", unit)?;
+    std::process::Command::new("systemctl")
+        .args(["daemon-reload"])
+        .status()?;
+    std::process::Command::new("systemctl")
+        .args(["enable", "kernex-agent"])
+        .status()?;
 
-    // Enable and start
-    for cmd in &[
-        "systemctl daemon-reload",
-        "systemctl enable aitp-client",
-        "systemctl start aitp-client",
-    ] {
-        let parts: Vec<&str> = cmd.split_whitespace().collect();
-        let status = std::process::Command::new(parts[0])
-            .args(&parts[1..])
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("Command failed: {}", cmd);
-        }
-    }
-
-    println!("✓ AITP Client service enabled and started");
-    println!("  Check status: systemctl status aitp-client");
+    println!("systemd service installed and enabled");
+    println!("Start: sudo systemctl start kernex-agent");
+    println!("Logs:  sudo journalctl -u kernex-agent -f");
     Ok(())
 }
 
 #[cfg(target_os = "linux")]
-fn uninstall_systemd() -> Result<()> {
-    for cmd in &[
-        "systemctl stop aitp-client",
-        "systemctl disable aitp-client",
-    ] {
-        let parts: Vec<&str> = cmd.split_whitespace().collect();
-        let _ = std::process::Command::new(parts[0])
-            .args(&parts[1..])
-            .status();
-    }
-    let unit_path = PathBuf::from("/etc/systemd/system/aitp-client.service");
-    if unit_path.exists() {
-        std::fs::remove_file(&unit_path)?;
-        let _ = std::process::Command::new("systemctl")
-            .arg("daemon-reload")
-            .status();
-    }
-    println!("✓ AITP Client service removed");
+fn uninstall_systemd() -> anyhow::Result<()> {
+    let _ = std::process::Command::new("systemctl")
+        .args(["stop", "kernex-agent"])
+        .status();
+    let _ = std::process::Command::new("systemctl")
+        .args(["disable", "kernex-agent"])
+        .status();
+    let _ = std::fs::remove_file("/etc/systemd/system/kernex-agent.service");
+    let _ = std::process::Command::new("systemctl")
+        .args(["daemon-reload"])
+        .status();
+    println!("systemd service removed");
     Ok(())
 }
 
-// ─── macOS (launchd) ─────────────────────────────────────────────────────────
-
 #[cfg(target_os = "macos")]
-fn install_launchd() -> Result<()> {
-    let exe = std::env::current_exe()?;
-    let plist_path = PathBuf::from("/Library/LaunchDaemons/dev.aitp.client.plist");
-    let log_path = PathBuf::from("/var/log/aitp-client.log");
-
+fn install_launchd() -> anyhow::Result<()> {
+    let binary = std::env::current_exe()?;
     let plist = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key>
-  <string>dev.aitp.client</string>
+  <key>Label</key>            <string>io.kernex.agent</string>
   <key>ProgramArguments</key>
   <array>
-    <string>{exe}</string>
+    <string>{bin}</string>
+    <string>--config</string>
+    <string>/etc/kernex/kernex-agent.toml</string>
     <string>start</string>
   </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>{log}</string>
-  <key>StandardErrorPath</key>
-  <string>{log}</string>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>StandardOutPath</key>  <string>/var/log/kernex/agent.log</string>
+  <key>StandardErrorPath</key><string>/var/log/kernex/agent-err.log</string>
 </dict>
 </plist>
 "#,
-        exe = exe.display(),
-        log = log_path.display()
+        bin = binary.display()
     );
 
-    std::fs::write(&plist_path, plist)?;
-    println!("✓ Installed: {}", plist_path.display());
-
-    let status = std::process::Command::new("launchctl")
-        .args(["load", "-w", plist_path.to_str().unwrap()])
+    std::fs::create_dir_all("/var/log/kernex")?;
+    std::fs::write(
+        "/Library/LaunchDaemons/io.kernex.agent.plist",
+        plist,
+    )?;
+    std::process::Command::new("launchctl")
+        .args(["load", "/Library/LaunchDaemons/io.kernex.agent.plist"])
         .status()?;
-
-    if !status.success() {
-        anyhow::bail!("launchctl load failed");
-    }
-
-    println!("✓ AITP Client launchd service loaded");
-    println!("  Check status: launchctl list | grep aitp");
+    println!("launchd daemon installed");
+    println!("Logs: /var/log/kernex/agent.log");
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn uninstall_launchd() -> Result<()> {
-    let plist_path = PathBuf::from("/Library/LaunchDaemons/dev.aitp.client.plist");
-    if plist_path.exists() {
-        let _ = std::process::Command::new("launchctl")
-            .args(["unload", plist_path.to_str().unwrap()])
-            .status();
-        std::fs::remove_file(&plist_path)?;
-    }
-    println!("✓ AITP Client launchd service removed");
-    Ok(())
-}
-
-// ─── Windows ─────────────────────────────────────────────────────────────────
-
-#[cfg(target_os = "windows")]
-fn install_windows_service() -> Result<()> {
-    let exe = std::env::current_exe()?;
-    let status = std::process::Command::new("sc")
-        .args([
-            "create",
-            "AitpClient",
-            "binpath=",
-            &format!("\"{}\" start", exe.display()),
-            "DisplayName=",
-            "AITP Client Agent",
-            "start=",
-            "auto",
-            "description=",
-            "AITP identity-first connection guard",
-        ])
-        .status()?;
-
-    if !status.success() {
-        anyhow::bail!("sc create failed — run as Administrator");
-    }
-    let _ = std::process::Command::new("sc")
-        .args(["start", "AitpClient"])
+fn uninstall_launchd() -> anyhow::Result<()> {
+    let _ = std::process::Command::new("launchctl")
+        .args(["unload", "/Library/LaunchDaemons/io.kernex.agent.plist"])
         .status();
-    println!("✓ AITP Client Windows service installed and started");
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn uninstall_windows_service() -> Result<()> {
-    let _ = std::process::Command::new("sc")
-        .args(["stop", "AitpClient"])
-        .status();
-    std::process::Command::new("sc")
-        .args(["delete", "AitpClient"])
-        .status()?;
-    println!("✓ AITP Client Windows service removed");
+    let _ = std::fs::remove_file("/Library/LaunchDaemons/io.kernex.agent.plist");
+    println!("launchd daemon removed");
     Ok(())
 }

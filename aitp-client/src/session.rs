@@ -1,93 +1,80 @@
-// AITP Client Agent — session.rs
+// Kernex Client Agent — session.rs
 // Active session table tracking all live SessionPermits.
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-use crate::handshake::{SessionPermit, Verdict};
+use crate::handshake::SessionPermit;
 
-const SESSION_TTL_SECS: u64 = 3600; // 1 hour default
-
-#[derive(Debug, Clone)]
-pub struct SessionInfo {
-    pub permit: Arc<SessionPermit>,
-    pub dest_entity_id: String,
-}
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SessionTable {
-    inner: Arc<RwLock<HashMap<String, SessionInfo>>>,
+    inner: Arc<RwLock<HashMap<u64, SessionPermit>>>,
 }
 
-#[allow(dead_code)]
 impl SessionTable {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
-    /// Insert (or replace) a session permit.
-    pub fn insert(&self, session_id: String, permit: SessionPermit, dest: String) {
-        let mut guard = self.inner.write().expect("session table lock poisoned");
-        guard.insert(
-            session_id,
-            SessionInfo {
-                permit: Arc::new(permit),
-                dest_entity_id: dest,
-            },
-        );
+    /// Insert or replace a session permit.
+    pub async fn insert(&self, session_id: u64, permit: SessionPermit) {
+        self.inner.write().await.insert(session_id, permit);
     }
 
     /// Look up a session by its ID.
-    pub fn get(&self, session_id: &str) -> Option<Arc<SessionPermit>> {
-        let guard = self.inner.read().expect("session table lock poisoned");
-        guard.get(session_id).map(|s| Arc::clone(&s.permit))
+    #[allow(dead_code)]
+    pub async fn get(&self, session_id: u64) -> Option<SessionPermit> {
+        self.inner.read().await.get(&session_id).cloned()
     }
 
     /// Remove a session (on revoke or expiry).
-    pub fn remove(&self, session_id: &str) {
-        let mut guard = self.inner.write().expect("session table lock poisoned");
-        guard.remove(session_id);
+    pub async fn remove(&self, session_id: u64) {
+        self.inner.write().await.remove(&session_id);
     }
 
-    /// Purge sessions older than TTL.
-    pub fn purge_expired(&self) {
-        let ttl = Duration::from_secs(SESSION_TTL_SECS);
-        let mut guard = self.inner.write().expect("session table lock poisoned");
-        guard.retain(|_, info| info.permit.established_at.elapsed() < ttl);
+    /// Revoke ALL active sessions (quarantine).
+    pub async fn revoke_all(&self) {
+        self.inner.write().await.clear();
+    }
+
+    /// Purge sessions older than their expiry.
+    pub async fn purge_expired(&self) {
+        let now = std::time::Instant::now();
+        self.inner.write().await.retain(|_, permit| permit.expires_at > now);
     }
 
     /// Return count of active sessions.
-    pub fn active_count(&self) -> usize {
-        self.inner
-            .read()
-            .expect("session table lock poisoned")
-            .len()
+    pub async fn active_count(&self) -> usize {
+        self.inner.read().await.len()
     }
 
-    /// Return list of all active sessions for status display.
-    pub fn snapshot(&self) -> Vec<SessionSnapshot> {
-        let guard = self.inner.read().expect("session table lock poisoned");
+    /// Snapshot for status display.
+    pub async fn snapshot(&self) -> Vec<SessionSnapshot> {
+        let guard = self.inner.read().await;
         guard
             .iter()
-            .map(|(id, info)| SessionSnapshot {
-                session_id: id.clone(),
-                dest: info.dest_entity_id.clone(),
-                verdict: info.permit.verdict.clone(),
-                trust_score: info.permit.trust_score,
-                age_secs: info.permit.age_secs(),
-                intent: info.permit.intent.to_string(),
+            .map(|(id, permit)| SessionSnapshot {
+                session_id: format!("{:016x}", id),
+                trust_score: permit.trust_score,
+                verdict: permit.verdict.to_string(),
+                intent: permit.intent.to_string(),
+                age_secs: permit.expires_at
+                    .checked_duration_since(std::time::Instant::now())
+                    .map(|d| 3600u64.saturating_sub(d.as_secs()))
+                    .unwrap_or(3600),
             })
             .collect()
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SessionSnapshot {
     pub session_id: String,
-    pub dest: String,
-    pub verdict: Verdict,
     pub trust_score: u8,
-    pub age_secs: u64,
+    pub verdict: String,
     pub intent: String,
+    pub age_secs: u64,
 }

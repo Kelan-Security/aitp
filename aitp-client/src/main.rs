@@ -1,324 +1,233 @@
-// AITP Client Agent — main.rs
-// CLI entry point for all aitp-client commands.
+// Kernex Client Agent — main.rs
+// CLI entry point for kernex-agent.
 
+mod channel;
 mod config;
 mod daemon;
+mod enroll;
 mod handshake;
+mod heartbeat;
 mod identity;
 mod install;
 mod interceptor;
 mod ipc;
+mod metrics;
 mod session;
 
-use anyhow::Result;
+use std::sync::Arc;
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 
 #[derive(Parser)]
+#[command(name = "kernex-agent")]
+#[command(version = "0.3.0")]
+#[command(about = "Kernex Client Agent — transport-layer security daemon")]
 #[command(
-    name = "aitp-client",
-    version = "0.3.0",
-    about = "AITP Client Agent — Identity-First Connection Guard",
-    long_about = "Lightweight daemon that enforces AITP protocol on every device.\nRuns the 5-phase handshake for all outgoing connections and evaluates trust via the Intelligence Core."
+    long_about = "Lightweight daemon that installs on every device in an organisation.\nTransparently intercepts outgoing connections and routes them through\nthe Kernex Intelligence Core for identity verification and AI trust evaluation."
 )]
 struct Cli {
+    /// Path to config file
+    #[arg(short, long, default_value = "/etc/kernex/kernex-agent.toml")]
+    config: String,
+
     #[command(subcommand)]
-    command: Command,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
-enum Command {
-    /// Start the AITP client daemon in the foreground
+enum Commands {
+    /// Start the agent daemon in the foreground
     Start,
-    /// Start as a background daemon (detaches from terminal)
+    /// Start the agent daemon in the background
     Daemon,
     /// Stop the running daemon
     Stop,
-    /// Show daemon status: entity ID, connection, active sessions
+    /// Show current agent status
     Status,
-    /// Enroll this device with the Intelligence Core
+    /// Enroll this device with the Kernex Intelligence Core
     Enroll {
-        /// Organisation email (overrides AITP_EMAIL env var)
-        #[arg(long)]
-        email: Option<String>,
-        /// Organisation password (overrides AITP_PASSWORD env var)
-        #[arg(long)]
-        password: Option<String>,
+        /// Intelligence Core address
+        #[arg(short, long)]
+        server: String,
+        /// Authentication token from the Intelligence Core admin
+        #[arg(short, long)]
+        token: String,
     },
-    /// Run a single test handshake and display trust evaluation result
-    TestConnection {
-        /// Destination entity ID hex (defaults to self)
-        #[arg(long)]
-        dest: Option<String>,
-        /// Intent to declare
-        #[arg(long, default_value = "ModelInference")]
-        intent: String,
+    /// Test connection to Intelligence Core and show trust evaluation
+    Test {
+        /// Target to test (host:port)
+        #[arg(default_value = "kernex-test.internal:443")]
+        target: String,
     },
-    /// Install as a system service (systemd/launchd/Windows Service)
+    /// Install as system service (systemd/launchd)
     Install,
-    /// Remove the system service
+    /// Remove system service
     Uninstall,
-    /// Print current configuration
+    /// Show agent configuration
     Config,
+    /// Generate a new keypair (replaces existing — use with caution)
+    ResetKeys,
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    // Load .env if present (dev convenience)
-    let _ = dotenvy::dotenv();
-
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let config = config::ClientConfig::load()?;
+    let config_path = std::path::PathBuf::from(&cli.config);
+    let config = config::AgentConfig::load(&config_path).unwrap_or_default();
 
-    // Set up tracing
-    let log_level =
-        std::env::var("AITP_LOG_LEVEL").unwrap_or_else(|_| config.logging.level.clone());
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level)),
-        )
-        .init();
+    // Init tracing
+    init_logging(&config);
 
     match cli.command {
-        Command::Start => {
+        Commands::Start => {
             print_banner();
-            let identity = identity::EntityIdentity::generate_or_load(&config)?;
-            daemon::run_daemon(config, identity).await?;
+            daemon::run(Arc::new(config), config_path).await?;
         }
 
-        Command::Daemon => {
-            println!("{} Starting AITP Client in background…", "→".blue());
-            // On Unix, fork and detach.
-            // Simple approach: re-exec with nohup
+        Commands::Daemon => {
+            // Fork: re-exec in background
             let exe = std::env::current_exe()?;
             let child = std::process::Command::new(&exe)
+                .arg("--config")
+                .arg(&cli.config)
                 .arg("start")
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()?;
-            println!(
-                "{} AITP Client daemon started (PID {})",
-                "✓".green(),
-                child.id()
-            );
+            println!("Kernex Agent daemon started (PID {})", child.id());
+            // Write PID file
+            let _ = std::fs::write("/tmp/kernex-agent.pid", child.id().to_string());
             std::mem::forget(child); // detach
         }
 
-        Command::Stop => {
-            println!("{} Stopping AITP Client daemon…", "→".blue());
-            let pid_file = "/tmp/aitp-client.pid";
-            if std::path::Path::new(pid_file).exists() {
-                let pid: u32 = std::fs::read_to_string(pid_file)?.trim().parse()?;
-                #[cfg(unix)]
-                {
-                    let _ = std::process::Command::new("kill")
-                        .arg(pid.to_string())
-                        .status();
-                }
-                std::fs::remove_file(pid_file)?;
-                println!("{} Daemon stopped (PID {})", "✓".green(), pid);
-            } else {
-                println!("{} No PID file — daemon may not be running", "!".yellow());
-            }
+        Commands::Stop => {
+            let pid_str = std::fs::read_to_string("/tmp/kernex-agent.pid")
+                .map_err(|_| anyhow::anyhow!("Agent not running (no PID file)"))?;
+            let pid: i32 = pid_str.trim().parse()?;
+            nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(pid),
+                nix::sys::signal::Signal::SIGTERM,
+            )?;
+            let _ = std::fs::remove_file("/tmp/kernex-agent.pid");
+            println!("Agent stopped (PID {})", pid);
         }
 
-        Command::Status => match ipc::query_status().await {
-            Ok(status) => {
-                println!();
-                println!("{}", "AITP Client Status".bold());
-                println!("{}", "─".repeat(40));
-                println!("  Entity ID    : {}", status.entity_id.cyan());
-                println!(
-                    "  Server       : {} {}",
-                    status.server_address,
-                    if status.server_connected {
-                        "● CONNECTED".green().to_string()
-                    } else {
-                        "○ DISCONNECTED".red().to_string()
-                    }
-                );
-                println!("  Sessions     : {}", status.active_sessions);
-                println!("  Uptime       : {}s", status.uptime_secs);
-                println!("  Interception : {}", status.interception_mode);
-
-                if !status.sessions.is_empty() {
-                    println!();
-                    println!("{}", "Active Sessions:".bold());
-                    for s in &status.sessions {
-                        let verdict_colored = match s.verdict.as_str() {
-                            "Allow" => s.verdict.green().to_string(),
-                            "Deny" => s.verdict.red().to_string(),
-                            _ => s.verdict.yellow().to_string(),
-                        };
-                        println!(
-                            "  {} {}  trust:{} age:{}s  [{}]",
-                            verdict_colored, s.session_id, s.trust_score, s.age_secs, s.intent
-                        );
-                    }
-                }
-                println!();
-            }
-            Err(e) => {
-                println!("{} Daemon not running: {}", "✗".red(), e);
-            }
-        },
-
-        Command::Enroll { email, password } => {
-            if let Some(e) = email {
-                std::env::set_var("AITP_EMAIL", e);
-            }
-            if let Some(p) = password {
-                std::env::set_var("AITP_PASSWORD", p);
-            }
-
-            println!("{} Enrolling device with Intelligence Core…", "→".blue());
-            let identity = identity::EntityIdentity::generate_or_load(&config)?;
-            daemon::enroll_device(&config, &identity).await?;
-        }
-
-        Command::TestConnection { dest, intent } => {
-            let config_clone = config.clone();
-            let identity = identity::EntityIdentity::generate_or_load(&config_clone)?;
-
-            let parse_intent = |s: &str| match s.to_lowercase().as_str() {
-                "modelinference" | "inference" => handshake::Intent::ModelInference,
-                "agentcoordinate" | "agent" => handshake::Intent::AgentCoordinate,
-                "datasync" | "sync" => handshake::Intent::DataSync,
-                "controlsignal" | "control" => handshake::Intent::ControlSignal,
-                "filetransfer" | "file" => handshake::Intent::FileTransfer,
-                "apicall" | "api" => handshake::Intent::ApiCall,
-                _ => handshake::Intent::ModelInference,
-            };
-
-            let intent_code = parse_intent(&intent);
-            let dest_id = dest.unwrap_or_else(|| {
-                daemon::load_server_entity_id().unwrap_or_else(|| identity.entity_id_full_hex())
-            });
-
-            let identity_arc =
-                std::sync::Arc::new(identity::EntityIdentity::generate_or_load(&config_clone)?);
-            let config_arc = std::sync::Arc::new(config_clone.clone());
-
-            let handshake = handshake::AitpHandshake::new(identity_arc.clone(), config_arc);
-
-            println!("\n{} Running 5-phase AITP handshake…\n", "→".blue());
-            println!("  Entity ID : {}", identity_arc.entity_id_hex().cyan());
-            println!("  Server    : {}", config_clone.api_base_url());
-            println!("  Intent    : {}", intent_code);
-            println!("  Dest      : {}", &dest_id[..dest_id.len().min(16)]);
-            println!();
-
-            let t0 = std::time::Instant::now();
-            match handshake.establish(&dest_id, intent_code).await {
-                Ok(permit) => {
-                    let latency = t0.elapsed();
-                    println!("{}", "━".repeat(48));
-                    println!("  Phase 1  : {} HELLO", "✓".green());
-                    println!(
-                        "  Phase 2  : {} IDENTITY_EXCHANGE + nonce signed",
-                        "✓".green()
-                    );
-                    println!(
-                        "  Phase 3  : {} INTENT_DECLARE ({})",
-                        "✓".green(),
-                        intent_code
-                    );
-                    println!(
-                        "  Phase 4  : {} Trust evaluation ({})",
-                        "✓".green(),
-                        permit.eval_source
-                    );
-                    println!("  Phase 5  : {} SESSION_GRANT", "✓".green());
-                    println!("{}", "━".repeat(48));
-                    println!(
-                        "  Session  : {}",
-                        &permit.session_id[..permit.session_id.len().min(12)]
-                    );
-                    println!("  Trust    : {}", permit.trust_score);
-                    println!(
-                        "  Verdict  : {}",
-                        match permit.verdict {
-                            handshake::Verdict::Allow => "ALLOW".green().to_string(),
-                            handshake::Verdict::Deny => "DENY".red().to_string(),
-                            handshake::Verdict::Monitor => "MONITOR".yellow().to_string(),
-                        }
-                    );
-                    println!("  Reason   : {}", permit.reasoning.dimmed());
-                    println!("  Latency  : {}ms", latency.as_millis());
-                    println!();
-
-                    if permit.is_allowed() {
-                        println!("{} Connection would be ALLOWED", "✓".green());
-                    } else {
-                        println!("{} Connection would be DENIED (ECONNREFUSED)", "✗".red());
-                    }
+        Commands::Status => {
+            match ipc::query_status().await {
+                Ok(status) => {
+                    println!("{}", serde_json::to_string_pretty(&status)?);
                 }
                 Err(e) => {
-                    let latency = t0.elapsed();
-                    println!("{}", "━".repeat(48));
-                    println!(
-                        "{} Handshake FAILED after {}ms",
-                        "✗".red(),
-                        latency.as_millis()
-                    );
-                    println!("  Error: {}", e);
+                    eprintln!("Agent not running: {}", e);
                     std::process::exit(1);
                 }
             }
         }
 
-        Command::Install => {
-            println!("{} Installing AITP Client as system service…", "→".blue());
+        Commands::Enroll { server, token } => {
+            enroll::run(server, token, &config_path).await?;
+        }
+
+        Commands::Test { target } => {
+            run_test(&config, &target, config_path.parent()).await?;
+        }
+
+        Commands::Install => {
             install::install_service()?;
         }
 
-        Command::Uninstall => {
-            println!("{} Removing AITP Client system service…", "→".blue());
+        Commands::Uninstall => {
             install::uninstall_service()?;
         }
 
-        Command::Config => {
-            println!("{}", "AITP Client Configuration".bold());
-            println!("{}", "─".repeat(40));
-            println!(
-                "  Config file : {:?}",
-                config::ClientConfig::default_config_path()
-            );
-            println!("  Server      : {}", config.api_base_url());
-            println!("  Entity type : {}", config.agent.entity_type);
-            println!(
-                "  Department  : {}",
-                if config.agent.department.is_empty() {
-                    "—"
-                } else {
-                    &config.agent.department
-                }
-            );
-            println!("  Clearance   : {}", config.agent.clearance_level);
-            println!("  Interception: {}", config.interception.mode);
-            println!(
-                "  Excl ports  : {}",
-                config
-                    .interception
-                    .exclude_ports
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            println!("  Log level   : {}", config.logging.level);
+        Commands::Config => {
+            println!("{}", toml::to_string_pretty(&config)?);
+        }
+
+        Commands::ResetKeys => {
+            print!("WARNING: This will replace your keypair. Type 'yes' to confirm: ");
+            use std::io::Write;
+            std::io::stdout().flush()?;
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line)?;
+            if line.trim() == "yes" {
+                identity::EntityIdentity::delete_stored_key()?;
+                println!("Keys reset. Run 'kernex-agent enroll' to re-enroll.");
+            } else {
+                println!("Aborted.");
+            }
         }
     }
 
     Ok(())
 }
 
+fn init_logging(config: &config::AgentConfig) {
+    let level = std::env::var("KERNEX_LOG_LEVEL")
+        .unwrap_or_else(|_| config.logging.level.clone());
+
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&level)),
+        )
+        .init();
+}
+
 fn print_banner() {
+    eprintln!();
+    eprintln!("┌─────────────────────────────────────────────┐");
+    eprintln!("│  Kernex Client Agent v0.3.0                 │");
+    eprintln!("│  Transport-Layer Security Daemon            │");
+    eprintln!("│  Identity-First · Intent-Bound · Zero-Trust │");
+    eprintln!("└─────────────────────────────────────────────┘");
+    eprintln!();
+}
+
+async fn run_test(config: &config::AgentConfig, target: &str, key_dir: Option<&std::path::Path>) -> anyhow::Result<()> {
+    let identity = Arc::new(identity::EntityIdentity::load_or_generate(key_dir)?);
+
+    // Parse target
+    let (host, port) = if let Some(idx) = target.rfind(':') {
+        let h = &target[..idx];
+        let p: u16 = target[idx + 1..].parse()
+            .map_err(|_| anyhow::anyhow!("Invalid port in target: {}", target))?;
+        (h.to_string(), p)
+    } else {
+        (target.to_string(), 443)
+    };
+
+    let intent = handshake::infer_intent(&host, port);
+
     println!();
-    println!("{}", "AITP Client Agent v0.3.0".bold().cyan());
-    println!("{}", "Identity-First · Intent-Bound · Zero-Trust".dimmed());
-    println!();
+    println!("Evaluating: {}:{} ({})", host, port, intent);
+
+    let t0 = std::time::Instant::now();
+    let hs = handshake::AitpHandshake::new(
+        identity,
+        &config.server.address,
+        config.server.udp_port,
+    )
+    .await?;
+
+    let dest_id = "0".repeat(64);
+    match hs.establish(&dest_id, intent).await {
+        Ok(permit) => {
+            let latency = t0.elapsed();
+            println!("Trust score: {}/255", permit.trust_score);
+            println!("Verdict: {}", permit.verdict);
+            if !permit.ai_reasoning.is_empty() {
+                println!("AI reasoning: \"{}\"", permit.ai_reasoning);
+            }
+            println!("Latency: {:.1}ms", latency.as_secs_f64() * 1000.0);
+        }
+        Err(e) => {
+            let latency = t0.elapsed();
+            println!("DENIED after {:.1}ms", latency.as_secs_f64() * 1000.0);
+            println!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
 }

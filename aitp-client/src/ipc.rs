@@ -1,135 +1,81 @@
-// AITP Client Agent — ipc.rs
-// Unix socket IPC server for `aitp-client status` queries.
+// Kernex Client Agent — ipc.rs
+// Unix socket for `kernex-agent status` queries.
 
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{UnixListener, UnixStream};
+use tokio::net::UnixListener;
 
+use crate::config::AgentConfig;
+use crate::identity::EntityIdentity;
 use crate::session::SessionTable;
 
-pub const IPC_SOCKET_PATH: &str = "/tmp/aitp-client.sock";
+pub const IPC_SOCKET_PATH: &str = "/tmp/kernex-agent.sock";
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StatusResponse {
-    pub entity_id: String,
-    pub public_key: String,
-    pub server_connected: bool,
-    pub server_address: String,
-    pub active_sessions: usize,
-    pub uptime_secs: u64,
-    pub interception_mode: String,
-    pub sessions: Vec<SessionEntry>,
-}
+/// Start the IPC server that responds to status queries.
+pub async fn start_ipc_server(
+    sessions: SessionTable,
+    config: Arc<AgentConfig>,
+    identity: Arc<EntityIdentity>,
+) -> anyhow::Result<()> {
+    // Remove stale socket
+    let _ = std::fs::remove_file(IPC_SOCKET_PATH);
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SessionEntry {
-    pub session_id: String,
-    pub dest: String,
-    pub verdict: String,
-    pub trust_score: u8,
-    pub age_secs: u64,
-    pub intent: String,
-}
+    let listener = UnixListener::bind(IPC_SOCKET_PATH)?;
+    tracing::debug!("IPC server listening on {}", IPC_SOCKET_PATH);
 
-/// Query the running daemon for its status via IPC.
-pub async fn query_status() -> Result<StatusResponse> {
-    let path = PathBuf::from(IPC_SOCKET_PATH);
-    if !path.exists() {
-        anyhow::bail!(
-            "AITP daemon is not running (socket not found: {})",
-            IPC_SOCKET_PATH
-        );
+    loop {
+        let (mut stream, _) = listener.accept().await?;
+        let sessions = sessions.clone();
+        let config = Arc::clone(&config);
+        let identity = Arc::clone(&identity);
+
+        tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            let n = stream.read(&mut buf).await.unwrap_or(0);
+            let cmd = String::from_utf8_lossy(&buf[..n]);
+
+            if cmd.trim() == "status" {
+                let status = AgentStatus {
+                    running: true,
+                    entity_id: identity.short_id(),
+                    ic_connected: config.agent.api_token.is_some(),
+                    active_sessions: sessions.active_count().await,
+                    blocked_today: 0, // TODO: track from metrics
+                    mode: config.interception.mode.to_string(),
+                    proxy_port: config.interception.proxy_port,
+                    sessions: sessions.snapshot().await,
+                };
+
+                let json = serde_json::to_string(&status).unwrap_or_default();
+                let _ = stream.write_all(json.as_bytes()).await;
+            }
+        });
     }
-    let mut stream = UnixStream::connect(&path).await?;
-    stream.write_all(b"STATUS\n").await?;
+}
 
-    let mut buf = String::new();
-    stream.read_to_string(&mut buf).await?;
-    let status: StatusResponse = serde_json::from_str(&buf)?;
+/// Query the IPC socket for agent status.
+pub async fn query_status() -> anyhow::Result<AgentStatus> {
+    let mut stream = tokio::net::UnixStream::connect(IPC_SOCKET_PATH).await
+        .map_err(|_| anyhow::anyhow!("Cannot connect to agent — is it running?"))?;
+
+    stream.write_all(b"status").await?;
+    stream.shutdown().await?;
+
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).await?;
+
+    let status: AgentStatus = serde_json::from_slice(&buf)?;
     Ok(status)
 }
 
-/// Start the IPC server in the background and handle `STATUS` queries.
-pub async fn start_ipc_server(daemon_state: std::sync::Arc<DaemonState>) -> Result<()> {
-    let path = PathBuf::from(IPC_SOCKET_PATH);
-    // Remove stale socket file
-    let _ = std::fs::remove_file(&path);
-
-    let listener = UnixListener::bind(&path)?;
-    tracing::info!("IPC server listening on {}", IPC_SOCKET_PATH);
-
-    loop {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                let state = std::sync::Arc::clone(&daemon_state);
-                tokio::spawn(async move {
-                    if let Err(e) = handle_ipc_connection(stream, state).await {
-                        tracing::warn!("IPC error: {}", e);
-                    }
-                });
-            }
-            Err(e) => {
-                tracing::error!("IPC accept error: {}", e);
-            }
-        }
-    }
-}
-
-async fn handle_ipc_connection(
-    mut stream: UnixStream,
-    state: std::sync::Arc<DaemonState>,
-) -> Result<()> {
-    let mut cmd = String::new();
-    stream.read_to_string(&mut cmd).await?;
-    let cmd = cmd.trim();
-
-    match cmd {
-        "STATUS" => {
-            let sessions: Vec<SessionEntry> = state
-                .sessions
-                .snapshot()
-                .into_iter()
-                .map(|s| SessionEntry {
-                    session_id: s.session_id[..s.session_id.len().min(16)].to_string() + "...",
-                    dest: s.dest[..s.dest.len().min(16)].to_string() + "...",
-                    verdict: format!("{:?}", s.verdict),
-                    trust_score: s.trust_score,
-                    age_secs: s.age_secs,
-                    intent: s.intent,
-                })
-                .collect();
-
-            let response = StatusResponse {
-                entity_id: state.entity_id_short.clone(),
-                public_key: state.public_key_hex.clone(),
-                server_connected: *state.connected.lock().await,
-                server_address: state.server_address.clone(),
-                active_sessions: state.sessions.active_count(),
-                uptime_secs: state.started_at.elapsed().as_secs(),
-                interception_mode: state.interception_mode.clone(),
-                sessions,
-            };
-
-            let json = serde_json::to_string(&response)?;
-            stream.write_all(json.as_bytes()).await?;
-        }
-        _ => {
-            stream.write_all(b"\"ERROR: unknown command\"").await?;
-        }
-    }
-
-    Ok(())
-}
-
-/// Shared state accessible from the IPC server.
-pub struct DaemonState {
-    pub entity_id_short: String,
-    pub public_key_hex: String,
-    pub connected: tokio::sync::Mutex<bool>,
-    pub server_address: String,
-    pub sessions: SessionTable,
-    pub started_at: std::time::Instant,
-    pub interception_mode: String,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AgentStatus {
+    pub running: bool,
+    pub entity_id: String,
+    pub ic_connected: bool,
+    pub active_sessions: usize,
+    pub blocked_today: u64,
+    pub mode: String,
+    pub proxy_port: u16,
+    pub sessions: Vec<crate::session::SessionSnapshot>,
 }
