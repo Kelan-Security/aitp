@@ -92,7 +92,7 @@ async fn async_main() -> anyhow::Result<()> {
     // 4. Load config
     let app_config = config::AppConfig::from_env();
 
-    // 5. Connect Database, run migrations
+    // 5. Connect Database (runs migrations automatically)
     let db_pool = match db::DbPool::connect(&app_config.db_path).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -100,11 +100,6 @@ async fn async_main() -> anyhow::Result<()> {
             std::process::exit(1);
         }
     };
-
-    if let Err(e) = db::migrations::run(&db_pool).await {
-        tracing::error!("Database migrations failed: {:?}", e);
-        std::process::exit(1);
-    }
 
     let sentinel_instance = sentinel::Sentinel::new();
     let trust_engine = crate::trust::HybridTrustEngine::new(

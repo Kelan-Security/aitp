@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["ws", "macros"] }
-sqlx = { version = "0.8", default-features = false, features = ["sqlite", "postgres", "runtime-tokio-native-tls", "chrono", "uuid", "macros", "json"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "postgres", "runtime-tokio-native-tls", "chrono", "uuid", "macros", "json", "migrate"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }

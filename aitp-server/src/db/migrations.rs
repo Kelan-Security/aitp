@@ -1,6 +1,9 @@
 use crate::db::DbPool;
 
 /// Run all database migrations (idempotent).
+/// NOTE: These are now also handled by sqlx::migrate! in DbPool::connect().
+/// This function is kept for backward compatibility.
+#[allow(dead_code)]
 pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
     // Enable WAL mode and foreign keys for SQLite only
     if let DbPool::Sqlite(sqlite_pool) = pool {
