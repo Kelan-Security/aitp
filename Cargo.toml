@@ -10,7 +10,7 @@ members = [
     "aitp-server",
     "aitp-client",
     "kelan-ebpf/kelan-ebpf-loader",
-    "tools/kernex-license-tool"
+    "tools/kelan-license-tool"
 ]
 
 [workspace.package]

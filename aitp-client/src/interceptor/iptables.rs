@@ -18,36 +18,36 @@ impl IptablesInterceptor {
     pub fn install(&self) -> anyhow::Result<()> {
         let ipt = iptables::new(false)?;
 
-        // Create KERNEX chain
-        let _ = ipt.new_chain("nat", "KERNEX");
+        // Create KELAN chain
+        let _ = ipt.new_chain("nat", "KELAN");
 
         // Exclude traffic from the proxy itself (prevent loop)
         ipt.append(
             "nat",
-            "KERNEX",
+            "KELAN",
             &format!("-m owner --uid-owner {} -j RETURN", self.uid),
         )?;
 
         // Exclude loopback
-        ipt.append("nat", "KERNEX", "-d 127.0.0.0/8 -j RETURN")?;
+        ipt.append("nat", "KELAN", "-d 127.0.0.0/8 -j RETURN")?;
 
         // Exclude Intelligence Core traffic (prevent loop)
-        ipt.append("nat", "KERNEX", "--dport 9999 -j RETURN")?;
-        ipt.append("nat", "KERNEX", "--dport 3000 -j RETURN")?;
+        ipt.append("nat", "KELAN", "--dport 9999 -j RETURN")?;
+        ipt.append("nat", "KELAN", "--dport 3000 -j RETURN")?;
 
         // Exclude DNS and SSH
-        ipt.append("nat", "KERNEX", "--dport 53 -j RETURN")?;
-        ipt.append("nat", "KERNEX", "--dport 22 -j RETURN")?;
+        ipt.append("nat", "KELAN", "--dport 53 -j RETURN")?;
+        ipt.append("nat", "KELAN", "--dport 22 -j RETURN")?;
 
         // Redirect everything else to our SOCKS5 proxy
         ipt.append(
             "nat",
-            "KERNEX",
+            "KELAN",
             &format!("-p tcp -j REDIRECT --to-ports {}", self.proxy_port),
         )?;
 
-        // Jump to KERNEX chain from OUTPUT
-        ipt.insert("nat", "OUTPUT", "-p tcp -j KERNEX", 1)?;
+        // Jump to KELAN chain from OUTPUT
+        ipt.insert("nat", "OUTPUT", "-p tcp -j KELAN", 1)?;
 
         tracing::info!("iptables rules installed (proxy_port={})", self.proxy_port);
         Ok(())
@@ -56,9 +56,9 @@ impl IptablesInterceptor {
     /// Remove iptables rules. Called at daemon shutdown.
     pub fn remove(&self) -> anyhow::Result<()> {
         let ipt = iptables::new(false)?;
-        let _ = ipt.delete("nat", "OUTPUT", "-p tcp -j KERNEX");
-        let _ = ipt.flush_chain("nat", "KERNEX");
-        let _ = ipt.delete_chain("nat", "KERNEX");
+        let _ = ipt.delete("nat", "OUTPUT", "-p tcp -j KELAN");
+        let _ = ipt.flush_chain("nat", "KELAN");
+        let _ = ipt.delete_chain("nat", "KELAN");
         tracing::info!("iptables rules removed");
         Ok(())
     }

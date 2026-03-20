@@ -2396,6 +2396,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kelan-license-tool"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "ed25519-dalek",
+ "hex",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "uuid",
+]
+
+[[package]]
 name = "kelan-sdk"
 version = "0.3.0"
 dependencies = [
@@ -2413,22 +2429,6 @@ dependencies = [
  "tokio-test",
  "toml",
  "tracing",
- "uuid",
-]
-
-[[package]]
-name = "kernex-license-tool"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "ed25519-dalek",
- "hex",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "shellexpand",
  "uuid",
 ]
 

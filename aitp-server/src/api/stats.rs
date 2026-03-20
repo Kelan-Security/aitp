@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::auth::OrgId;
 // Explicit imports to avoid unused warnings
-use crate::db::models::StatsResp;
+
 use crate::error::AppError;
 use crate::state::AppState;
 

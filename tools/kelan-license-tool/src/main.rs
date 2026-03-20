@@ -1,12 +1,12 @@
-//! Kernex License Issuing Tool
+//! Kelan Security License Issuing Tool
 //! Run this on YOUR machine to issue signed license files for customers.
 //! The private key NEVER leaves your machine.
 //!
 //! Usage:
-//!   kernex-license-tool keygen                    # one-time setup
-//!   kernex-license-tool issue --org "Acme Corp"   # issue a license
-//!   kernex-license-tool verify license.json        # verify a license file
-//!   kernex-license-tool info license.json          # show license details
+//!   kelan-license-tool keygen                    # one-time setup
+//!   kelan-license-tool issue --org "Acme Corp"   # issue a license
+//!   kelan-license-tool verify license.json        # verify a license file
+//!   kelan-license-tool info license.json          # show license details
 
 use clap::{Parser, Subcommand};
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
@@ -55,11 +55,11 @@ impl LicenseFile {
 }
 
 #[derive(Parser)]
-#[command(name = "kernex-license-tool")]
-#[command(about = "Issue signed Kernex license files [INTERNAL USE ONLY]")]
+#[command(name = "kelan-license-tool")]
+#[command(about = "Issue signed Kelan Security license files [INTERNAL USE ONLY]")]
 struct Cli {
     /// Path to private key PEM file
-    #[arg(short, long, default_value = "~/.kernex_license_private.pem")]
+    #[arg(short, long, default_value = "~/.kelan_license_private.pem")]
     key: String,
 
     #[command(subcommand)]
@@ -71,10 +71,10 @@ enum Commands {
     /// Generate a new Ed25519 keypair (run once)
     Keygen {
         /// Output path for private key
-        #[arg(long, default_value = "~/.kernex_license_private.pem")]
+        #[arg(long, default_value = "~/.kelan_license_private.pem")]
         private_key: String,
         /// Output path for public key
-        #[arg(long, default_value = "~/.kernex_license_public.pem")]
+        #[arg(long, default_value = "~/.kelan_license_public.pem")]
         public_key: String,
     },
 
@@ -105,7 +105,7 @@ enum Commands {
         features: String,
 
         /// Output file path
-        #[arg(short, long, default_value = "kernex.license")]
+        #[arg(short, long, default_value = "kelan.license")]
         output: String,
     },
 
@@ -224,7 +224,7 @@ fn main() -> anyhow::Result<()> {
             println!("  Output file:  {}", output);
             println!("╠══════════════════════════════════════════════════════════╣");
             println!("  SEND TO CUSTOMER:");
-            println!("  scp {} customer@their-server:/etc/kernex/kernex.license", output);
+            println!("  scp {} customer@their-server:/etc/kelan/kelan.license", output);
             println!("╚══════════════════════════════════════════════════════════╝");
         }
 
@@ -233,7 +233,7 @@ fn main() -> anyhow::Result<()> {
             let license: LicenseFile = serde_json::from_str(&content)?;
 
             // Load public key for verification
-            let public_key_path = shellexpand::tilde("~/.kernex_license_public.pem").to_string();
+            let public_key_path = shellexpand::tilde("~/.kelan_license_public.pem").to_string();
             let pubkey_hex = std::fs::read_to_string(&public_key_path)
                 .unwrap_or_else(|_| {
                     // Fall back to reading from private key
@@ -312,6 +312,6 @@ fn load_private_key(path: &str) -> anyhow::Result<SigningKey> {
     SigningKey::read_pkcs8_pem_file(path)
         .map_err(|e| anyhow::anyhow!(
             "Cannot load private key from {}: {}\n\
-             Run: kernex-license-tool keygen", path, e
+             Run: kelan-license-tool keygen", path, e
         ))
 }
