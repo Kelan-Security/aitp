@@ -217,7 +217,7 @@ async fn async_main() -> anyhow::Result<()> {
         let s = app_state.clone();
         tokio::spawn(async move {
             let mut tick = interval(Duration::from_secs(5));
-            let mut last_sessions: u64 = 0;
+            let mut last_sessions: i64 = 0;
             loop {
                 tick.tick().await;
                 let uptime = s.start_time.elapsed().as_secs();

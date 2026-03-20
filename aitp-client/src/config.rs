@@ -174,15 +174,15 @@ impl AgentConfig {
         };
 
         // Environment variable overrides
-        if let Ok(addr) = std::env::var("KERNEX_SERVER_ADDRESS") {
+        if let Ok(addr) = std::env::var("KELAN_SERVER_ADDRESS") {
             config.server.address = addr;
         }
-        if let Ok(port) = std::env::var("KERNEX_SERVER_PORT") {
+        if let Ok(port) = std::env::var("KELAN_SERVER_PORT") {
             if let Ok(p) = port.parse() {
                 config.server.api_port = p;
             }
         }
-        if let Ok(token) = std::env::var("KERNEX_API_TOKEN") {
+        if let Ok(token) = std::env::var("KELAN_API_TOKEN") {
             config.agent.api_token = Some(token);
         }
 

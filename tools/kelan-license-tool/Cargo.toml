@@ -1,11 +1,11 @@
 [package]
-name    = "kernex-license-tool"
+name    = "kelan-license-tool"
 version = "0.3.0"
 edition = "2021"
-description = "Internal tool to issue Kernex license files"
+description = "Internal tool to issue Kelan Security license files"
 
 [[bin]]
-name = "kernex-license-tool"
+name = "kelan-license-tool"
 path = "src/main.rs"
 
 [dependencies]

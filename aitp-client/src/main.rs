@@ -163,7 +163,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn init_logging(config: &config::AgentConfig) {
-    let level = std::env::var("KERNEX_LOG_LEVEL")
+    let level = std::env::var("KELAN_LOG_LEVEL")
         .unwrap_or_else(|_| config.logging.level.clone());
 
     tracing_subscriber::fmt()
