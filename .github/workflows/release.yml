@@ -1,21 +1,343 @@
-name: Release
+name: Release — Cross-Platform Binary Build
+
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'    # triggers on v0.3.0, v1.0.0, etc.
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # and pre-releases like v0.3.0-beta.1
+
+permissions:
+  contents: write   # required to create GitHub Releases and upload assets
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  docker:
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 1: Build binaries — parallel matrix across 5 platforms
+  # ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Build — ${{ matrix.name }}
+    strategy:
+      fail-fast: false   # don't cancel other platforms if one fails
+      matrix:
+        include:
+          # Linux x86_64 — most cloud servers (AWS, GCP, Azure)
+          - name:          linux-x86_64
+            runner:        ubuntu-22.04
+            target:        x86_64-unknown-linux-gnu
+            cross:         false
+            archive_ext:   tar.gz
+            binary_suffix: ""
+            build_client:  true
+
+          # Linux ARM64 — Oracle Cloud Free Tier, AWS Graviton, Raspberry Pi
+          - name:          linux-arm64
+            runner:        ubuntu-22.04
+            target:        aarch64-unknown-linux-gnu
+            cross:         true   # uses cross-rs for cross-compilation
+            archive_ext:   tar.gz
+            binary_suffix: ""
+            build_client:  true
+
+          # macOS x86_64 — Intel Macs
+          - name:          macos-x86_64
+            runner:        macos-13
+            target:        x86_64-apple-darwin
+            cross:         false
+            archive_ext:   tar.gz
+            binary_suffix: ""
+            build_client:  true
+
+          # macOS ARM64 — M1/M2/M3 Macs
+          - name:          macos-arm64
+            runner:        macos-14     # native ARM runner
+            target:        aarch64-apple-darwin
+            cross:         false
+            archive_ext:   tar.gz
+            binary_suffix: ""
+            build_client:  true
+
+          # Windows x86_64 — Windows Server, enterprise workstations
+          # Note: aitp-client uses the `nix` crate (Unix-only).
+          # Only kelan-server (aitp-server) ships in the Windows archive.
+          - name:          windows-x86_64
+            runner:        windows-2022
+            target:        x86_64-pc-windows-msvc
+            cross:         false
+            archive_ext:   zip
+            binary_suffix: ".exe"
+            build_client:  false
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      # ── Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Rust toolchain
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # ── Cargo cache
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      # ── cross-rs (Linux ARM64 only)
+      - name: Install cross (for ARM64 cross-compilation)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      # ── Windows: OpenSSL via vcpkg
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install openssl:x64-windows-static-md
+          echo "OPENSSL_DIR=C:/vcpkg/installed/x64-windows-static-md" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+
+      # ── Build: server (all platforms)
+      - name: Build kelan-server (native)
+        if: "!matrix.cross"
+        run: >
+          cargo build --release
+          --target ${{ matrix.target }}
+          --package aitp-server
+        env:
+          CARGO_PROFILE_RELEASE_LTO:           thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_PANIC:         abort
+          CARGO_PROFILE_RELEASE_STRIP:         symbols
+
+      - name: Build kelan-server (cross)
+        if: matrix.cross
+        run: >
+          cross build --release
+          --target ${{ matrix.target }}
+          --package aitp-server
+        env:
+          CARGO_PROFILE_RELEASE_LTO:           thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_PANIC:         abort
+          CARGO_PROFILE_RELEASE_STRIP:         symbols
+
+      # ── Build: agent (Unix platforms only — nix crate is Unix-only)
+      - name: Build kelan-agent (native)
+        if: "matrix.build_client && !matrix.cross"
+        run: >
+          cargo build --release
+          --target ${{ matrix.target }}
+          --package aitp-client
+        env:
+          CARGO_PROFILE_RELEASE_LTO:           thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_PANIC:         abort
+          CARGO_PROFILE_RELEASE_STRIP:         symbols
+
+      - name: Build kelan-agent (cross)
+        if: "matrix.build_client && matrix.cross"
+        run: >
+          cross build --release
+          --target ${{ matrix.target }}
+          --package aitp-client
+        env:
+          CARGO_PROFILE_RELEASE_LTO:           thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_PANIC:         abort
+          CARGO_PROFILE_RELEASE_STRIP:         symbols
+
+      # ─────────────────────────────────────────────────────────────────
+      # ── Package: Linux / macOS  → tar.gz
+      # ─────────────────────────────────────────────────────────────────
+      - name: Package binaries (Linux/macOS)
+        if: matrix.archive_ext == 'tar.gz'
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE_NAME="kelan-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          mkdir -p "dist/${ARCHIVE_NAME}"
+
+          # Server binary  (Cargo [[bin]] name = aitp_server)
+          cp "target/${{ matrix.target }}/release/aitp_server" \
+             "dist/${ARCHIVE_NAME}/kelan-server"
+
+          # Agent binary   (Cargo [[bin]] name = kelan-agent)
+          cp "target/${{ matrix.target }}/release/kelan-agent" \
+             "dist/${ARCHIVE_NAME}/kelan-agent"
+
+          # Supporting files
+          cp scripts/install.sh "dist/${ARCHIVE_NAME}/install.sh"
+          chmod +x "dist/${ARCHIVE_NAME}/install.sh"
+
+          [ -f kelan.toml.example ] && \
+            cp kelan.toml.example "dist/${ARCHIVE_NAME}/kelan.toml.example"
+          [ -f README.md ] && cp README.md "dist/${ARCHIVE_NAME}/README.md"
+          [ -f LICENSE ]   && cp LICENSE   "dist/${ARCHIVE_NAME}/LICENSE"
+
+          # Create tar.gz
+          tar -czf "dist/${ARCHIVE_NAME}.tar.gz" -C dist "${ARCHIVE_NAME}"
+
+          # SHA-256 checksum
+          sha256sum "dist/${ARCHIVE_NAME}.tar.gz" > "dist/${ARCHIVE_NAME}.tar.gz.sha256"
+
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}"                      >> "$GITHUB_ENV"
+          echo "ASSET_PATH=dist/${ARCHIVE_NAME}.tar.gz"           >> "$GITHUB_ENV"
+          echo "CHECKSUM_PATH=dist/${ARCHIVE_NAME}.tar.gz.sha256" >> "$GITHUB_ENV"
+
+      # ─────────────────────────────────────────────────────────────────
+      # ── Package: Windows  → zip
+      # ─────────────────────────────────────────────────────────────────
+      - name: Package binaries (Windows)
+        if: matrix.archive_ext == 'zip'
+        shell: pwsh
+        run: |
+          $Tag         = $env:GITHUB_REF_NAME
+          $ArchiveName = "kelan-${Tag}-${{ matrix.name }}"
+          New-Item -ItemType Directory -Path "dist\${ArchiveName}" -Force | Out-Null
+
+          # Server binary (Cargo [[bin]] name = aitp_server)
+          Copy-Item "target\${{ matrix.target }}\release\aitp_server.exe" `
+                    "dist\${ArchiveName}\kelan-server.exe" -Force
+
+          # Copy docs
+          if (Test-Path "README.md") {
+            Copy-Item "README.md" "dist\${ArchiveName}\README.md"
+          }
+
+          # create install.ps1
+          @'
+          # Kelan Security — Windows Installer
+          # Run as Administrator from the extracted directory:
+          #   Set-ExecutionPolicy Bypass -Scope Process -Force
+          #   .\install.ps1
+
+          $InstallDir = "$env:ProgramFiles\Kelan Security"
+          New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+          Copy-Item "kelan-server.exe" "$InstallDir\kelan-server.exe"
+
+          # Add to System PATH if not already present
+          $SystemPath = [Environment]::GetEnvironmentVariable("PATH", "Machine")
+          if ($SystemPath -notlike "*$InstallDir*") {
+              [Environment]::SetEnvironmentVariable("PATH", "$SystemPath;$InstallDir", "Machine")
+              Write-Host "Added $InstallDir to system PATH."
+          }
+
+          Write-Host ""
+          Write-Host "Kelan Security installed to $InstallDir" -ForegroundColor Green
+          Write-Host "Run: kelan-server --help"
+          '@ | Out-File "dist\${ArchiveName}\install.ps1" -Encoding utf8
+
+          # Copy scripts/install.ps1 if available
+          if (Test-Path "scripts\install.ps1") {
+            Copy-Item "scripts\install.ps1" "dist\${ArchiveName}\install-advanced.ps1"
+          }
+
+          # Create ZIP
+          Compress-Archive -Path "dist\${ArchiveName}\*" `
+                           -DestinationPath "dist\${ArchiveName}.zip" -Force
+
+          # SHA-256
+          $Hash = Get-FileHash "dist\${ArchiveName}.zip" -Algorithm SHA256
+          "$($Hash.Hash.ToLower())  ${ArchiveName}.zip" |
+            Out-File "dist\${ArchiveName}.zip.sha256" -Encoding ascii
+
+          echo "ARCHIVE_NAME=${ArchiveName}"                        | Out-File -Append $env:GITHUB_ENV
+          echo "ASSET_PATH=dist\${ArchiveName}.zip"                | Out-File -Append $env:GITHUB_ENV
+          echo "CHECKSUM_PATH=dist\${ArchiveName}.zip.sha256"      | Out-File -Append $env:GITHUB_ENV
+
+      # ─────────────────────────────────────────────────────────────────
+      # ── Upload checksums as artifact (collected in final job)
+      # ─────────────────────────────────────────────────────────────────
+      - name: Upload checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksum-${{ matrix.name }}
+          path: ${{ env.CHECKSUM_PATH }}
+          retention-days: 1
+
+      # ─────────────────────────────────────────────────────────────────
+      # ── Upload to GitHub Release
+      # ─────────────────────────────────────────────────────────────────
+      - name: Upload release archive
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET_PATH }}
+          generate_release_notes: false
+
+      - name: Upload release checksum
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.CHECKSUM_PATH }}
+          generate_release_notes: false
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Job 2: Collect all per-platform checksums → combined SHA256SUMS file
+  # ─────────────────────────────────────────────────────────────────────
+  checksums:
+    name: Publish SHA256SUMS
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - name: Download all checksum artifacts
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          push: false # Set to true and add login steps for production
-          tags: |
-            tanushjain/aitp:latest
-            tanushjain/aitp:${{ github.ref_name }}
+          pattern: checksum-*
+          path: checksums/
+          merge-multiple: true
+
+      - name: Combine into SHA256SUMS
+        run: |
+          cat checksums/*.sha256 > SHA256SUMS
+          echo "=== SHA256SUMS ==="
+          cat SHA256SUMS
+
+      - name: Upload SHA256SUMS to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SHA256SUMS
+          generate_release_notes: true
+          name: "Kelan Security ${{ github.ref_name }}"
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## Kelan Security ${{ github.ref_name }}
+
+            ## Binaries
+
+            | Platform | Architecture | Archive |
+            |---|---|---|
+            | Linux   | x86_64       | `kelan-${{ github.ref_name }}-linux-x86_64.tar.gz` |
+            | Linux   | ARM64        | `kelan-${{ github.ref_name }}-linux-arm64.tar.gz`  |
+            | macOS   | x86_64       | `kelan-${{ github.ref_name }}-macos-x86_64.tar.gz` |
+            | macOS   | ARM64 (M1/M2/M3) | `kelan-${{ github.ref_name }}-macos-arm64.tar.gz` |
+            | Windows | x86_64       | `kelan-${{ github.ref_name }}-windows-x86_64.zip`  |
+
+            ## Quick Install
+
+            **Linux / macOS:**
+            ```bash
+            curl -fsSL https://install.kelan.io | bash
+            ```
+
+            **Windows (PowerShell as Administrator):**
+            ```powershell
+            iwr -useb https://install.kelan.io/windows | iex
+            ```
+
+            ## Verify
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```

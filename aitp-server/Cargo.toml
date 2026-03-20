@@ -42,6 +42,8 @@ zerocopy = { version = "0.7", features = ["derive"] }
 mimalloc = { version = "0.1", default-features = false }
 http = "1"
 kelan-ebpf-loader = { path = "../kelan-ebpf/kelan-ebpf-loader" }
+prometheus    = { version = "0.13", default-features = false, features = ["process"] }
+lazy_static   = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util", "full"] }

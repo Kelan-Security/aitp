@@ -1,0 +1,135 @@
+groups:
+  - name: kelan_security
+    interval: 30s
+    rules:
+
+      # ── CRITICAL: Trust Engine Error Rate
+      - alert: TrustEngineErrorRate
+        expr: |
+          (
+            rate(kelan_gemini_errors_total[5m])
+            /
+            clamp_min(rate(kelan_sessions_total[5m]), 0.001)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Trust engine error rate above 5%"
+          description: |
+            Gemini API error rate is {{ $value | humanizePercentage }} over last 5 minutes.
+            Sessions are falling back to rules-only evaluation.
+            Check GEMINI_API_KEY and https://status.googleapis.com
+
+      # ── CRITICAL: DDoS Indicator — XDP drop rate spike
+      - alert: DDoSFloodDetected
+        expr: |
+          rate(kelan_ebpf_packets_total{action="drop"}[2m])
+          > 10000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Possible DDoS — XDP drop rate above 10k pkt/s"
+          description: |
+            XDP drop rate: {{ $value | humanize }} packets/sec.
+            Possible DDoS or scanning attack in progress.
+
+      # ── CRITICAL: Session Denial Rate High
+      - alert: SessionDenyRateHigh
+        expr: |
+          (
+            rate(kelan_sessions_total{verdict="Deny"}[5m])
+            /
+            clamp_min(rate(kelan_sessions_total[5m]), 0.001)
+          ) > 0.30
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "30%+ sessions denied — possible attack in progress"
+          description: |
+            Session deny rate: {{ $value | humanizePercentage }}.
+            This may indicate coordinated attack attempts or misconfigured agents.
+
+      # ── WARNING: Gemini Latency Degraded
+      - alert: GeminiLatencyDegraded
+        expr: |
+          histogram_quantile(0.99,
+            rate(kelan_gemini_latency_ms_bucket[5m])
+          ) > 8000
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gemini API P99 latency above 8 seconds"
+          description: |
+            Gemini 2.5 P99 latency: {{ $value | humanize }}ms.
+            Trust evaluations degrading. Sessions may timeout to rules-only path.
+
+      # ── WARNING: Critical Anomaly Detected
+      - alert: CriticalAnomalyDetected
+        expr: |
+          increase(kelan_anomalies_total{severity="Critical"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Critical anomaly detected by Sentinel"
+          description: |
+            {{ $value }} critical anomalies detected in last 5 minutes.
+            Check the Kelan Security dashboard for entity details.
+
+      # ── WARNING: Entity Quarantined
+      - alert: EntityQuarantined
+        expr: kelan_quarantined_entities > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "One or more entities quarantined"
+          description: |
+            {{ $value }} entities currently quarantined.
+            Threat Response Agent may be running investigation.
+
+      # ── WARNING: License Near Limit
+      - alert: LicenseNearLimit
+        expr: kelan_license_utilisation > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "License node limit above 85%"
+          description: |
+            Org {{ $labels.org_id }} ({{ $labels.tier }}) at
+            {{ $value | humanizePercentage }} of node limit.
+            Upgrade to avoid registration failures.
+
+      # ── INFO: Trust Cache Miss Rate High
+      - alert: TrustCacheMissRateHigh
+        expr: |
+          (
+            rate(kelan_trust_cache_total{result="miss"}[10m])
+            /
+            clamp_min(rate(kelan_trust_cache_total[10m]), 0.001)
+          ) > 0.50
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Trust cache miss rate above 50%"
+          description: |
+            Cache miss rate: {{ $value | humanizePercentage }}.
+            High miss rates increase Gemini API costs and latency.
+
+      # ── INFO: Sentinel Backing Up
+      - alert: SentinelChannelDepthHigh
+        expr: kelan_sentinel_channel_depth > 3000
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "Sentinel deferred event buffer above 3000"
+          description: |
+            {{ $value }} events pending in the Sentinel deferred buffer.
+            Sentinel may be struggling under high load.

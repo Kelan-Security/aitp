@@ -28,6 +28,7 @@ mod tls;
 mod trust;
 mod ws;
 mod license;
+mod metrics;
 
 fn main() -> anyhow::Result<()> {
     let cpu_count = num_cpus::get();
@@ -211,14 +212,26 @@ async fn async_main() -> anyhow::Result<()> {
     }
 
     // b. Stats broadcaster — push stats to WS every 5 seconds
+    //    Also updates Prometheus gauges from the same stats payload.
     {
         let s = app_state.clone();
         tokio::spawn(async move {
             let mut tick = interval(Duration::from_secs(5));
+            let mut last_sessions: u64 = 0;
             loop {
                 tick.tick().await;
                 let uptime = s.start_time.elapsed().as_secs();
+
+                // Update WS subscriber gauge
+                metrics::WS_SUBSCRIBERS.set(s.hub.tx.receiver_count() as f64);
+
                 if let Ok(stats) = s.db.get_stats(uptime).await {
+                    // Update Prometheus gauges
+                    metrics::ACTIVE_SESSIONS.set(stats.active_sessions as f64);
+                    let delta = stats.active_sessions.saturating_sub(last_sessions) as f64;
+                    metrics::SESSION_RATE.set(delta / 5.0);
+                    last_sessions = stats.active_sessions;
+
                     s.hub.broadcast(db::models::WsEvent::Stats {
                         active_sessions: stats.active_sessions,
                         blocked_today: stats.blocked_today,
@@ -259,6 +272,8 @@ async fn async_main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(api::router())
         .route("/ws", get(ws::ws_handler))
+        // Prometheus metrics endpoint — no auth, dedicated route outside API router
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
         .fallback_service(
             tower_http::services::ServeDir::new("static")

@@ -125,8 +125,12 @@ pub async fn run_event_driven(
                 }
             }
 
-            // ── Flush deferred buffer every 5 seconds 
+            // ── Flush deferred buffer every 5 seconds
             _ = deferred_tick.tick() => {
+                // Update channel depth metric (approximated by deferred buffer size)
+                crate::metrics::SENTINEL_CHANNEL_DEPTH
+                    .set(deferred_buffer.len() as f64);
+
                 if !deferred_buffer.is_empty() {
                     let batch: Vec<SentinelEvent> = deferred_buffer.drain(..).collect();
                     process_deferred_batch(&state, batch).await;
@@ -160,12 +164,18 @@ async fn process_critical_event(state: &Arc<AppState>, event: &SentinelEvent) {
     let anomalies = detect_targeted_anomalies(state, event, &baseline).await;
 
     let elapsed = start.elapsed();
+    let latency_ms = elapsed.as_secs_f64() * 1000.0;
     tracing::debug!(
         entity_id = %&event.entity_id[..8],
         latency_us = elapsed.as_micros(),
         anomalies_found = anomalies.len(),
         "critical event processed"
     );
+
+    // Record critical-path detection latency
+    crate::metrics::ANOMALY_DETECTION_LATENCY
+        .with_label_values(&["critical"])
+        .observe(latency_ms);
 
     for anomaly in anomalies {
         handle_anomaly(state, anomaly, event).await;
@@ -333,6 +343,14 @@ async fn handle_anomaly(
         "Sentinel anomaly detected"
     );
 
+    // Record anomaly metric
+    crate::metrics::ANOMALIES_DETECTED
+        .with_label_values(&[
+            anomaly.anomaly_type.as_str(),
+            anomaly.severity.as_str(),
+        ])
+        .inc();
+
     state.hub.broadcast(WsEvent::AnomalyDetected {
         entity_id:    anomaly.entity_id.clone(),
         anomaly_type: anomaly.anomaly_type.as_str().to_string(),
@@ -358,6 +376,9 @@ async fn handle_anomaly(
         }
 
         let _ = db::quarantine_entity(&state.db, &anomaly.entity_id).await;
+
+        // Increment quarantined entities gauge
+        crate::metrics::QUARANTINED_ENTITIES.inc();
 
         state.hub.broadcast(WsEvent::EntityQuarantined {
             entity_id:              anomaly.entity_id.clone(),
