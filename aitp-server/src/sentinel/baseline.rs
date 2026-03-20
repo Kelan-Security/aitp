@@ -1,166 +1,143 @@
-use crate::db::models::Session;
-use crate::sentinel::Sentinel;
-use crate::state::AppState;
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use dashmap::DashMap;
+use tokio::sync::Mutex;
+use std::collections::{HashMap, VecDeque};
 
-/// Behavioral baseline for a single entity — 7-day rolling window.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+use crate::db::{self, DbPool};
+use super::{SentinelEvent, Anomaly, SecurityIncident};
+
+/// Behavioral baseline for an entity.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EntityBaseline {
-    pub entity_id: String,
+    pub entity_id:             String,
     pub avg_sessions_per_hour: f64,
-    pub intent_distribution: HashMap<String, u32>,
-    pub avg_trust_score: f64,
-    pub known_peers: HashSet<String>,
-    pub avg_payload_bytes: f64,
-    pub normal_hours: Vec<u8>,
-    pub learning_complete: bool,
-    pub sample_count: u32,
-    pub last_updated: i64,
+    pub intent_distribution:   HashMap<String, f64>,
+    pub avg_trust_score:       f64,
+    pub known_peers:           Vec<String>,
+    pub avg_payload_bytes:     f64,
+    pub normal_hours:          Vec<u8>,
+    pub learning_complete:     bool,
+    pub sample_count:          usize,
+    pub last_updated:          i64,
 }
 
-/// Update baselines from session history.
-pub async fn update_baselines(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
-    // Only consider sessions from last 7 days
-    let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
-    
-    use sqlx::Row;
-    let rows: Vec<Session> = match &state.db {
-        crate::db::DbPool::Postgres(pool) => {
-            sqlx::query("SELECT * FROM sessions WHERE started_at > $1")
-                .bind(seven_days_ago)
-                .fetch_all(pool)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|r| Session {
-                    id: r.get("id"),
-                    org_id: r.get("org_id"),
-                    source_entity_id: r.get("source_entity_id"),
-                    dest_entity_id: r.get("dest_entity_id"),
-                    intent: r.get("intent"),
-                    trust_score: r.get("trust_score"),
-                    verdict: r.get("verdict"),
-                    ai_reasoning: r.get("ai_reasoning"),
-                    ai_latency_ms: r.get("ai_latency_ms"),
-                    status: r.get("status"),
-                    bytes_tx: r.get("bytes_tx"),
-                    bytes_rx: r.get("bytes_rx"),
-                    anomaly_flags: r.get("anomaly_flags"),
-                    started_at: r.get("started_at"),
-                    ended_at: r.get("ended_at"),
-                    close_reason: r.get("close_reason"),
-                })
-                .collect()
+impl EntityBaseline {
+    pub fn new(entity_id: &str) -> Self {
+        Self {
+            entity_id:             entity_id.to_string(),
+            avg_sessions_per_hour: 0.0,
+            intent_distribution:   HashMap::new(),
+            avg_trust_score:       128.0,
+            known_peers:           Vec::new(),
+            avg_payload_bytes:     0.0,
+            normal_hours:          Vec::new(),
+            learning_complete:     false,
+            sample_count:          0,
+            last_updated:          chrono::Utc::now().timestamp(),
         }
-        crate::db::DbPool::Sqlite(pool) => {
-            sqlx::query("SELECT * FROM sessions WHERE started_at > ?")
-                .bind(seven_days_ago)
-                .fetch_all(pool)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|r| Session {
-                    id: r.get("id"),
-                    org_id: r.get("org_id"),
-                    source_entity_id: r.get("source_entity_id"),
-                    dest_entity_id: r.get("dest_entity_id"),
-                    intent: r.get("intent"),
-                    trust_score: r.get("trust_score"),
-                    verdict: r.get("verdict"),
-                    ai_reasoning: r.get("ai_reasoning"),
-                    ai_latency_ms: r.get("ai_latency_ms"),
-                    status: r.get("status"),
-                    bytes_tx: r.get("bytes_tx"),
-                    bytes_rx: r.get("bytes_rx"),
-                    anomaly_flags: r.get("anomaly_flags"),
-                    started_at: r.get("started_at"),
-                    ended_at: r.get("ended_at"),
-                    close_reason: r.get("close_reason"),
-                })
-                .collect()
-        }
-    };
+    }
+}
 
-    // Group by entity_id
-    let mut grouped: HashMap<String, Vec<Session>> = HashMap::new();
-    for sess in rows {
-        grouped.entry(sess.source_entity_id.clone()).or_default().push(sess);
+/// In-memory Sentinel state — lives in AppState.sentinel
+pub struct SentinelState {
+    /// Behavioral baselines — loaded from DB at startup, updated in memory,
+    /// flushed to DB every 60s
+    pub baselines: DashMap<String, EntityBaseline>,
+
+    /// Which baselines have unsaved changes (need DB flush)
+    pub dirty_baselines: DashMap<String, bool>,
+
+    /// Recent denial timestamps per entity — for DeniedSession spike detection
+    /// Key: entity_id, Value: ring buffer of denial timestamps
+    pub recent_denials: DashMap<String, VecDeque<i64>>,
+
+    /// Anomaly ring buffer — legacy support for global anomaly list
+    pub anomalies: Mutex<VecDeque<Anomaly>>,
+
+    /// Security incidents — legacy support
+    pub incidents: Mutex<Vec<SecurityIncident>>,
+
+    /// For legacy scan support — map entities to last activity instant
+    pub dirty_entities: DashMap<String, std::time::Instant>,
+}
+
+impl SentinelState {
+    pub fn new() -> Self {
+        Self {
+            baselines:       DashMap::new(),
+            dirty_baselines: DashMap::new(),
+            recent_denials:  DashMap::new(),
+            anomalies:       Mutex::new(VecDeque::with_capacity(1000)),
+            incidents:       Mutex::new(Vec::new()),
+            dirty_entities:  DashMap::new(),
+        }
     }
 
-    let mut baselines_lock = sentinel.baselines.write().await;
-    for (entity_id, sessions) in grouped {
-        let sessions: Vec<Session> = sessions;
-        let session_count = sessions.len() as u32;
-
-        let mut intent_distribution: HashMap<String, u32> = HashMap::new();
-        let mut known_peers = HashSet::new();
-        let mut total_trust: i64 = 0;
-        let mut total_bytes: i64 = 0;
-        let mut hours_seen = HashSet::new();
-
-        let mut earliest = i64::MAX;
-        let mut latest = i64::MIN;
-
-        for sess in &sessions {
-            *intent_distribution.entry(sess.intent.clone()).or_insert(0) += 1;
-            known_peers.insert(sess.dest_entity_id.clone());
-            total_trust += sess.trust_score;
-            total_bytes += sess.bytes_tx + sess.bytes_rx;
-
-            if sess.started_at < earliest {
-                earliest = sess.started_at;
-            }
-            if sess.started_at > latest {
-                latest = sess.started_at;
-            }
-
-            // Track active hours
-            let hour = (sess.started_at % 86400) / 3600;
-            hours_seen.insert(hour as u8);
-        }
-
-        let avg_trust_score = if session_count > 0 {
-            total_trust as f64 / session_count as f64
-        } else {
-            128.0
-        };
-
-        let avg_payload_bytes = if session_count > 0 {
-            total_bytes as f64 / session_count as f64
-        } else {
-            0.0
-        };
-
-        let mut hours_span = (chrono::Utc::now().timestamp() - earliest) as f64 / 3600.0;
-        if hours_span < 0.1 {
-            hours_span = 0.1;
-        }
-        let avg_sessions_per_hour = session_count as f64 / hours_span;
-
-        let learning_complete = session_count >= 50;
-
-        let mut normal_hours: Vec<u8> = hours_seen.into_iter().collect();
-        normal_hours.sort();
-
-        let baseline = EntityBaseline {
-            entity_id: entity_id.clone(),
-            avg_sessions_per_hour,
-            intent_distribution,
-            avg_trust_score,
-            known_peers,
-            avg_payload_bytes,
-            normal_hours,
-            learning_complete,
-            sample_count: session_count,
-            last_updated: chrono::Utc::now().timestamp(),
-        };
-
-        baselines_lock.insert(entity_id, baseline);
+    /// Get baseline for an entity. Returns None if not yet established.
+    pub async fn get_baseline(&self, entity_id: &str) -> Option<EntityBaseline> {
+        self.baselines.get(entity_id).map(|b| b.clone())
     }
 
-    state
-        .hub
-        .log("AI", "Sentinel: behavioral baselines updated");
+    /// Get or create a baseline (mutable ref for updating)
+    pub async fn get_or_create_baseline(&self, entity_id: &str) -> dashmap::mapref::one::RefMut<'_, String, EntityBaseline> {
+        self.baselines.entry(entity_id.to_string())
+            .or_insert_with(|| EntityBaseline::new(entity_id))
+    }
+
+    pub async fn mark_baseline_dirty(&self, entity_id: &str) {
+        self.dirty_baselines.insert(entity_id.to_string(), true);
+    }
+
+    pub fn mark_dirty(&self, entity_id: &str) {
+        self.dirty_entities.insert(entity_id.to_string(), std::time::Instant::now());
+    }
+
+    pub async fn take_dirty_baselines(&self) -> Vec<String> {
+        let dirty: Vec<String> = self.dirty_baselines.iter()
+            .map(|r| r.key().clone())
+            .collect();
+        self.dirty_baselines.clear();
+        dirty
+    }
+
+    /// Update the entity's baseline after a session (lightweight touch)
+    pub async fn touch_baseline(&self, entity_id: &str, event: &SentinelEvent) {
+        let _entry = self.baselines
+            .entry(entity_id.to_string())
+            .or_insert_with(|| EntityBaseline::new(entity_id));
+
+        // Track denial for spike detection
+        if event.verdict == "Deny" {
+            let mut denials = self.recent_denials
+                .entry(entity_id.to_string())
+                .or_default();
+            denials.push_back(event.occurred_at);
+            // Keep only last 60 seconds
+            let cutoff = event.occurred_at - 60;
+            while denials.front().map(|&t| t < cutoff).unwrap_or(false) {
+                denials.pop_front();
+            }
+        }
+    }
+
+    /// Count recent denials in the last `window_secs` for spike detection
+    pub fn count_recent_denials(&self, entity_id: &str, window_secs: i64) -> u32 {
+        let now = chrono::Utc::now().timestamp();
+        let cutoff = now - window_secs;
+
+        self.recent_denials
+            .get(entity_id)
+            .map(|denials| denials.iter().filter(|&&t| t >= cutoff).count() as u32)
+            .unwrap_or(0)
+    }
+
+    /// Load all baselines from DB at startup
+    pub async fn load_from_db(&self, db: &DbPool, org_id: &str) -> anyhow::Result<()> {
+        let baselines = db::get_all_baselines(db, org_id).await?;
+        for baseline in baselines {
+            self.baselines.insert(baseline.entity_id.clone(), baseline);
+        }
+        tracing::info!("Loaded {} entity baselines into Sentinel cache",
+            self.baselines.len());
+        Ok(())
+    }
 }

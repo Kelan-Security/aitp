@@ -27,6 +27,7 @@ mod tls;
 #[allow(dead_code)]
 mod trust;
 mod ws;
+mod license;
 
 fn main() -> anyhow::Result<()> {
     let cpu_count = num_cpus::get();
@@ -81,6 +82,26 @@ async fn async_main() -> anyhow::Result<()> {
         return cmd_generate_token(&org_id, &org_name, &email, &role).await;
     }
 
+    // ── License check (first — before anything else) ──────────────────────────
+    let _license = license::init_license()
+        .map_err(|e| {
+            eprintln!("╔══════════════════════════════════════════════╗");
+            eprintln!("║         LICENSE VALIDATION FAILED            ║");
+            eprintln!("╠══════════════════════════════════════════════╣");
+            eprintln!("║ {}",
+                format!("{:width$}", e.to_string(), width = 44));
+            eprintln!("║                                              ║");
+            eprintln!("║ To run without a license (Community tier):   ║");
+            eprintln!("║   Remove the invalid license file and retry. ║");
+            eprintln!("║                                              ║");
+            eprintln!("║ To renew or purchase: tanush@kernex.io       ║");
+            eprintln!("╚══════════════════════════════════════════════╝");
+            e
+        })?;
+
+    // Start license watchdog background task
+    tokio::spawn(license::run_license_watchdog());
+
     // 3. Init tracing (only needed for server mode)
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -93,6 +114,21 @@ async fn async_main() -> anyhow::Result<()> {
     let app_config = config::AppConfig::from_env();
 
     // 5. Connect Database (runs migrations automatically)
+    if app_config.db_path.starts_with("postgres") {
+        let license = crate::license::ActiveLicense::get();
+        if !license.has_feature(&crate::license::LicenseFeature::Postgres) {
+            eprintln!("╔══════════════════════════════════════════════╗");
+            eprintln!("║       LICENSE VALIDATION RESTRICTION         ║");
+            eprintln!("╠══════════════════════════════════════════════╣");
+            eprintln!("║ PostgreSQL requires Startup tier or higher.  ║");
+            eprintln!("║ Current tier: Community.                     ║");
+            eprintln!("║ Please downgrade to SQLite or renew at       ║");
+            eprintln!("║ kernex.io                                    ║");
+            eprintln!("╚══════════════════════════════════════════════╝");
+            std::process::exit(1);
+        }
+    }
+    
     let db_pool = match db::DbPool::connect(&app_config.db_path).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -101,7 +137,12 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    let sentinel_instance = sentinel::Sentinel::new();
+    let (sentinel_tx, sentinel_rx) = tokio::sync::mpsc::channel::<crate::sentinel::SentinelEvent>(10_000);
+    let sentinel_instance = Arc::new(crate::sentinel::SentinelState::new());
+
+    // Pre-warm baseline memory cache globally
+    let _ = sentinel_instance.load_from_db(&db_pool, "system").await;
+
     let trust_engine = crate::trust::HybridTrustEngine::new(
         &app_config.gemini_api_key,
         &app_config.gemini_model,
@@ -111,14 +152,19 @@ async fn async_main() -> anyhow::Result<()> {
 
     let memory_budget = Arc::new(budget::MemoryBudget::new());
 
+    let enforcer = crate::enforcement::init_enforcer(&app_config.xdp_interface).await?;
+    let enforcer = Arc::new(enforcer);
+
     let app_state = Arc::new(state::AppState {
         db: db_pool,
         hub: ws::WsHub::new(memory_budget.clone()),
         config: app_config.clone(),
         start_time: Instant::now(),
         sentinel: sentinel_instance.clone(),
+        sentinel_tx,
         trust_engine,
         memory_budget,
+        enforcer,
     });
 
     // 6. Handle trigger-agent subcommand
@@ -138,12 +184,15 @@ async fn async_main() -> anyhow::Result<()> {
         let now = chrono::Utc::now().timestamp();
         let anomaly = sentinel::Anomaly {
             entity_id: target_id.clone(),
+            org_id: "system".to_string(),
             anomaly_type: sentinel::AnomalyType::LateralMovement,
             severity: sentinel::AnomalySeverity::Critical,
             description: "Manual agent trigger for investigative forensic analysis".to_string(),
             recommended_action: "Investigate and report".to_string(),
             confidence: 1.0,
+            session_id: None,
             detected_at: now,
+            metadata: serde_json::json!({}),
         };
 
         crate::agent::activate_agent(&app_state, &anomaly).await;
@@ -153,12 +202,11 @@ async fn async_main() -> anyhow::Result<()> {
     }
 
     // 7. Start background tasks
-    // a. Sentinel monitoring loop
+    // a. Sentinel event-driven stream loop
     if app_config.sentinel_enabled {
         let s = app_state.clone();
-        let sen = sentinel_instance.clone();
         tokio::spawn(async move {
-            sentinel::run(s, sen).await;
+            sentinel::run_event_driven(s, sentinel_rx).await;
         });
     }
 

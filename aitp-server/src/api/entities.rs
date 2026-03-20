@@ -35,6 +35,12 @@ async fn create_entity(
     OrgId(org_id): OrgId,
     Json(req): Json<CreateEntityReq>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let entities = state.db.get_entities(&org_id).await.unwrap_or_default();
+    let current_count = entities.len() as u32;
+    crate::license::ActiveLicense::get()
+        .check_node_limit(current_count)
+        .map_err(|e| AppError::LicenseError(e.to_string()))?;
+
     // Generate Ed25519 keypair
     let (sk_bytes, pk_bytes) = crypto::generate_keypair();
     let entity_id = crypto::entity_id_from_pubkey(&pk_bytes);
@@ -132,6 +138,16 @@ async fn quarantine_entity(
     let affected = state.db.quarantine_entity(&id).await?;
     if affected == 0 {
         return Err(AppError::NotFound);
+    }
+
+    // XDP BPF Map revocation
+    if let Ok(bytes) = hex::decode(&id) {
+        if bytes.len() == 32 {
+            let prefix: [u8; 8] = bytes[..8].try_into().unwrap();
+            if let Ok(revoked) = state.enforcer.revoke_entity(&prefix).await {
+                tracing::warn!("Quarantine: {} XDP permits revoked", revoked);
+            }
+        }
     }
 
     let _ = state
@@ -239,6 +255,7 @@ async fn test_session(
         .map_err(|_| AppError::BadRequest("Destination entity not found".into()))?;
 
     // 2. Build context for trust evaluation
+    let session_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
     let age_hours = (now - source.enrolled_at) as f64 / 3600.0;
 
@@ -269,6 +286,65 @@ async fn test_session(
 
     // 3. Evaluate trust
     let result = state.trust_engine.evaluate(&ctx).await;
+
+    // 3b. Publish event to Sentinel (non-blocking)
+    let baseline_score = state.sentinel.get_baseline(&id).await.map(|b| b.avg_trust_score).unwrap_or(128.0);
+    let is_new_peer = !state.sentinel.get_baseline(&id).await.map(|b| b.known_peers.contains(&req.dest_entity_id)).unwrap_or(false);
+    
+    let signal = crate::sentinel::SentinelEvent::classify(
+        &req.intent,
+        result.trust_score,
+        baseline_score,
+        is_new_peer,
+        result.verdict.as_str(),
+    );
+    
+    state.send_sentinel_event(crate::sentinel::SentinelEvent {
+        entity_id:      id.clone(),
+        org_id:         org_id.clone(),
+        session_id:     session_id.clone(),
+        dest_entity_id: req.dest_entity_id.clone(),
+        intent:         req.intent.clone(),
+        trust_score:    result.trust_score,
+        verdict:        result.verdict.as_str().to_string(),
+        bytes_tx:       req.bytes_tx.unwrap_or(0),
+        occurred_at:    now,
+        signal,
+    });
+
+    // XDP BPF Permit insertion
+    use crate::enforcement::SessionPermit;
+    use crate::protocol::IntentCode;
+    use crate::trust::TrustVerdict;
+    
+    let source_bytes = hex::decode(&id).unwrap_or(vec![0; 32]);
+    let dest_bytes = hex::decode(&req.dest_entity_id).unwrap_or(vec![0; 32]);
+    
+    if source_bytes.len() == 32 && dest_bytes.len() == 32 {
+        let mut s_bytes = [0u8; 32];
+        s_bytes.copy_from_slice(&source_bytes);
+        let mut d_bytes = [0u8; 32];
+        d_bytes.copy_from_slice(&dest_bytes);
+        
+        let numeric_intent = IntentCode::from_str_loose(&req.intent) as u16;
+        let p_verdict = match result.verdict {
+            TrustVerdict::Allow => 1,
+            TrustVerdict::Monitor => 2,
+            _ => 0,
+        };
+        
+        let permit = SessionPermit::new(
+            &s_bytes,
+            &d_bytes,
+            numeric_intent,
+            result.trust_score,
+            p_verdict,
+            3600,
+        );
+        // Using a random session ID for testing XDP
+        let test_session_id = rand::random::<u64>();
+        let _ = state.enforcer.permit(test_session_id, permit).await;
+    }
 
     // 4. Record the session in DB
     let session_id = uuid::Uuid::new_v4().to_string();

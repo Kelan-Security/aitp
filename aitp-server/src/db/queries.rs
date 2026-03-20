@@ -553,4 +553,117 @@ impl DbPool {
             uptime_secs,
         })
     }
+
+    // ═══ Sentinel & Anomalies ═══
+
+    pub async fn get_all_baselines(
+        &self,
+        _org_id: &str,
+    ) -> Result<Vec<crate::sentinel::EntityBaseline>, sqlx::Error> {
+        // We load all baselines into memory
+        let rows: Vec<DbBaseline> = match self {
+            DbPool::Postgres(p) => sqlx::query_as("SELECT * FROM entity_baselines").fetch_all(p).await?,
+            DbPool::Sqlite(p) => sqlx::query_as("SELECT * FROM entity_baselines").fetch_all(p).await?,
+        };
+
+        let mut baselines = Vec::new();
+        for r in rows {
+            baselines.push(crate::sentinel::EntityBaseline {
+                entity_id: r.entity_id,
+                avg_sessions_per_hour: r.avg_sessions_per_hour,
+                intent_distribution: serde_json::from_str(&r.intent_distribution).unwrap_or_default(),
+                avg_trust_score: r.avg_trust_score,
+                known_peers: serde_json::from_str(&r.known_peers).unwrap_or_default(),
+                avg_payload_bytes: r.avg_payload_bytes,
+                normal_hours: serde_json::from_str(&r.normal_hours).unwrap_or_default(),
+                learning_complete: r.learning_complete == 1,
+                sample_count: r.sample_count as usize,
+                last_updated: r.last_updated,
+            });
+        }
+        Ok(baselines)
+    }
+
+    pub async fn upsert_baseline(
+        &self,
+        entity_id: &str,
+        b: &crate::sentinel::EntityBaseline,
+    ) -> Result<(), sqlx::Error> {
+        let intents = serde_json::to_string(&b.intent_distribution).unwrap_or_default();
+        let peers = serde_json::to_string(&b.known_peers).unwrap_or_default();
+        let hours = serde_json::to_string(&b.normal_hours).unwrap_or_default();
+        let lc = if b.learning_complete { 1 } else { 0 };
+        let sc = b.sample_count as i64;
+        let ts = now();
+
+        let sql_pg = "INSERT INTO entity_baselines (entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (entity_id) DO UPDATE SET avg_sessions_per_hour = EXCLUDED.avg_sessions_per_hour, intent_distribution = EXCLUDED.intent_distribution, avg_trust_score = EXCLUDED.avg_trust_score, known_peers = EXCLUDED.known_peers, avg_payload_bytes = EXCLUDED.avg_payload_bytes, normal_hours = EXCLUDED.normal_hours, learning_complete = EXCLUDED.learning_complete, sample_count = EXCLUDED.sample_count, last_updated = EXCLUDED.last_updated";
+        let sql_sq = "INSERT INTO entity_baselines (entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (entity_id) DO UPDATE SET avg_sessions_per_hour = excluded.avg_sessions_per_hour, intent_distribution = excluded.intent_distribution, avg_trust_score = excluded.avg_trust_score, known_peers = excluded.known_peers, avg_payload_bytes = excluded.avg_payload_bytes, normal_hours = excluded.normal_hours, learning_complete = excluded.learning_complete, sample_count = excluded.sample_count, last_updated = excluded.last_updated";
+
+        match self {
+            DbPool::Postgres(p) => {
+                sqlx::query(sql_pg)
+                    .bind(entity_id).bind(b.avg_sessions_per_hour).bind(&intents)
+                    .bind(b.avg_trust_score).bind(&peers).bind(b.avg_payload_bytes)
+                    .bind(&hours).bind(lc).bind(sc).bind(ts)
+                    .execute(p).await?;
+            }
+            DbPool::Sqlite(p) => {
+                sqlx::query(sql_sq)
+                    .bind(entity_id).bind(b.avg_sessions_per_hour).bind(&intents)
+                    .bind(b.avg_trust_score).bind(&peers).bind(b.avg_payload_bytes)
+                    .bind(&hours).bind(lc).bind(sc).bind(ts)
+                    .execute(p).await?;
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_anomaly(
+        &self,
+        entity_id: String,
+        org_id: String,
+        anomaly_type: String,
+        severity: String,
+        description: String,
+        confidence: f32,
+        session_id: Option<String>,
+        metadata: String,
+    ) -> Result<(), sqlx::Error> {
+        let id = new_id();
+        let ts = now();
+        let sql_pg = "INSERT INTO anomalies (id, entity_id, org_id, anomaly_type, severity, description, confidence, session_id, metadata, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)";
+        let sql_sq = "INSERT INTO anomalies (id, entity_id, org_id, anomaly_type, severity, description, confidence, session_id, metadata, detected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        match self {
+            DbPool::Postgres(p) => {
+                sqlx::query(sql_pg)
+                    .bind(&id).bind(&entity_id).bind(&org_id).bind(&anomaly_type)
+                    .bind(&severity).bind(&description).bind(confidence)
+                    .bind(&session_id).bind(&metadata).bind(ts)
+                    .execute(p).await?;
+            }
+            DbPool::Sqlite(p) => {
+                sqlx::query(sql_sq)
+                    .bind(&id).bind(&entity_id).bind(&org_id).bind(&anomaly_type)
+                    .bind(&severity).bind(&description).bind(confidence)
+                    .bind(&session_id).bind(&metadata).bind(ts)
+                    .execute(p).await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn delete_old_anomalies(&self, cutoff: i64) -> Result<u64, sqlx::Error> {
+        match self {
+            DbPool::Postgres(p) => {
+                let r = sqlx::query("DELETE FROM anomalies WHERE detected_at < $1").bind(cutoff).execute(p).await?;
+                Ok(r.rows_affected())
+            }
+            DbPool::Sqlite(p) => {
+                let r = sqlx::query("DELETE FROM anomalies WHERE detected_at < ?").bind(cutoff).execute(p).await?;
+                Ok(r.rows_affected())
+            }
+        }
+    }
 }

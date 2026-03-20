@@ -1,32 +1,32 @@
-pub mod ebpf;
-pub mod software;
+pub use kelan_ebpf_loader::{BpfEnforcer, EnforcerMode, SessionPermit};
 
-/// Trait for transport-layer enforcement.
-pub trait EnforcementPlane: Send + Sync {
-    /// Install a session permit (allow traffic).
-    fn install_permit(&self, session_id: &str, source_ip: &str, dest_ip: &str) -> bool;
-
-    /// Revoke a specific session permit.
-    fn revoke_permit(&self, session_id: &str) -> bool;
-
-    /// Revoke all permits for an entity.
-    fn revoke_all_for_entity(&self, entity_id: &str) -> u32;
-
-    /// Check if a session has an active permit.
-    fn has_permit(&self, session_id: &str) -> bool;
-
-    /// Name of this enforcement backend.
-    fn name(&self) -> &'static str;
-}
-
-/// Select the appropriate enforcement backend.
-pub fn select_backend() -> Box<dyn EnforcementPlane> {
-    if cfg!(target_os = "linux") {
-        tracing::info!("eBPF enforcement available (Linux detected)");
-        // On Linux, could use eBPF — but for now always use software fallback
-        Box::new(software::SoftwareEnforcement::new())
-    } else {
-        tracing::info!("Using software enforcement (non-Linux platform)");
-        Box::new(software::SoftwareEnforcement::new())
+pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
+    match BpfEnforcer::new(interface).await {
+        Ok(enforcer) => {
+            match &enforcer.mode {
+                EnforcerMode::EbpfXdp { interface } => {
+                    tracing::info!(
+                        "eBPF XDP enforcement active on interface '{}'",
+                        interface
+                    );
+                    tracing::info!(
+                        "Session revocation latency: < 1μs (kernel driver level)"
+                    );
+                }
+                EnforcerMode::Software => {
+                    tracing::warn!(
+                        "Software enforcement mode (application layer)."
+                    );
+                    tracing::warn!(
+                        "For kernel-level enforcement: run on Linux 5.15+ as root"
+                    );
+                }
+            }
+            Ok(enforcer)
+        }
+        Err(e) => {
+            tracing::warn!("eBPF init failed ({}), falling back to software", e);
+            BpfEnforcer::new("software-fallback").await
+        }
     }
 }

@@ -1,5 +1,5 @@
 use crate::db::models::{AuditEntry, WsEvent};
-use crate::sentinel::{Anomaly, AnomalyType, Sentinel};
+use crate::sentinel::{Anomaly, AnomalyType, SentinelState};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -46,7 +46,7 @@ pub struct SecurityIncident {
 /// Agentic threat response when a CRITICAL anomaly is detected.
 pub async fn activate_threat_response(
     state: &Arc<AppState>,
-    sentinel: &Arc<Sentinel>,
+    sentinel: &Arc<SentinelState>,
     anomaly: &Anomaly,
 ) {
     let entity_id = &anomaly.entity_id;

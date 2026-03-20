@@ -41,6 +41,7 @@ moka = { version = "0.12.14", features = ["future"] }
 zerocopy = { version = "0.7", features = ["derive"] }
 mimalloc = { version = "0.1", default-features = false }
 http = "1"
+kelan-ebpf-loader = { path = "../kelan-ebpf/kelan-ebpf-loader" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util", "full"] }

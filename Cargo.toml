@@ -9,7 +9,8 @@ members = [
     "aitp-observability",
     "aitp-server",
     "aitp-client",
-    # aitp-ebpf excluded — requires Linux + clang for BPF compilation
+    "kelan-ebpf/kelan-ebpf-loader",
+    "tools/kernex-license-tool"
 ]
 
 [workspace.package]

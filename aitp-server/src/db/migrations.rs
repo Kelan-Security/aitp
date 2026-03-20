@@ -150,6 +150,26 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
     }
 
+    // ── Anomalies ──
+    let sql = r#"
+        CREATE TABLE IF NOT EXISTS anomalies (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            org_id TEXT NOT NULL,
+            anomaly_type TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            description TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            session_id TEXT,
+            metadata TEXT,
+            detected_at INTEGER NOT NULL
+        )
+    "#;
+    match pool {
+        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+    }
+
     // ── Communication policies ──
     let sql = r#"
         CREATE TABLE IF NOT EXISTS comm_policies (
