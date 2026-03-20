@@ -25,6 +25,9 @@ pub enum AppError {
 
     #[error("Conflict: {0}")]
     Conflict(String),
+
+    #[error("License error: {0}")]
+    LicenseError(String),
 }
 
 impl IntoResponse for AppError {
@@ -42,6 +45,7 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
             AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Conflict(ref msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::LicenseError(ref msg) => (StatusCode::FORBIDDEN, msg.clone()),
         };
 
         let body = Json(json!({ "error": error_message, "type": "error" }));

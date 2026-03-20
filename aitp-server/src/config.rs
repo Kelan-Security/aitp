@@ -21,6 +21,7 @@ pub struct AppConfig {
     pub tls_cert_path: Option<String>,
     /// Path to TLS private key PEM file (TLS_KEY_PATH)
     pub tls_key_path: Option<String>,
+    pub xdp_interface: String,
 }
 
 impl AppConfig {
@@ -83,6 +84,7 @@ impl AppConfig {
             log_level: std::env::var("AITP_LOG_LEVEL").unwrap_or_else(|_| "info".into()),
             tls_cert_path: std::env::var("TLS_CERT_PATH").ok(),
             tls_key_path:  std::env::var("TLS_KEY_PATH").ok(),
+            xdp_interface: std::env::var("XDP_INTERFACE").unwrap_or_else(|_| "eth0".into()),
         }
     }
 

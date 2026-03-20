@@ -1,5 +1,5 @@
 use crate::db::models::{Session, WsEvent};
-use crate::sentinel::Sentinel;
+use crate::sentinel::baseline::SentinelState;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -52,23 +52,27 @@ impl AnomalySeverity {
     }
 }
 
-/// A detected anomaly.
+/// A detected anomaly — compatible with event-driven Sentinel v0.4.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Anomaly {
-    pub entity_id: String,
+    pub entity_id:    String,
+    pub org_id:       String,
     pub anomaly_type: AnomalyType,
-    pub severity: AnomalySeverity,
-    pub description: String,
+    pub severity:     AnomalySeverity,
+    pub description:  String,
     pub recommended_action: String,
-    pub confidence: f32,
-    pub detected_at: i64,
+    pub confidence:   f32,
+    pub session_id:   Option<String>,
+    pub detected_at:  i64,
+    pub metadata:     serde_json::Value,
 }
 
 // ────────────────────────── Anomaly Scanning ──────────────────────────
 
 /// Scan for anomalies across all entities with learned baselines.
-pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
-    let _baselines = sentinel.baselines.read().await;
+#[allow(dead_code)]
+pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>) {
+    // DashMap doesn't need explicit read lock for iteration in this context
     let fifteen_mins_ago = chrono::Utc::now().timestamp() - 900;
     
     use sqlx::Row;
@@ -142,8 +146,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
         .collect();
 
     for entity_id in dirty_list {
-        let baseline_map = sentinel.baselines.read().await;
-        let baseline = match baseline_map.get(&entity_id) {
+        let baseline = match sentinel.baselines.get(&entity_id) {
             Some(b) => b,
             None => {
                 sentinel.dirty_entities.remove(&entity_id);
@@ -172,7 +175,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                 ),
                 recommended_action: "Monitor".to_string(),
                 confidence: 0.8,
+                session_id: None,
                 detected_at: chrono::Utc::now().timestamp(),
+                org_id: "system".to_string(), // Default for legacy scans
+                metadata: serde_json::json!({}),
             });
         }
 
@@ -197,7 +203,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                 }
 
                 // ── Check 2: New peer ──
-                if !baseline.known_peers.contains(dest_entity_id.as_str()) {
+                if !baseline.known_peers.contains(&dest_entity_id) {
                     new_peers_last_hour += 1;
                     anomalies_found.push(Anomaly {
                         entity_id: entity_id.clone(),
@@ -209,7 +215,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                         ),
                         recommended_action: "Verify peer identity".to_string(),
                         confidence: 0.9,
+                        session_id: Some(sess.id.clone()),
                         detected_at: chrono::Utc::now().timestamp(),
+                        org_id: sess.org_id.clone(),
+                        metadata: serde_json::json!({ "dest_entity_id": dest_entity_id }),
                     });
                 }
 
@@ -219,9 +228,9 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
 
             // ── Check 3: Intent deviation ──
             for (intent, count) in &intent_counts {
-                let baseline_count = baseline.intent_distribution.get(intent).unwrap_or(&0);
-                let baseline_total: u32 = baseline.intent_distribution.values().sum();
-                if baseline_total > 0 {
+                let baseline_count = baseline.intent_distribution.get(intent).unwrap_or(&0.0);
+                let baseline_total: f64 = baseline.intent_distribution.values().sum();
+                if baseline_total > 0.0 {
                     let baseline_pct = *baseline_count as f64 / baseline_total as f64;
                     let current_pct = *count as f64 / recent_list.len() as f64;
                     if current_pct > baseline_pct * 3.0 && baseline_pct < 0.1 && *count > 3 {
@@ -237,7 +246,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                             ),
                             recommended_action: "Investigate intent usage".to_string(),
                             confidence: 0.85,
+                            session_id: None,
                             detected_at: chrono::Utc::now().timestamp(),
+                            org_id: "system".to_string(),
+                            metadata: serde_json::json!({ "intent": intent, "current_pct": current_pct }),
                         });
                     }
                 }
@@ -261,7 +273,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                     ),
                     recommended_action: "Investigate interactions".to_string(),
                     confidence: 0.9,
+                    session_id: None,
                     detected_at: chrono::Utc::now().timestamp(),
+                    org_id: "system".to_string(),
+                    metadata: serde_json::json!({ "recent_avg_trust": recent_avg_trust }),
                 });
             }
 
@@ -277,7 +292,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                     ),
                     recommended_action: "Isolate entity immediately".to_string(),
                     confidence: 0.95,
+                    session_id: None,
                     detected_at: chrono::Utc::now().timestamp(),
+                    org_id: "system".to_string(),
+                    metadata: serde_json::json!({ "new_peers": new_peers_last_hour }),
                 });
             }
 
@@ -300,7 +318,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                     ),
                     recommended_action: "Quarantine and investigate".to_string(),
                     confidence: 0.9,
+                    session_id: None,
                     detected_at: chrono::Utc::now().timestamp(),
+                    org_id: "system".to_string(),
+                    metadata: serde_json::json!({ "avg_recent_bytes": avg_recent_bytes }),
                 });
             }
 
@@ -308,8 +329,8 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
             let baseline_control = baseline
                 .intent_distribution
                 .get("ControlSignal")
-                .unwrap_or(&0);
-            if recent_control_signal > *baseline_control * 2 && recent_control_signal > 5 {
+                .unwrap_or(&0.0);
+            if recent_control_signal as f64 > *baseline_control * 2.0 && recent_control_signal > 5 {
                 anomalies_found.push(Anomaly {
                     entity_id: entity_id.clone(),
                     anomaly_type: AnomalyType::ControlSignalSpike,
@@ -320,7 +341,10 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
                     ),
                     recommended_action: "Revoke sessions immediately".to_string(),
                     confidence: 0.95,
+                    session_id: None,
                     detected_at: chrono::Utc::now().timestamp(),
+                    org_id: "system".to_string(),
+                    metadata: serde_json::json!({ "recent_control_signal": recent_control_signal }),
                 });
             }
         }
@@ -382,7 +406,8 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
 }
 
 /// Check for critical anomalies and trigger threat response.
-pub async fn check_critical_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sentinel>) {
+#[allow(dead_code)]
+pub async fn check_critical_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>) {
     if !state.config.auto_quarantine {
         return;
     }

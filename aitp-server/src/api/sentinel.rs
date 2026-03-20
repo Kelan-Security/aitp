@@ -16,7 +16,6 @@ async fn status(
     State(state): State<Arc<AppState>>,
     OrgId(_org_id): OrgId,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let baselines = state.sentinel.baselines.read().await;
     let anomalies = state.sentinel.anomalies.lock().await;
 
     let twenty_four_h_ago = chrono::Utc::now().timestamp() - 86400;
@@ -31,11 +30,13 @@ async fn status(
         .filter(|a| matches!(a.severity, crate::sentinel::AnomalySeverity::Critical))
         .count();
 
-    let learning_count = baselines.values().filter(|b| !b.learning_complete).count();
+    let learning_count = state.sentinel.baselines.iter()
+        .filter(|r| !r.value().learning_complete)
+        .count();
 
     Ok(Json(serde_json::json!({
         "monitoring": state.config.sentinel_enabled,
-        "entities_monitored": baselines.len(),
+        "entities_monitored": state.sentinel.baselines.len(),
         "learning_count": learning_count,
         "anomalies_24h": anomalies_24h,
         "critical_24h": critical_24h,
@@ -56,7 +57,8 @@ async fn baselines(
     State(state): State<Arc<AppState>>,
     OrgId(_org_id): OrgId,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let baselines = state.sentinel.baselines.read().await;
-    let list: Vec<_> = baselines.values().collect();
+    let list: Vec<_> = state.sentinel.baselines.iter()
+        .map(|r| r.value().clone())
+        .collect();
     Ok(Json(serde_json::json!(list)))
 }

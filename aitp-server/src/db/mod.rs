@@ -116,3 +116,28 @@ impl DbPool {
         matches!(self, DbPool::Sqlite(_))
     }
 }
+
+// ─── Free-function helpers (delegate to DbPool methods) ────────────────────
+
+pub async fn get_all_baselines(
+    db: &DbPool,
+    org_id: &str,
+) -> anyhow::Result<Vec<crate::sentinel::EntityBaseline>> {
+    db.get_all_baselines(org_id).await.map_err(Into::into)
+}
+
+pub async fn upsert_baseline(
+    db: &DbPool,
+    entity_id: &str,
+    baseline: &crate::sentinel::EntityBaseline,
+) -> anyhow::Result<()> {
+    db.upsert_baseline(entity_id, baseline).await.map_err(Into::into)
+}
+
+pub async fn quarantine_entity(db: &DbPool, entity_id: &str) -> anyhow::Result<u64> {
+    db.quarantine_entity(entity_id).await.map_err(Into::into)
+}
+
+pub async fn delete_old_anomalies(db: &DbPool, cutoff: i64) -> anyhow::Result<u64> {
+    db.delete_old_anomalies(cutoff).await.map_err(Into::into)
+}
