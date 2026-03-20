@@ -1,0 +1,48 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  scrape_timeout:      10s
+
+  external_labels:
+    cluster:     kelan-prod
+    environment: production
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # ── Kelan Intelligence Core — the primary target
+  - job_name: kelan_server
+    static_configs:
+      - targets: ['kelan-server:3000']
+    metrics_path: /metrics
+    scrape_interval: 10s   # tighter interval for security metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label:  instance
+        replacement:   kelan-intelligence-core
+
+  # ── Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── Node exporter — host CPU, memory, disk, network
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # ── Postgres exporter — DB connection pool, query stats
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # ── Alertmanager self-monitoring
+  - job_name: alertmanager
+    static_configs:
+      - targets: ['alertmanager:9093']

@@ -130,9 +130,11 @@ impl HybridTrustEngine {
 
         if let Some(cached) = self.cache.get(&cache_key).await {
             tracing::debug!(entity_id = %ctx.source_entity_id, "Trust cache hit");
+            crate::metrics::TRUST_CACHE.with_label_values(&["hit"]).inc();
             return (*cached).clone();
         }
 
+        crate::metrics::TRUST_CACHE.with_label_values(&["miss"]).inc();
         let result = self.evaluate_uncached(ctx).await;
         self.cache.insert(cache_key, Arc::new(result.clone())).await;
         result
@@ -221,6 +223,14 @@ impl HybridTrustEngine {
                 };
 
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                // Record metrics for each completed evaluation
+                crate::metrics::record_session(
+                    result.verdict.as_str(),
+                    &ctx.intent,
+                    result.evaluation_ms,
+                    result.trust_score,
+                    &result.source,
+                );
                 result
             }
         }

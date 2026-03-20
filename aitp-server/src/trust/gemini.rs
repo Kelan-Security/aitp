@@ -136,16 +136,28 @@ impl GeminiTrustEngine {
             self.model, self.api_key
         );
 
+        let gemini_start = std::time::Instant::now();
+
         let response = self
             .client
             .post(&url)
             .json(&request)
             .send()
             .await
-            .map_err(|e| format!("Gemini API request failed: {}", e))?;
+            .map_err(|e| {
+                let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
+                let err_type = if e.is_timeout() { "timeout" } else { "network" };
+                crate::metrics::record_gemini_call(&self.model, err_type, latency_ms);
+                format!("Gemini API request failed: {}", e)
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
+            let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
+            let err_type = if status.as_u16() == 429 { "rate_limit" }
+                           else if status.as_u16() == 403 { "auth" }
+                           else { "error" };
+            crate::metrics::record_gemini_call(&self.model, err_type, latency_ms);
             let body = response.text().await.unwrap_or_default();
             return Err(format!("Gemini API returned {}: {}", status, body));
         }
@@ -182,7 +194,7 @@ impl GeminiTrustEngine {
             }
         };
 
-        Ok(TrustResult {
+        let ok = TrustResult {
             trust_score: gemini_result.trust_score,
             verdict: TrustVerdict::from_str_loose(&gemini_result.verdict),
             primary_risk: gemini_result.primary_risk,
@@ -191,7 +203,13 @@ impl GeminiTrustEngine {
             behavioral_flags: gemini_result.behavioral_flags,
             evaluation_ms: 0.0,
             source: "gemini".to_string(),
-        })
+        };
+
+        // Record successful Gemini call latency
+        let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
+        crate::metrics::record_gemini_call(&self.model, "success", latency_ms);
+
+        Ok(ok)
     }
 
     /// Verify the API key by making a test trust evaluation.
