@@ -1,5 +1,5 @@
-// Kernex Client Agent — ipc.rs
-// Unix socket for `kernex-agent status` queries.
+// Kelan Security Client Agent — ipc.rs
+// Unix socket for `kelan-agent status` queries.
 
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -9,7 +9,7 @@ use crate::config::AgentConfig;
 use crate::identity::EntityIdentity;
 use crate::session::SessionTable;
 
-pub const IPC_SOCKET_PATH: &str = "/tmp/kernex-agent.sock";
+pub const IPC_SOCKET_PATH: &str = "/tmp/kelan-agent.sock";
 
 /// Start the IPC server that responds to status queries.
 pub async fn start_ipc_server(

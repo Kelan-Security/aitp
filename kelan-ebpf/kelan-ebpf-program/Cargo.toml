@@ -1,0 +1,22 @@
+[package]
+name    = "kelan-ebpf-program"
+version = "0.3.0"
+edition = "2021"
+
+[[bin]]
+name              = "kelan_xdp"
+path              = "src/main.rs"
+required-features = []
+
+[dependencies]
+aya-bpf = { version = "0.1", features = ["macros"] }
+aya-log-ebpf = "0.1"
+
+[profile.release]
+opt-level     = 2
+debug         = false
+panic         = "abort"
+overflow-checks = false
+
+[features]
+default = []

@@ -1,4 +1,4 @@
-// Kernex Client Agent — interceptor/iptables.rs
+// Kelan Security Client Agent — interceptor/iptables.rs
 // iptables-based transparent interception — Linux only, requires root.
 
 #[cfg(target_os = "linux")]

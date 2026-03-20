@@ -2240,7 +2240,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kernex-sdk"
+name = "kelan-sdk"
 version = "0.3.0"
 dependencies = [
  "aes-gcm",

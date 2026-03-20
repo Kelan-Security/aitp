@@ -1,4 +1,4 @@
-// Kernex Client Agent — interceptor/mod.rs
+// Kelan Security Client Agent — interceptor/mod.rs
 // Connection interception modes: SOCKS5 proxy, iptables, monitor.
 
 pub mod proxy;

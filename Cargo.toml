@@ -5,7 +5,7 @@ members = [
     "aitp-identity",
     "aitp-ai-engine",
     "aitp-control-plane",
-    "kernex-sdk",
+    "kelan-sdk",
     "aitp-observability",
     "aitp-server",
     "aitp-client",
