@@ -339,7 +339,7 @@ fn print_banner(config: &config::AppConfig) {
 
     println!();
     println!("    ╔═══════════════════════════════════════════════════╗");
-    println!("    ║         Kernex Intelligence Core v0.3             ║");
+    println!("    ║         Kelan Intelligence Core v0.3             ║");
     println!("    ╠═══════════════════════════════════════════════════╣");
     println!("    {}", mode_line);
     println!("    {}", api_line);

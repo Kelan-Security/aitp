@@ -1,4 +1,4 @@
-// Kernex Client Agent — heartbeat.rs
+// Kelan Security Client Agent — heartbeat.rs
 // 30-second heartbeat to Intelligence Core.
 
 use std::sync::Arc;

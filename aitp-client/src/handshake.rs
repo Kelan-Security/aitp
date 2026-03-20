@@ -1,4 +1,4 @@
-// Kernex Client Agent — handshake.rs
+// Kelan Security Client Agent — handshake.rs
 // UDP-based AITP handshake with the Intelligence Core.
 
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-// Kernex Client Agent — interceptor/monitor.rs
+// Kelan Security Client Agent — interceptor/monitor.rs
 // Monitor-only mode — no blocking, just logging.
 
 use std::sync::Arc;

@@ -1,4 +1,4 @@
-// Kernex Client Agent — identity.rs
+// Kelan Security Client Agent — identity.rs
 // Ed25519 keypair generation with secure file-based storage.
 
 use anyhow::Result;
@@ -7,7 +7,7 @@ use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 
 /// Directory for storing identity keys
-const KEY_DIR: &str = "/etc/kernex";
+const KEY_DIR: &str = "/etc/kelan";
 const KEY_FILE: &str = "agent-identity.key";
 
 pub struct EntityIdentity {

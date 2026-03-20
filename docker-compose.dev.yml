@@ -3,15 +3,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: kernex
-      POSTGRES_PASSWORD: kernex_dev
-      POSTGRES_DB: kernex
+      POSTGRES_USER: kelan
+      POSTGRES_PASSWORD: kelan_dev
+      POSTGRES_DB: kelan
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kernex"]
+      test: ["CMD-SHELL", "pg_isready -U kelan"]
       interval: 5s
       timeout: 5s
       retries: 5

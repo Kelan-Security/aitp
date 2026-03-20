@@ -1,5 +1,5 @@
-// Kernex Client Agent — main.rs
-// CLI entry point for kernex-agent.
+// Kelan Security Client Agent — main.rs
+// CLI entry point for kelan-agent.
 
 mod channel;
 mod config;
@@ -18,15 +18,15 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "kernex-agent")]
+#[command(name = "kelan-agent")]
 #[command(version = "0.3.0")]
-#[command(about = "Kernex Client Agent — transport-layer security daemon")]
+#[command(about = "Kelan Security Client Agent — transport-layer security daemon")]
 #[command(
-    long_about = "Lightweight daemon that installs on every device in an organisation.\nTransparently intercepts outgoing connections and routes them through\nthe Kernex Intelligence Core for identity verification and AI trust evaluation."
+    long_about = "Lightweight daemon that installs on every device in an organisation.\nTransparently intercepts outgoing connections and routes them through\nthe Kelan Intelligence Core for identity verification and AI trust evaluation."
 )]
 struct Cli {
     /// Path to config file
-    #[arg(short, long, default_value = "/etc/kernex/kernex-agent.toml")]
+    #[arg(short, long, default_value = "/etc/kelan/kelan-agent.toml")]
     config: String,
 
     #[command(subcommand)]
@@ -43,7 +43,7 @@ enum Commands {
     Stop,
     /// Show current agent status
     Status,
-    /// Enroll this device with the Kernex Intelligence Core
+    /// Enroll this device with the Kelan Intelligence Core
     Enroll {
         /// Intelligence Core address
         #[arg(short, long)]
@@ -55,7 +55,7 @@ enum Commands {
     /// Test connection to Intelligence Core and show trust evaluation
     Test {
         /// Target to test (host:port)
-        #[arg(default_value = "kernex-test.internal:443")]
+        #[arg(default_value = "kelan-test.internal:443")]
         target: String,
     },
     /// Install as system service (systemd/launchd)
@@ -94,21 +94,21 @@ async fn main() -> anyhow::Result<()> {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()?;
-            println!("Kernex Agent daemon started (PID {})", child.id());
+            println!("Kelan Security Agent daemon started (PID {})", child.id());
             // Write PID file
-            let _ = std::fs::write("/tmp/kernex-agent.pid", child.id().to_string());
+            let _ = std::fs::write("/tmp/kelan-agent.pid", child.id().to_string());
             std::mem::forget(child); // detach
         }
 
         Commands::Stop => {
-            let pid_str = std::fs::read_to_string("/tmp/kernex-agent.pid")
+            let pid_str = std::fs::read_to_string("/tmp/kelan-agent.pid")
                 .map_err(|_| anyhow::anyhow!("Agent not running (no PID file)"))?;
             let pid: i32 = pid_str.trim().parse()?;
             nix::sys::signal::kill(
                 nix::unistd::Pid::from_raw(pid),
                 nix::sys::signal::Signal::SIGTERM,
             )?;
-            let _ = std::fs::remove_file("/tmp/kernex-agent.pid");
+            let _ = std::fs::remove_file("/tmp/kelan-agent.pid");
             println!("Agent stopped (PID {})", pid);
         }
 
@@ -152,7 +152,7 @@ async fn main() -> anyhow::Result<()> {
             std::io::stdin().read_line(&mut line)?;
             if line.trim() == "yes" {
                 identity::EntityIdentity::delete_stored_key()?;
-                println!("Keys reset. Run 'kernex-agent enroll' to re-enroll.");
+                println!("Keys reset. Run 'kelan-agent enroll' to re-enroll.");
             } else {
                 println!("Aborted.");
             }
@@ -177,7 +177,7 @@ fn init_logging(config: &config::AgentConfig) {
 fn print_banner() {
     eprintln!();
     eprintln!("┌─────────────────────────────────────────────┐");
-    eprintln!("│  Kernex Client Agent v0.3.0                 │");
+    eprintln!("│  Kelan Security Client Agent v0.3.0                 │");
     eprintln!("│  Transport-Layer Security Daemon            │");
     eprintln!("│  Identity-First · Intent-Bound · Zero-Trust │");
     eprintln!("└─────────────────────────────────────────────┘");

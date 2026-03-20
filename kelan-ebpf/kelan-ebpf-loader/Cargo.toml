@@ -1,0 +1,16 @@
+[package]
+name    = "kelan-ebpf-loader"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+aya         = { version = "0.12", features = ["async_tokio"] }
+aya-log     = "0.2"
+aya-obj     = "0.1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+anyhow    = "1"
+thiserror = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"

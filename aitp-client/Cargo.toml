@@ -2,10 +2,10 @@
 name        = "aitp-client"
 version     = "0.3.0"
 edition     = "2021"
-description = "Kernex Client Agent — transport-layer security daemon"
+description = "Kelan Security Client Agent — transport-layer security daemon"
 
 [[bin]]
-name = "kernex-agent"
+name = "kelan-agent"
 path = "src/main.rs"
 
 [dependencies]

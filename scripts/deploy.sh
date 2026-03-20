@@ -23,4 +23,4 @@ docker compose -f docker-compose.prod.yml run --rm certbot certonly \
 # Start full stack
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 
-echo "✓ Kernex deployed at https://$DOMAIN"
+echo "✓ Kelan Security deployed at https://$DOMAIN"

@@ -60,7 +60,7 @@ AITP supports both **SQLite** and **PostgreSQL** from the same codebase.
 - **SQLite (Dev)**: No setup required. Default `DATABASE_URL=sqlite://./data/aitp.db`.
 - **PostgreSQL (Prod)**: High-concurrency support.
   1. Start Postgres: `docker compose -f docker-compose.dev.yml up -d`
-  2. Set `DATABASE_URL=postgresql://kernex:kernex_dev@localhost:5432/kernex` in `.env`.
+  2. Set `DATABASE_URL=postgresql://kelan:kelan_dev@localhost:5432/kelan` in `.env`.
 
 ---
 

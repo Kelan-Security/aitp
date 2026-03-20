@@ -1,4 +1,4 @@
-// Kernex Client Agent — session.rs
+// Kelan Security Client Agent — session.rs
 // Active session table tracking all live SessionPermits.
 
 use std::collections::HashMap;

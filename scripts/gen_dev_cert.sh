@@ -21,7 +21,7 @@ openssl req -x509 -newkey rsa:4096 \
   -out    "$CERT_DIR/cert.pem" \
   -days 365 \
   -nodes \
-  -subj "/C=IN/ST=Dev/L=Local/O=Kernex/CN=localhost" \
+  -subj "/C=IN/ST=Dev/L=Local/O=Kelan Security/CN=localhost" \
   -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 
 echo ""

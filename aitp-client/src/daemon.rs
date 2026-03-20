@@ -1,4 +1,4 @@
-// Kernex Client Agent — daemon.rs
+// Kelan Security Client Agent — daemon.rs
 // Main daemon loop orchestrating all subsystems.
 
 use std::sync::Arc;
@@ -20,10 +20,10 @@ pub async fn run(config: Arc<AgentConfig>, config_path: std::path::PathBuf) -> a
         entity_id = %identity.short_id(),
         server = %config.ic_url(),
         mode = %config.interception.mode,
-        "Kernex Client Agent starting"
+        "Kelan Security Client Agent starting"
     );
 
-    // 2. Start IPC server for `kernex-agent status`
+    // 2. Start IPC server for `kelan-agent status`
     {
         let sessions_clone = sessions.clone();
         let config_clone = Arc::clone(&config);
@@ -85,7 +85,7 @@ pub async fn run(config: Arc<AgentConfig>, config_path: std::path::PathBuf) -> a
 
     // Cleanup
     let _ = std::fs::remove_file(ipc::IPC_SOCKET_PATH);
-    tracing::info!("Kernex Client Agent stopped");
+    tracing::info!("Kelan Security Client Agent stopped");
 
     Ok(())
 }

@@ -1,5 +1,5 @@
-// Kernex Client Agent — enroll.rs
-// Device enrollment with the Kernex Intelligence Core.
+// Kelan Security Client Agent — enroll.rs
+// Device enrollment with the Kelan Intelligence Core.
 
 use std::path::Path;
 use crate::config::AgentConfig;
@@ -12,7 +12,7 @@ pub async fn run(
     org_token: String,
     config_path: &Path,
 ) -> anyhow::Result<()> {
-    println!("Enrolling device with Kernex Intelligence Core...");
+    println!("Enrolling device with Kelan Intelligence Core...");
     println!("Server: {}", server_address);
 
     // 1. Generate or load keypair
@@ -92,8 +92,8 @@ pub async fn run(
     println!("Config saved to: {}", config_path.display());
     println!();
     println!("Start the agent with:");
-    println!("  sudo kernex-agent start");
-    println!("  sudo systemctl start kernex-agent  (if installed as service)");
+    println!("  sudo kelan-agent start");
+    println!("  sudo systemctl start kelan-agent  (if installed as service)");
 
     Ok(())
 }

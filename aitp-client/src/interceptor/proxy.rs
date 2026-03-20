@@ -1,4 +1,4 @@
-// Kernex Client Agent — interceptor/proxy.rs
+// Kelan Security Client Agent — interceptor/proxy.rs
 // SOCKS5 local proxy — cross-platform, primary interception mode.
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -104,7 +104,7 @@ async fn handle_connection(
                 tracing::warn!(
                     target = %format!("{}:{}", target_host, target_port),
                     error = %e,
-                    "connection denied by Kernex"
+                    "connection denied by Kelan Security"
                 );
                 socks5_reply_refused(&mut client).await?;
                 Ok(())

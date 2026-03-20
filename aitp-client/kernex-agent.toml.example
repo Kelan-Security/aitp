@@ -1,8 +1,8 @@
-# Kernex Client Agent Configuration
-# Full reference: https://docs.kernex.io/agent
+# Kelan Security Client Agent Configuration
+# Full reference: https://docs.kelansecurtity.io/agent
 
 [server]
-address  = "kernex.your-company.internal"  # Intelligence Core hostname or IP
+address  = "kelan.your-company.internal"  # Intelligence Core hostname or IP
 api_port = 3000
 udp_port = 9999
 tls      = false   # Set true for production
@@ -11,7 +11,7 @@ tls      = false   # Set true for production
 entity_name    = ""             # Auto-detected from hostname if empty
 entity_type    = "workstation"  # workstation | server | service | ai_agent | iot
 clearance_level = 0
-# api_token — set automatically by: kernex-agent enroll
+# api_token — set automatically by: kelan-agent enroll
 
 [interception]
 mode         = "proxy"    # proxy (recommended) | iptables (Linux/root) | monitor

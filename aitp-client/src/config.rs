@@ -1,5 +1,5 @@
-// Kernex Client Agent — config.rs
-// AgentConfig loaded from kernex-agent.toml with env var overrides.
+// Kelan Security Client Agent — config.rs
+// AgentConfig loaded from kelan-agent.toml with env var overrides.
 
 use serde::{Deserialize, Serialize};
 
@@ -207,7 +207,7 @@ impl AgentConfig {
     /// Default config path
     #[allow(dead_code)]
     pub fn default_config_path() -> std::path::PathBuf {
-        std::path::PathBuf::from("/etc/kernex/kernex-agent.toml")
+        std::path::PathBuf::from("/etc/kelan/kelan-agent.toml")
     }
 }
 

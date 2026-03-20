@@ -51,10 +51,10 @@ COPY --from=builder /build/static                      /app/static
 
 # Create directories
 RUN mkdir -p /app/data /app/keys /app/logs && \
-    useradd -r -s /bin/false kernex && \
-    chown -R kernex:kernex /app
+    useradd -r -s /bin/false kelan && \
+    chown -R kelan:kelan /app
 
-USER kernex
+USER kelan
 
 EXPOSE 3000 9999/udp
 

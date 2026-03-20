@@ -1,4 +1,4 @@
-// Kernex Client Agent — channel.rs
+// Kelan Security Client Agent — channel.rs
 // Persistent WebSocket to Intelligence Core for receiving commands.
 
 use std::sync::Arc;
@@ -27,7 +27,7 @@ impl IcChannel {
             let token = match &self.config.agent.api_token {
                 Some(t) => t.clone(),
                 None => {
-                    tracing::warn!("No API token — channel disabled. Run: kernex-agent enroll");
+                    tracing::warn!("No API token — channel disabled. Run: kelan-agent enroll");
                     tokio::time::sleep(Duration::from_secs(30)).await;
                     continue;
                 }

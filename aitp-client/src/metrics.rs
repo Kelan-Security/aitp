@@ -1,4 +1,4 @@
-// Kernex Client Agent — metrics.rs
+// Kelan Security Client Agent — metrics.rs
 // Local Prometheus metrics for sessions, latency, and blocks.
 
 use prometheus::{IntCounter, IntGauge, Histogram, HistogramOpts, Opts, Registry};
@@ -18,23 +18,23 @@ impl AgentMetrics {
         let registry = Registry::new();
 
         let sessions_total = IntCounter::with_opts(
-            Opts::new("kernex_sessions_total", "Total sessions evaluated"),
+            Opts::new("kelan_sessions_total", "Total sessions evaluated"),
         )
         .unwrap();
 
         let sessions_active = IntGauge::with_opts(
-            Opts::new("kernex_sessions_active", "Currently active sessions"),
+            Opts::new("kelan_sessions_active", "Currently active sessions"),
         )
         .unwrap();
 
         let sessions_denied = IntCounter::with_opts(
-            Opts::new("kernex_sessions_denied", "Total sessions denied by IC"),
+            Opts::new("kelan_sessions_denied", "Total sessions denied by IC"),
         )
         .unwrap();
 
         let handshake_latency = Histogram::with_opts(
             HistogramOpts::new(
-                "kernex_handshake_latency_ms",
+                "kelan_handshake_latency_ms",
                 "Handshake latency in milliseconds",
             )
             .buckets(vec![1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0]),
