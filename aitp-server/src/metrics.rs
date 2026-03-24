@@ -181,6 +181,21 @@ lazy_static! {
         "License node utilisation ratio (0.0-1.0)",
         &["org_id", "tier"]
     ).expect("metric registration failed");
+
+    /// Registered entities per organisation.
+    pub static ref REGISTERED_ENTITIES: GaugeVec = register_gauge_vec!(
+        "kelan_registered_entities",
+        "Number of entities registered per organisation",
+        &["org_id", "tier"]
+    ).expect("metric registration failed");
+
+    /// Database query latency by operation type.
+    pub static ref DB_QUERY_LATENCY: HistogramVec = register_histogram_vec!(
+        "kelan_db_query_ms",
+        "Database query latency in milliseconds",
+        &["operation"],  // select | insert | update | delete
+        vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 500.0]
+    ).expect("metric registration failed");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

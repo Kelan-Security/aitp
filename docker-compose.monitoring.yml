@@ -1,4 +1,4 @@
-version: '3.8'
+# Kelan Security — Monitoring stack overlay
 # Kelan Security — Monitoring stack overlay
 #
 # Usage (combines with the production stack):

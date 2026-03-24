@@ -1,8 +1,12 @@
-version: '3.8'
+# Kelan Security — Production-ready stack
+# Note: uses local build for the server for zero-config deployment.
 
 services:
   kelan-server:
-    image: ghcr.io/kelan-security/kelan-core:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kelan-server:local
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://kelan:${POSTGRES_PASSWORD}@postgres:5432/kelan

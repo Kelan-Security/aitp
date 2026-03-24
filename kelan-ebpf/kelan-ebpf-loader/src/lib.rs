@@ -8,7 +8,7 @@ pub use software::BpfEnforcer;
 pub use linux::BpfEnforcer;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SessionPermit {
     pub source_entity_prefix: [u8; 8],
     pub dest_entity_prefix: [u8; 8],
@@ -18,6 +18,8 @@ pub struct SessionPermit {
     pub expires_at: u64,
     pub _pad: [u8; 4],
 }
+
+unsafe impl aya::Pod for SessionPermit {}
 
 impl SessionPermit {
     pub fn new(
@@ -63,21 +65,21 @@ pub struct EnforcerStats {
 pub enum EnforcerMode {
     #[default]
     Software,
-    EbpfXdp { interface: String },
+    BpfXdp { interface: String },
 }
 
 #[cfg(target_os = "linux")]
 mod linux {
     use super::*;
     use aya::{
-        include_bytes_aligned,
         maps::HashMap,
         programs::{Xdp, XdpFlags},
         Bpf,
     };
     use std::collections::HashMap as StdHashMap;
 
-    static KELAN_XDP_BYTES: &[u8] = include_bytes_aligned!(concat!(env!("OUT_DIR"), "/kelan_xdp.o"));
+    #[cfg(target_os = "linux")]
+    static KERNEX_XDP_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/kelan_xdp.o"));
 
     pub struct BpfEnforcer {
         _bpf: Arc<RwLock<Bpf>>,
@@ -89,21 +91,29 @@ mod linux {
 
     impl BpfEnforcer {
         pub async fn new(interface: &str) -> anyhow::Result<Self> {
+            if KERNEX_XDP_BYTES.is_empty() {
+                anyhow::bail!(
+                    "BPF program not compiled (bpf-linker not available). \
+                     Using software enforcement. \
+                     Install bpf-linker for kernel-level enforcement."
+                );
+            }
+
             if !Self::has_cap_net_admin() {
-                anyhow::bail!("CAP_NET_ADMIN required for eBPF XDP.");
+                anyhow::bail!("CAP_NET_ADMIN required for BPF XDP.");
             }
 
             if !std::path::Path::new("/sys/kernel/btf/vmlinux").exists() {
                 anyhow::bail!("Kernel BTF not available.");
             }
 
-            tracing::info!("Loading eBPF XDP program onto interface: {}", interface);
+            tracing::info!("Loading BPF XDP program onto interface: {}", interface);
 
-            let mut bpf = Bpf::load(KELAN_XDP_BYTES)
-                .map_err(|e| anyhow::anyhow!("Failed to load eBPF program: {}", e))?;
+            let mut bpf = Bpf::load(KERNEX_XDP_BYTES)
+                .map_err(|e| anyhow::anyhow!("Failed to load BPF program: {}", e))?;
 
             if let Err(e) = aya_log::BpfLogger::init(&mut bpf) {
-                tracing::warn!("eBPF logger init failed (non-fatal): {}", e);
+                tracing::warn!("BPF logger init failed (non-fatal): {}", e);
             }
 
             let program: &mut Xdp = bpf
@@ -122,25 +132,24 @@ mod linux {
             program.attach(interface, flags)
                 .map_err(|e| anyhow::anyhow!("Failed to attach XDP to {}: {}", interface, e))?;
 
-            let permit_map = HashMap::try_from(
-                bpf.map_mut("PERMIT_MAP")
-                    .ok_or_else(|| anyhow::anyhow!("PERMIT_MAP not found in BPF object"))?,
-            )?;
+            let permit_map_data = bpf.take_map("PERMIT_MAP")
+                .ok_or_else(|| anyhow::anyhow!("PERMIT_MAP not found in BPF object"))?;
+            let permit_map = HashMap::try_from(permit_map_data)?;
 
             let bpf_arc = Arc::new(RwLock::new(bpf));
-            let permit_map = Arc::new(RwLock::new(permit_map));
-            let active_permits = Arc::new(RwLock::new(StdHashMap::new()));
+            let permit_map_arc = Arc::new(RwLock::new(permit_map));
+            let active_permits_arc = Arc::new(RwLock::new(StdHashMap::new()));
 
-            let pm_clone = Arc::clone(&permit_map);
-            let ap_clone = Arc::clone(&active_permits);
+            let pm_clone = Arc::clone(&permit_map_arc);
+            let ap_clone = Arc::clone(&active_permits_arc);
             tokio::spawn(Self::expiry_cleanup_task(pm_clone, ap_clone));
 
             Ok(Self {
                 _bpf: bpf_arc,
-                permit_map,
-                active_permits,
+                permit_map: permit_map_arc,
+                active_permits: active_permits_arc,
                 interface: interface.to_string(),
-                mode: super::EnforcerMode::EbpfXdp {
+                mode: super::EnforcerMode::BpfXdp {
                     interface: interface.to_string(),
                 },
             })
@@ -189,7 +198,7 @@ mod linux {
 
         pub async fn stats(&self) -> anyhow::Result<super::EnforcerStats> {
             let bpf = self._bpf.read().await;
-            let stats_map: aya::maps::HashMap<_, u32, u64> = HashMap::try_from(
+            let stats_map: aya::maps::HashMap<&aya::maps::MapData, u32, u64> = HashMap::try_from(
                 bpf.map("STATS_MAP")
                     .ok_or_else(|| anyhow::anyhow!("STATS_MAP not found"))?,
             )?;
@@ -259,7 +268,7 @@ mod software {
 
     impl BpfEnforcer {
         pub async fn new(_interface: &str) -> anyhow::Result<Self> {
-            tracing::warn!("eBPF XDP not available. Using software enforcement.");
+            tracing::warn!("BPF XDP not available. Using software enforcement.");
             Ok(Self {
                 permits: Arc::new(RwLock::new(HashMap::new())),
                 mode: super::EnforcerMode::Software,

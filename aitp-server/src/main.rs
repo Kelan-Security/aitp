@@ -218,12 +218,39 @@ async fn async_main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             let mut tick = interval(Duration::from_secs(5));
             let mut last_sessions: i64 = 0;
+            // Track eBPF cumulative totals so we can compute per-interval deltas
+            let mut last_ebpf_passed: u64 = 0;
+            let mut last_ebpf_dropped: u64 = 0;
+            let mut last_ebpf_bypassed: u64 = 0;
             loop {
                 tick.tick().await;
                 let uptime = s.start_time.elapsed().as_secs();
 
                 // Update WS subscriber gauge
                 metrics::WS_SUBSCRIBERS.set(s.hub.tx.receiver_count() as f64);
+
+                // ── eBPF stats ──────────────────────────────────────────────
+                if let Ok(ebpf_stats) = s.enforcer.stats().await {
+                    // Delta-increment the counters (they're cumulative in BPF maps)
+                    let pass_delta = ebpf_stats.packets_passed.saturating_sub(last_ebpf_passed);
+                    let drop_delta = ebpf_stats.packets_dropped.saturating_sub(last_ebpf_dropped);
+                    let bypass_delta = ebpf_stats.packets_bypassed.saturating_sub(last_ebpf_bypassed);
+
+                    if pass_delta > 0 {
+                        metrics::EBPF_PACKETS.with_label_values(&["pass"]).inc_by(pass_delta as f64);
+                    }
+                    if drop_delta > 0 {
+                        metrics::EBPF_PACKETS.with_label_values(&["drop"]).inc_by(drop_delta as f64);
+                    }
+                    if bypass_delta > 0 {
+                        metrics::EBPF_PACKETS.with_label_values(&["bypass"]).inc_by(bypass_delta as f64);
+                    }
+                    metrics::EBPF_PERMITS.set(ebpf_stats.active_permits as f64);
+
+                    last_ebpf_passed   = ebpf_stats.packets_passed;
+                    last_ebpf_dropped  = ebpf_stats.packets_dropped;
+                    last_ebpf_bypassed = ebpf_stats.packets_bypassed;
+                }
 
                 if let Ok(stats) = s.db.get_stats(uptime).await {
                     // Update Prometheus gauges

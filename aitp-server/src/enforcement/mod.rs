@@ -12,6 +12,10 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
                     tracing::info!(
                         "Session revocation latency: < 1μs (kernel driver level)"
                     );
+                    // Record XDP mode = 1 in Prometheus
+                    crate::metrics::EBPF_MODE
+                        .with_label_values(&[interface.as_str()])
+                        .set(1.0);
                 }
                 EnforcerMode::Software => {
                     tracing::warn!(
@@ -20,12 +24,19 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
                     tracing::warn!(
                         "For kernel-level enforcement: run on Linux 5.15+ as root"
                     );
+                    // Record software mode = 0 in Prometheus
+                    crate::metrics::EBPF_MODE
+                        .with_label_values(&["software"])
+                        .set(0.0);
                 }
             }
             Ok(enforcer)
         }
         Err(e) => {
             tracing::warn!("eBPF init failed ({}), falling back to software", e);
+            crate::metrics::EBPF_MODE
+                .with_label_values(&["software"])
+                .set(0.0);
             BpfEnforcer::new("software-fallback").await
         }
     }

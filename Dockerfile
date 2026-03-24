@@ -1,7 +1,16 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM rust:bookworm AS builder
+FROM rustlang/rust:nightly-bookworm AS builder
 
 WORKDIR /build
+
+# Update and install dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# The eBPF crate uses software fallback when bpf-linker is absent
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=3
 
 # Copy the workspace root files
 COPY Cargo.toml Cargo.lock ./
@@ -15,11 +24,14 @@ COPY aitp-sdk/Cargo.toml aitp-sdk/
 COPY aitp-observability/Cargo.toml aitp-observability/
 COPY aitp-server/Cargo.toml aitp-server/
 COPY aitp-client/Cargo.toml aitp-client/
+COPY kelan-ebpf/kelan-ebpf-loader/Cargo.toml kelan-ebpf/kelan-ebpf-loader/
+COPY kelan-ebpf/kelan-ebpf-program/Cargo.toml kelan-ebpf/kelan-ebpf-program/
 
 # Create dummy source files for every member to cache deps
 RUN mkdir -p aitp-core/src aitp-identity/src aitp-ai-engine/src \
     aitp-control-plane/src aitp-sdk/src aitp-observability/src \
-    aitp-server/src aitp-client/src && \
+    aitp-server/src aitp-client/src \
+    kelan-ebpf/kelan-ebpf-loader/src kelan-ebpf/kelan-ebpf-program/src && \
     echo "" > aitp-core/src/lib.rs && \
     echo "" > aitp-identity/src/lib.rs && \
     echo "" > aitp-ai-engine/src/lib.rs && \
@@ -28,6 +40,8 @@ RUN mkdir -p aitp-core/src aitp-identity/src aitp-ai-engine/src \
     echo "" > aitp-observability/src/lib.rs && \
     echo "fn main(){}" > aitp-server/src/main.rs && \
     echo "fn main(){}" > aitp-client/src/main.rs && \
+    echo "fn main(){}" > kelan-ebpf/kelan-ebpf-loader/src/main.rs && \
+    echo "fn main(){}" > kelan-ebpf/kelan-ebpf-program/src/main.rs && \
     cargo build --release --package aitp-server 2>/dev/null || true
 
 # Now copy real source and build

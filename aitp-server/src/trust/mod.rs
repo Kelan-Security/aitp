@@ -147,28 +147,43 @@ impl HybridTrustEngine {
             "rules" => {
                 let mut result = self.rules.evaluate(ctx);
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                crate::metrics::record_session(
+                    result.verdict.as_str(),
+                    &ctx.intent,
+                    result.evaluation_ms,
+                    result.trust_score,
+                    &result.source,
+                );
                 result
             }
             "ai_only" => {
-                if let Some(ref gemini) = self.gemini {
+                let result = if let Some(ref gemini) = self.gemini {
                     match gemini.evaluate(ctx).await {
-                        Ok(mut result) => {
-                            result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
-                            result
+                        Ok(mut r) => {
+                            r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                            r
                         }
                         Err(_) => {
                             // Fallback to rules on AI failure
-                            let mut result = self.rules.evaluate(ctx);
-                            result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
-                            result.source = "rules_fallback".to_string();
-                            result
+                            let mut r = self.rules.evaluate(ctx);
+                            r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                            r.source = "rules_fallback".to_string();
+                            r
                         }
                     }
                 } else {
-                    let mut result = self.rules.evaluate(ctx);
-                    result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
-                    result
-                }
+                    let mut r = self.rules.evaluate(ctx);
+                    r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                    r
+                };
+                crate::metrics::record_session(
+                    result.verdict.as_str(),
+                    &ctx.intent,
+                    result.evaluation_ms,
+                    result.trust_score,
+                    &result.source,
+                );
+                result
             }
             _ => {
                 // "hybrid" mode — blend rules + AI
