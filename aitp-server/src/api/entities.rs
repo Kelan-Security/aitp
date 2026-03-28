@@ -270,6 +270,7 @@ async fn test_session(
 
     let ctx = SessionContext {
         source_entity_id: id.clone(),
+        org_id: org_id.clone(),
         source_entity_type: source.entity_type,
         source_department: source.department.clone(),
         source_clearance: source.clearance_level as u8,

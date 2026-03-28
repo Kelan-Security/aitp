@@ -7,5 +7,4 @@ datasources:
     access:    proxy
     isDefault: true
     jsonData:
-      timeInterval: "15s"
-      httpMethod:   POST
+      timeInterval: 15s

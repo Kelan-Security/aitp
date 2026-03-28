@@ -19,6 +19,7 @@ pub struct SessionPermit {
     pub _pad: [u8; 4],
 }
 
+#[cfg(target_os = "linux")]
 unsafe impl aya::Pod for SessionPermit {}
 
 impl SessionPermit {

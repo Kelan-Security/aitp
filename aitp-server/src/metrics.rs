@@ -1,259 +1,240 @@
 //! Kelan Security — Prometheus Metrics
 //!
-//! All metrics are registered globally once here via lazy_static.
-//! Updated at the point of each event throughout the codebase.
-//! Exposed at GET /metrics in Prometheus text exposition format.
+//! All metrics are registered globally here.
+//! Updated throughout the codebase at the point of each event.
+//! Exposed at GET /metrics in Prometheus text format.
 
 use lazy_static::lazy_static;
 use prometheus::{
-    register_counter_vec, register_gauge, register_gauge_vec, register_histogram_vec,
-    CounterVec, Encoder, Gauge, GaugeVec, HistogramVec, TextEncoder,
+    register_counter_vec, register_gauge, register_gauge_vec,
+    register_histogram_vec, CounterVec, Gauge, GaugeVec, HistogramVec,
+    TextEncoder, Encoder,
 };
 
 lazy_static! {
-    // ─────────────────────────────────────────────────────────────────
-    // Trust Engine
-    // ─────────────────────────────────────────────────────────────────
+    // ── Trust Engine ──────────────────────────────────────────────────────
 
-    /// Total sessions evaluated, labelled by verdict + intent.
+    /// Total sessions evaluated, labelled by verdict
     pub static ref SESSIONS_TOTAL: CounterVec = register_counter_vec!(
         "kelan_sessions_total",
-        "Total AITP sessions evaluated by the trust engine",
-        &["verdict", "intent"]
-    ).expect("metric registration failed");
+        "Total AITP sessions evaluated",
+        &["verdict", "intent", "org_id"]
+    ).unwrap();
 
-    /// Full 5-phase AITP handshake / trust evaluation latency (ms).
-    /// Buckets cover sub-ms rules path through to 50 ms Gemini-heavy evals.
+    /// Session evaluation latency (the full 5-phase handshake)
     pub static ref HANDSHAKE_LATENCY: HistogramVec = register_histogram_vec!(
         "kelan_handshake_duration_ms",
-        "Trust evaluation latency in milliseconds",
-        &["source"],    // "rules" | "gemini" | "hybrid" | "rules_fallback"
-        vec![0.5, 1.0, 2.0, 3.0, 5.0, 7.5, 10.0, 20.0, 50.0, 100.0]
-    ).expect("metric registration failed");
+        "5-phase AITP handshake latency in milliseconds",
+        &["trust_mode"],
+        vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0, 20.0, 50.0]
+    ).unwrap();
 
-    /// Gemini API round-trip latency (ms).
+    /// Gemini API call latency
     pub static ref GEMINI_LATENCY: HistogramVec = register_histogram_vec!(
         "kelan_gemini_latency_ms",
-        "Gemini API call latency in milliseconds",
-        &["model", "outcome"],  // outcome: success | timeout | error | rate_limit
-        vec![100.0, 250.0, 500.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0, 8000.0, 15000.0]
-    ).expect("metric registration failed");
+        "Gemini 2.5 API call latency in milliseconds",
+        &["model", "outcome"],  // outcome: success | timeout | error
+        vec![100.0, 500.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0, 8000.0, 15000.0]
+    ).unwrap();
 
-    /// Trust score observed per session.
+    /// Trust score distribution
     pub static ref TRUST_SCORE: HistogramVec = register_histogram_vec!(
         "kelan_trust_score",
-        "Trust score (0-255) assigned per session",
+        "Trust score assigned to sessions (0-255)",
         &["verdict"],
         vec![0.0, 32.0, 64.0, 96.0, 128.0, 160.0, 192.0, 224.0, 255.0]
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    /// Trust evaluation cache hit/miss.
+    /// Trust cache hit/miss counter
     pub static ref TRUST_CACHE: CounterVec = register_counter_vec!(
         "kelan_trust_cache_total",
-        "Trust evaluation cache lookups",
-        &["result"]  // "hit" | "miss"
-    ).expect("metric registration failed");
+        "Trust evaluation cache hits and misses",
+        &["result"]  // hit | miss
+    ).unwrap();
 
-    /// Gemini API error counter.
+    /// Gemini API errors
     pub static ref GEMINI_ERRORS: CounterVec = register_counter_vec!(
         "kelan_gemini_errors_total",
-        "Gemini API errors broken down by type",
-        &["error_type"]  // "timeout" | "rate_limit" | "auth" | "network" | "parse"
-    ).expect("metric registration failed");
+        "Gemini API errors by type",
+        &["error_type"]  // timeout | rate_limit | auth | network | parse
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // Session state (gauges — go up and down)
-    // ─────────────────────────────────────────────────────────────────
+    // ── Session State ─────────────────────────────────────────────────────
 
-    /// Currently active sessions.
+    /// Currently active sessions (gauge — goes up and down)
     pub static ref ACTIVE_SESSIONS: Gauge = register_gauge!(
         "kelan_active_sessions",
         "Number of currently active AITP sessions"
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    /// Smoothed session evaluation rate (sessions/sec).
+    /// Session rate (sessions per second — rolling gauge)
     pub static ref SESSION_RATE: Gauge = register_gauge!(
         "kelan_session_rate_per_second",
-        "Session evaluation rate (sessions/sec, rolling 5s window)"
-    ).expect("metric registration failed");
+        "Current session evaluation rate (sessions/sec)"
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // eBPF / XDP enforcement
-    // ─────────────────────────────────────────────────────────────────
+    // ── eBPF Enforcement ──────────────────────────────────────────────────
 
-    /// Packets processed by the XDP program.
+    /// Packets processed by XDP program
     pub static ref EBPF_PACKETS: CounterVec = register_counter_vec!(
         "kelan_ebpf_packets_total",
         "Packets processed by eBPF XDP enforcement",
-        &["action"]   // "pass" | "drop" | "bypass" | "aborted"
-    ).expect("metric registration failed");
+        &["action"]   // pass | drop | bypass | aborted
+    ).unwrap();
 
-    /// eBPF enforcement mode per interface.
+    /// XDP enforcement mode
     pub static ref EBPF_MODE: GaugeVec = register_gauge_vec!(
         "kelan_ebpf_mode",
-        "eBPF enforcement mode (1 = XDP active, 0 = software fallback)",
+        "eBPF enforcement mode (1=active, 0=software fallback)",
         &["interface"]
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    /// Active XDP session permits in the BPF map.
+    /// Active XDP permits in the BPF map
     pub static ref EBPF_PERMITS: Gauge = register_gauge!(
         "kelan_ebpf_active_permits",
-        "Number of session permits currently held in the eBPF map"
-    ).expect("metric registration failed");
+        "Number of session permits currently in the eBPF map"
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // Sentinel
-    // ─────────────────────────────────────────────────────────────────
+    // ── Sentinel ──────────────────────────────────────────────────────────
 
-    /// Anomalies detected, by type and severity.
+    /// Anomalies detected by type and severity
     pub static ref ANOMALIES_DETECTED: CounterVec = register_counter_vec!(
         "kelan_anomalies_total",
-        "Anomalies detected by the Kelan Sentinel",
-        &["anomaly_type", "severity"]
-    ).expect("metric registration failed");
+        "Anomalies detected by the Sentinel",
+        &["anomaly_type", "severity", "org_id"]
+    ).unwrap();
 
-    /// Sentinel event channel depth (pending events).
+    /// Sentinel event channel utilisation
     pub static ref SENTINEL_CHANNEL_DEPTH: Gauge = register_gauge!(
         "kelan_sentinel_channel_depth",
-        "Events pending in the Sentinel mpsc channel"
-    ).expect("metric registration failed");
+        "Number of events pending in the Sentinel channel"
+    ).unwrap();
 
-    /// How long it takes to detect an anomaly from event arrival (ms).
+    /// Anomaly detection latency (event-driven path)
     pub static ref ANOMALY_DETECTION_LATENCY: HistogramVec = register_histogram_vec!(
         "kelan_anomaly_detection_ms",
-        "Latency from session event to anomaly detection (ms)",
-        &["signal_type"],  // "critical" | "elevated" | "routine"
-        vec![0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 500.0]
-    ).expect("metric registration failed");
+        "Time from session event to anomaly detection in milliseconds",
+        &["signal_type"],  // critical | elevated | routine
+        vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 500.0]
+    ).unwrap();
 
-    /// Entities currently quarantined.
+    /// Entities currently quarantined
     pub static ref QUARANTINED_ENTITIES: Gauge = register_gauge!(
         "kelan_quarantined_entities",
         "Number of entities currently quarantined"
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // Threat Response Agent
-    // ─────────────────────────────────────────────────────────────────
+    // ── Threat Response ───────────────────────────────────────────────────
 
-    /// Security incidents detected by the Threat Response agent.
+    /// Security incidents by severity
     pub static ref THREAT_INCIDENTS: CounterVec = register_counter_vec!(
         "kelan_threat_incidents_total",
         "Security incidents detected by the Threat Response agent",
         &["severity", "attack_type"]
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // WebSocket hub
-    // ─────────────────────────────────────────────────────────────────
+    /// Threat Response agent steps per investigation
+    pub static ref THREAT_AGENT_STEPS: HistogramVec = register_histogram_vec!(
+        "kelan_threat_agent_steps",
+        "ReAct loop steps taken per threat investigation",
+        &["outcome"],   // quarantined | alerted | false_positive
+        vec![1.0, 3.0, 5.0, 8.0, 10.0, 15.0, 20.0]
+    ).unwrap();
 
-    /// Number of connected WebSocket dashboard clients.
+    // ── WebSocket Hub ────────────────────────────────────────────────────
+
+    /// Connected WebSocket subscribers (dashboard connections)
     pub static ref WS_SUBSCRIBERS: Gauge = register_gauge!(
         "kelan_ws_subscribers",
         "Number of connected WebSocket dashboard subscribers"
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    /// WebSocket events broadcast.
+    /// WebSocket events broadcast
     pub static ref WS_EVENTS: CounterVec = register_counter_vec!(
         "kelan_ws_events_total",
-        "WebSocket events broadcast to dashboard clients",
+        "WebSocket events broadcast to dashboard subscribers",
         &["event_type"]
-    ).expect("metric registration failed");
+    ).unwrap();
 
-    // ─────────────────────────────────────────────────────────────────
-    // Database
-    // ─────────────────────────────────────────────────────────────────
+    // ── Database ──────────────────────────────────────────────────────────
 
-    /// DB connection pool state.
-    pub static ref DB_POOL_CONNECTIONS: GaugeVec = register_gauge_vec!(
-        "kelan_db_pool_connections",
-        "Database connection pool utilisation",
-        &["state"]   // "active" | "idle"
-    ).expect("metric registration failed");
-
-    // ─────────────────────────────────────────────────────────────────
-    // Business / Licensing
-    // ─────────────────────────────────────────────────────────────────
-
-    /// License node limit utilisation ratio (current / max).
-    pub static ref LICENSE_UTILISATION: GaugeVec = register_gauge_vec!(
-        "kelan_license_utilisation",
-        "License node utilisation ratio (0.0-1.0)",
-        &["org_id", "tier"]
-    ).expect("metric registration failed");
-
-    /// Registered entities per organisation.
-    pub static ref REGISTERED_ENTITIES: GaugeVec = register_gauge_vec!(
-        "kelan_registered_entities",
-        "Number of entities registered per organisation",
-        &["org_id", "tier"]
-    ).expect("metric registration failed");
-
-    /// Database query latency by operation type.
+    /// DB query latency
     pub static ref DB_QUERY_LATENCY: HistogramVec = register_histogram_vec!(
         "kelan_db_query_ms",
         "Database query latency in milliseconds",
         &["operation"],  // select | insert | update | delete
-        vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 500.0]
-    ).expect("metric registration failed");
+        vec![0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0]
+    ).unwrap();
+
+    /// DB pool connections
+    pub static ref DB_POOL_CONNECTIONS: GaugeVec = register_gauge_vec!(
+        "kelan_db_pool_connections",
+        "Database connection pool state",
+        &["state"]   // active | idle | waiting
+    ).unwrap();
+
+    // ── Business / Licensing ──────────────────────────────────────────────
+
+    /// Registered entities per org
+    pub static ref REGISTERED_ENTITIES: GaugeVec = register_gauge_vec!(
+        "kelan_registered_entities",
+        "Number of entities registered per organisation",
+        &["org_id", "tier"]
+    ).unwrap();
+
+    /// License node limit utilisation (0.0 - 1.0)
+    pub static ref LICENSE_UTILISATION: GaugeVec = register_gauge_vec!(
+        "kelan_license_utilisation",
+        "License node limit utilisation ratio (current/max)",
+        &["org_id", "tier"]
+    ).unwrap();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HTTP handler
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// GET /metrics — Prometheus text exposition format.
-/// This route requires no authentication so Prometheus can scrape it freely.
+/// Handler for GET /metrics — returns Prometheus text format
 pub async fn metrics_handler() -> impl axum::response::IntoResponse {
     let encoder = TextEncoder::new();
     let metric_families = prometheus::gather();
-    let mut buffer = Vec::with_capacity(16 * 1024);
-    if let Err(e) = encoder.encode(&metric_families, &mut buffer) {
-        tracing::error!("Failed to encode Prometheus metrics: {}", e);
-    }
+    let mut buffer = Vec::new();
+    encoder.encode(&metric_families, &mut buffer).unwrap();
+
     (
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "text/plain; version=0.0.4; charset=utf-8",
-        )],
+        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
         buffer,
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Convenience helpers (keep hot paths terse)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Record a completed trust evaluation.
-pub fn record_session(
-    verdict: &str,
-    intent: &str,
-    latency_ms: f64,
-    trust_score: u8,
-    source: &str,
-) {
-    SESSIONS_TOTAL.with_label_values(&[verdict, intent]).inc();
-    HANDSHAKE_LATENCY.with_label_values(&[source]).observe(latency_ms);
-    TRUST_SCORE.with_label_values(&[verdict]).observe(trust_score as f64);
+/// Helper: record a session evaluation result
+pub fn record_session(verdict: &str, intent: &str, org_id: &str,
+                      latency_ms: f64, trust_score: u8, trust_mode: &str) {
+    SESSIONS_TOTAL
+        .with_label_values(&[verdict, intent, org_id])
+        .inc();
+    HANDSHAKE_LATENCY
+        .with_label_values(&[trust_mode])
+        .observe(latency_ms);
+    TRUST_SCORE
+        .with_label_values(&[verdict])
+        .observe(trust_score as f64);
 }
 
-/// Record a Gemini API call result.
+/// Helper: record a Gemini API call
 pub fn record_gemini_call(model: &str, outcome: &str, latency_ms: f64) {
-    GEMINI_LATENCY.with_label_values(&[model, outcome]).observe(latency_ms);
+    GEMINI_LATENCY
+        .with_label_values(&[model, outcome])
+        .observe(latency_ms);
     if outcome != "success" {
-        GEMINI_ERRORS.with_label_values(&[outcome]).inc();
+        GEMINI_ERRORS
+            .with_label_values(&[outcome])
+            .inc();
     }
 }
 
-/// Record a Sentinel anomaly detection event.
-pub fn record_anomaly(
-    anomaly_type: &str,
-    severity: &str,
-    detection_latency_ms: f64,
-    signal_type: &str,
-) {
+/// Helper: record an anomaly detection event
+pub fn record_anomaly(anomaly_type: &str, severity: &str,
+                      org_id: &str, detection_latency_ms: f64,
+                      signal_type: &str) {
     ANOMALIES_DETECTED
-        .with_label_values(&[anomaly_type, severity])
+        .with_label_values(&[anomaly_type, severity, org_id])
         .inc();
     ANOMALY_DETECTION_LATENCY
         .with_label_values(&[signal_type])

@@ -59,6 +59,7 @@ pub struct TrustResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionContext {
     pub source_entity_id: String,
+    pub org_id: String,
     pub source_entity_type: String,
     pub source_department: Option<String>,
     pub source_clearance: u8,
@@ -150,6 +151,7 @@ impl HybridTrustEngine {
                 crate::metrics::record_session(
                     result.verdict.as_str(),
                     &ctx.intent,
+                    &ctx.org_id,
                     result.evaluation_ms,
                     result.trust_score,
                     &result.source,
@@ -179,6 +181,7 @@ impl HybridTrustEngine {
                 crate::metrics::record_session(
                     result.verdict.as_str(),
                     &ctx.intent,
+                    &ctx.org_id,
                     result.evaluation_ms,
                     result.trust_score,
                     &result.source,
@@ -242,6 +245,7 @@ impl HybridTrustEngine {
                 crate::metrics::record_session(
                     result.verdict.as_str(),
                     &ctx.intent,
+                    &ctx.org_id,
                     result.evaluation_ms,
                     result.trust_score,
                     &result.source,

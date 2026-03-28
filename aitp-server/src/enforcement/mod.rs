@@ -4,7 +4,7 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
     match BpfEnforcer::new(interface).await {
         Ok(enforcer) => {
             match &enforcer.mode {
-                EnforcerMode::EbpfXdp { interface } => {
+                EnforcerMode::BpfXdp { interface } => {
                     tracing::info!(
                         "eBPF XDP enforcement active on interface '{}'",
                         interface
