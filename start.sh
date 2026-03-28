@@ -1,159 +1,129 @@
 #!/usr/bin/env bash
-# ──────────────────────────────────────────────────────────────────────────────
-# AITP — One command startup script (macOS/Linux compatible)
-# ──────────────────────────────────────────────────────────────────────────────
+# Kelan Security — One command startup
+set -euo pipefail
 
-set -e
+GREEN='\033[0;32m'; AMBER='\033[0;33m'; RED='\033[0;31m'
+BOLD='\033[1m'; NC='\033[0m'
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_DIR="$SCRIPT_DIR/aitp-server"
-PID_FILE="$SCRIPT_DIR/.aitp_server.pid"
-LOG_FILE="$SCRIPT_DIR/.aitp_server.log"
+ACTION="${1:-start}"
 
-# Default credentials
-DEFAULT_ORG="Acme Corp"
-DEFAULT_EMAIL="admin@acme.com"
-DEFAULT_PASS="supersecret123"
-
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-AMBER='\033[0;33m'
-RED='\033[0;31m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-banner() {
-  echo ""
-  echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}║        AITP Intelligence Core v0.3          ║${NC}"
-  echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
-  echo ""
-}
-
-stop_server() {
-  echo -e "${AMBER}Cleaning up existing server instances...${NC}"
-  if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-      kill "$PID" 2>/dev/null || true
-      sleep 1
-    fi
-    rm -f "$PID_FILE"
-  fi
-  
-  # Kill anything on port 3000 (most robust)
-  PORT_PID=$(lsof -t -i:3000)
-  if [ -z "$PORT_PID" ]; then
-    # Fallback to pkill if lsof empty
-    pkill -f "aitp_server" 2>/dev/null || true
-  else
-    echo -e "${AMBER}Killing process $PORT_PID on port 3000...${NC}"
-    kill -9 $PORT_PID 2>/dev/null || true
-  fi
-  
-  sleep 1
-}
-
-wait_for_server() {
-  local SERVER_PID=$!
-  echo -ne "${AMBER}Waiting for server to start${NC}"
-  for i in $(seq 1 30); do
-    # Check if the process we just started is still alive
-    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-      echo -e " ${RED}FAILED (server process died)${NC}"
-      echo -e "${RED}Check logs in $LOG_FILE${NC}"
-      exit 1
-    fi
-    
-    if curl -s http://localhost:3000/api/stats > /dev/null 2>&1; then
-      echo -e " ${GREEN}ready!${NC}"
-      return 0
-    fi
-    echo -n "."
+free_port() {
+  local PORT=$1
+  # Kill anything using this port (handles Docker leftover, old server, etc.)
+  if lsof -ti:$PORT >/dev/null 2>&1; then
+    echo -e "${AMBER}Freeing port $PORT...${NC}"
+    lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
     sleep 1
-  done
-  echo -e " ${RED}TIMEOUT${NC}"
-  exit 1
-}
-
-get_token() {
-  local EMAIL="${1:-$DEFAULT_EMAIL}"
-  local PASS="${2:-$DEFAULT_PASS}"
-
-  # Try signin
-  local RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/signin \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
-
-  local TOKEN=$(echo "$RESPONSE" | jq -r '.token // empty' 2>/dev/null)
-
-  # If failed, try signup
-  if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-    RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/signup \
-      -H 'Content-Type: application/json' \
-      -d "{\"org_name\":\"$DEFAULT_ORG\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
-    TOKEN=$(echo "$RESPONSE" | jq -r '.token // empty' 2>/dev/null)
   fi
-
-  echo "$TOKEN"
 }
 
-print_ready() {
-  local TOKEN="$1"
-  echo ""
-  echo -e "${GREEN}${BOLD}✓ AITP is running${NC}"
-  echo ""
-  echo -e "${BOLD}Dashboard:${NC}  http://localhost:3000"
-  echo -e "${BOLD}API:${NC}        http://localhost:3000/api"
-  echo ""
-  echo -e "${BOLD}── Your token ──────────────────────────────────────────${NC}"
-  echo -e "${BLUE}$TOKEN${NC}"
-  echo ""
-  echo -e "${BOLD}── Test commands ───────────────────────────────────────${NC}"
-  echo ""
-  echo "  TOKEN=\"$TOKEN\""
-  echo "  curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer \$TOKEN\" | jq"
-  echo "  websocat \"ws://localhost:3000/ws?token=\$TOKEN\""
-  echo ""
-  echo -e "${BOLD}────────────────────────────────────────────────────────${NC}"
-  echo ""
-}
-
-start_server() {
-    stop_server 2>/dev/null || true
-    echo -e "${AMBER}Building aitp-server...${NC}"
-    cd "$SERVER_DIR"
-    cargo build -p aitp-server --quiet 2>&1
-    echo -e "${AMBER}Starting AITP Intelligence Core...${NC}"
-    nohup cargo run -p aitp-server --quiet > "$LOG_FILE" 2>&1 &
-    echo $! > "$PID_FILE"
-    wait_for_server
-    TOKEN=$(get_token)
-    print_ready "$TOKEN"
-}
-
-banner
-
-case "${1:-start}" in
-  stop)
-    stop_server
-    ;;
-  fresh)
-    echo -e "${AMBER}Fresh start — wiping database...${NC}"
-    stop_server 2>/dev/null || true
-    rm -f "$SERVER_DIR/data/aitp.db"*
-    start_server
-    ;;
+case "$ACTION" in
   start)
-    start_server
+    echo -e "\n${BOLD}Kelan Security — Starting...${NC}\n"
+
+    # Free ports before starting
+    free_port 3000
+    free_port 9999
+    free_port 5173
+
+    # Kill any lingering server processes
+    pkill -f aitp_server 2>/dev/null || true
+    sleep 1
+
+    # Build and start server
+    echo -e "${AMBER}Building aitp-server...${NC}"
+    cargo build -p aitp-server --quiet
+
+    export AITP_JWT_SECRET="${AITP_JWT_SECRET:-$(openssl rand -base64 48)}"
+
+    echo -e "${AMBER}Starting Intelligence Core...${NC}"
+    RUST_LOG=aitp_server=info cargo run -p aitp-server &
+    SERVER_PID=$!
+    echo $SERVER_PID > /tmp/kelan_server.pid
+
+    # Wait for server to be ready
+    echo -ne "${AMBER}Waiting for server${NC}"
+    for i in $(seq 1 30); do
+      if curl -s http://localhost:3000/api/stats > /dev/null 2>&1; then
+        echo -e " ${GREEN}ready!${NC}"
+        break
+      fi
+      echo -n "."
+      sleep 1
+    done
+
+    # Start frontend if it exists
+    if [ -d "aitp-dashboard" ] && command -v node >/dev/null 2>&1; then
+      echo -e "${AMBER}Starting frontend...${NC}"
+      cd aitp-dashboard
+      npm install --silent 2>/dev/null || true
+      npm run dev &
+      cd ..
+      echo -e "${GREEN}Frontend starting at http://localhost:5173${NC}"
+    fi
+
+    # Get or create a token
+    SIGNUP=$(curl -s -X POST http://localhost:3000/api/auth/signup \
+      -H 'Content-Type: application/json' \
+      -d '{"org_name":"Kelan Dev","email":"dev@kelan.io","password":"DevPass123!"}' 2>/dev/null)
+    TOKEN=$(echo $SIGNUP | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || echo "")
+
+    if [ -z "$TOKEN" ]; then
+      TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/signin \
+        -H 'Content-Type: application/json' \
+        -d '{"email":"dev@kelan.io","password":"DevPass123!"}' \
+        | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
+    fi
+
+    echo ""
+    echo -e "${GREEN}${BOLD}Kelan Security is running${NC}"
+    echo ""
+    echo -e "  API:       http://localhost:3000"
+    echo -e "  Dashboard: http://localhost:3000"
+    if [ -d "aitp-dashboard" ]; then
+      echo -e "  Frontend:  http://localhost:5173"
+    fi
+    echo ""
+    if [ -n "$TOKEN" ]; then
+      echo -e "  ${BOLD}Token:${NC} ${TOKEN:0:40}..."
+      echo ""
+      echo -e "  ${AMBER}Test commands:${NC}"
+      echo "  TOKEN=\"$TOKEN\""
+      echo "  curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer \$TOKEN\" | python3 -m json.tool"
+      echo "  curl -s http://localhost:3000/api/stats   -H \"Authorization: Bearer \$TOKEN\" | python3 -m json.tool"
+    fi
+    echo ""
+    echo -e "  ${AMBER}Stop:${NC}  ./start.sh stop  OR  make stop"
     ;;
+
+  stop)
+    echo "Stopping Kelan Security..."
+    pkill -f aitp_server 2>/dev/null || true
+    pkill -f "npm run dev" 2>/dev/null || true
+    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    rm -f /tmp/kelan_server.pid
+    echo "Stopped."
+    ;;
+
+  fresh)
+    echo "Fresh start — wiping database..."
+    pkill -f aitp_server 2>/dev/null || true
+    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+    rm -f aitp-server/data/*.db aitp-server/data/*.db-shm aitp-server/data/*.db-wal
+    sleep 1
+    exec "$0" start
+    ;;
+
   token)
-    TOKEN=$(get_token)
-    print_ready "$TOKEN"
+    TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/signin \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"dev@kelan.io","password":"DevPass123!"}' \
+      | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+    echo "TOKEN=\"$TOKEN\""
     ;;
+
   *)
     echo "Usage: ./start.sh [start|stop|fresh|token]"
-    exit 1
     ;;
 esac

@@ -348,6 +348,7 @@ async fn handle_anomaly(
         .with_label_values(&[
             anomaly.anomaly_type.as_str(),
             anomaly.severity.as_str(),
+            &anomaly.org_id,
         ])
         .inc();
 

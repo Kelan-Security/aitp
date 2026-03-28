@@ -29,13 +29,12 @@ COPY kelan-ebpf/kelan-ebpf-program/Cargo.toml kelan-ebpf/kelan-ebpf-program/
 
 # Create dummy source files for every member to cache deps
 RUN mkdir -p aitp-core/src aitp-identity/src aitp-ai-engine/src \
-    aitp-control-plane/src aitp-sdk/src aitp-observability/src \
+    aitp-sdk/src aitp-observability/src \
     aitp-server/src aitp-client/src \
     kelan-ebpf/kelan-ebpf-loader/src kelan-ebpf/kelan-ebpf-program/src && \
     echo "" > aitp-core/src/lib.rs && \
     echo "" > aitp-identity/src/lib.rs && \
     echo "" > aitp-ai-engine/src/lib.rs && \
-    echo "" > aitp-control-plane/src/lib.rs && \
     echo "" > aitp-sdk/src/lib.rs && \
     echo "" > aitp-observability/src/lib.rs && \
     echo "fn main(){}" > aitp-server/src/main.rs && \

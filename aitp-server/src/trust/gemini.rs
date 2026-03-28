@@ -216,6 +216,7 @@ impl GeminiTrustEngine {
     pub async fn verify_key(&self) -> Result<TrustResult, String> {
         let test_ctx = SessionContext {
             source_entity_id: "test_entity_abc123".to_string(),
+            org_id: "test_org".to_string(),
             source_entity_type: "workstation".to_string(),
             source_department: Some("Engineering".to_string()),
             source_clearance: 0,

@@ -27,7 +27,7 @@ echo ""
 # ── Auth ──────────────────────────────────────────────────────────────────────
 TOKEN=$(curl -s -X POST $BASE/auth/signin \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@acme.com","password":"supersecret123"}' | jq -r '.token')
+  -d '{"email":"dev@kelan.io","password":"DevPass123!"}' | jq -r '.token')
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
   echo -e "${RED}ERROR: Could not authenticate. Is the server running? ./start.sh${NC}"

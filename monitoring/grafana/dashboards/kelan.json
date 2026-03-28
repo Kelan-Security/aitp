@@ -4,232 +4,244 @@
     { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" }
   ],
   "annotations": { "list": [] },
-  "description": "Kelan Security Intelligence Core — Security Operations, Trust Engine, Sentinel & System Health",
   "editable": true,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
+  "links": [],
+  "liveNow": false,
   "panels": [
 
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-      "id": 100, "title": "Security Operations Center", "type": "row" },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Security Operations Center",
+      "type": "row"
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
-        "thresholds": { "mode": "absolute", "steps": [
-          { "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }
-        ] }, "unit": "short" } },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 }, "id": 1,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
       "title": "Active Sessions",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "kelan_active_sessions", "legendFormat": "" }] },
+      "targets": [{ "expr": "kelan_active_sessions", "legendFormat": "" }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
-        "thresholds": { "mode": "absolute", "steps": [
-          { "color": "green", "value": null }, { "color": "yellow", "value": 0.10 }, { "color": "red", "value": 0.30 }
-        ] }, "unit": "percentunit" } },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 }, "id": 2,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.3 }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "title": "Deny Rate",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "rate(kelan_sessions_total{verdict=\"Deny\"}[5m]) / clamp_min(rate(kelan_sessions_total[5m]), 0.001)",
-        "legendFormat": "" }] },
+      "targets": [{
+        "expr": "rate(kelan_sessions_total{verdict='Deny'}[5m]) / rate(kelan_sessions_total[5m])",
+        "legendFormat": ""
+      }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
-        "thresholds": { "mode": "absolute", "steps": [
-          { "color": "green", "value": null }, { "color": "red", "value": 1 }
-        ] }, "unit": "short" } },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 }, "id": 3,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "title": "Quarantined Entities",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "kelan_quarantined_entities", "legendFormat": "" }] },
+      "targets": [{ "expr": "kelan_quarantined_entities", "legendFormat": "" }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
-        "thresholds": { "mode": "absolute", "steps": [
-          { "color": "green", "value": null }, { "color": "red", "value": 1 }
-        ] }, "unit": "short" } },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 }, "id": 4,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "title": "Threats Today",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "increase(kelan_threat_incidents_total[24h])", "legendFormat": "" }] },
+      "targets": [{ "expr": "increase(kelan_threat_incidents_total[24h])", "legendFormat": "" }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" } },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 }, "id": 5,
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
-      "title": "WS Dashboard Clients",
+      "title": "WebSocket Subscribers",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "kelan_ws_subscribers", "legendFormat": "" }] },
+      "targets": [{ "expr": "kelan_ws_subscribers", "legendFormat": "" }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "short" } },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 }, "id": 6,
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
-      "title": "XDP Permits Active",
+      "title": "Active XDP Permits",
       "type": "stat",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "kelan_ebpf_active_permits", "legendFormat": "" }] },
+      "targets": [{ "expr": "kelan_ebpf_active_permits", "legendFormat": "" }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "reqps" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 }, "id": 10,
-      "title": "Session Rate — by Verdict",
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "id": 10,
+      "title": "Sessions per Second — by Verdict",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_sessions_total{verdict=\"Allow\"}[1m])", "legendFormat": "Allow" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_sessions_total{verdict=\"Monitor\"}[1m])", "legendFormat": "Monitor" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_sessions_total{verdict=\"Deny\"}[1m])", "legendFormat": "Deny" }
-      ] },
+        { "expr": "rate(kelan_sessions_total{verdict='Allow'}[1m])",   "legendFormat": "Allow" },
+        { "expr": "rate(kelan_sessions_total{verdict='Monitor'}[1m])", "legendFormat": "Monitor" },
+        { "expr": "rate(kelan_sessions_total{verdict='Deny'}[1m])",    "legendFormat": "Deny" }
+      ]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "pps" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 }, "id": 11,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "id": 11,
       "title": "eBPF XDP — Packets per Second",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_ebpf_packets_total{action=\"pass\"}[1m])", "legendFormat": "Pass" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_ebpf_packets_total{action=\"drop\"}[1m])", "legendFormat": "Drop" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_ebpf_packets_total{action=\"bypass\"}[1m])", "legendFormat": "Bypass" }
-      ] },
+        { "expr": "rate(kelan_ebpf_packets_total{action='pass'}[1m])",    "legendFormat": "Pass" },
+        { "expr": "rate(kelan_ebpf_packets_total{action='drop'}[1m])",    "legendFormat": "Drop" },
+        { "expr": "rate(kelan_ebpf_packets_total{action='bypass'}[1m])",  "legendFormat": "Bypass" }
+      ]
+    },
 
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
-      "id": 200, "title": "Trust Engine Performance", "type": "row" },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 200,
+      "title": "Trust Engine Performance",
+      "type": "row"
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 }, "id": 20,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 20,
       "title": "Handshake Latency — P50 / P95 / P99",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P50" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P95" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P99" }
-      ] },
+        { "expr": "histogram_quantile(0.50, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(kelan_handshake_duration_ms_bucket[5m]))", "legendFormat": "P99" }
+      ]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 }, "id": 21,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 21,
       "title": "Gemini API Latency — P50 / P95 / P99",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P50" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P95" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P99" }
-      ] },
+        { "expr": "histogram_quantile(0.50, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, rate(kelan_gemini_latency_ms_bucket[5m]))", "legendFormat": "P99" }
+      ]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "percentunit",
-        "min": 0, "max": 1 } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 }, "id": 22,
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 22,
       "title": "Trust Cache Hit Rate",
       "type": "timeseries",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "rate(kelan_trust_cache_total{result=\"hit\"}[5m]) / clamp_min(rate(kelan_trust_cache_total[5m]), 0.001)",
-        "legendFormat": "Hit Rate" }] },
+      "targets": [{
+        "expr": "rate(kelan_trust_cache_total{result='hit'}[5m]) / rate(kelan_trust_cache_total[5m])",
+        "legendFormat": "Cache Hit Rate"
+      }]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "short" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 }, "id": 23,
-      "title": "Gemini Error Rate",
-      "type": "timeseries",
-      "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_gemini_errors_total{error_type=\"timeout\"}[5m])", "legendFormat": "Timeout" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_gemini_errors_total{error_type=\"rate_limit\"}[5m])", "legendFormat": "Rate Limit" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_gemini_errors_total{error_type=\"network\"}[5m])", "legendFormat": "Network" }
-      ] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 23,
+      "title": "Trust Score Distribution (last hour)",
+      "type": "histogram",
+      "targets": [{ "expr": "kelan_trust_score_bucket", "legendFormat": "{{verdict}}" }]
+    },
 
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
-      "id": 300, "title": "Sentinel & Threat Response", "type": "row" },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "id": 300,
+      "title": "Sentinel & Threat Response",
+      "type": "row"
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "short" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 }, "id": 30,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "id": 30,
       "title": "Anomalies Detected — by Type",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_anomalies_total{anomaly_type=\"NewPeer\"}[5m])", "legendFormat": "NewPeer" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_anomalies_total{anomaly_type=\"LateralMovement\"}[5m])", "legendFormat": "LateralMovement" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_anomalies_total{anomaly_type=\"ExfiltrationPattern\"}[5m])", "legendFormat": "ExfiltrationPattern" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_anomalies_total{anomaly_type=\"TrustScoreDrop\"}[5m])", "legendFormat": "TrustScoreDrop" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(kelan_anomalies_total{anomaly_type=\"IntentDeviation\"}[5m])", "legendFormat": "IntentDeviation" }
-      ] },
+        { "expr": "rate(kelan_anomalies_total{anomaly_type='NewPeer'}[5m])",              "legendFormat": "NewPeer" },
+        { "expr": "rate(kelan_anomalies_total{anomaly_type='LateralMovement'}[5m])",      "legendFormat": "LateralMovement" },
+        { "expr": "rate(kelan_anomalies_total{anomaly_type='ExfiltrationPattern'}[5m])",  "legendFormat": "ExfiltrationPattern" },
+        { "expr": "rate(kelan_anomalies_total{anomaly_type='TrustScoreDrop'}[5m])",       "legendFormat": "TrustScoreDrop" },
+        { "expr": "rate(kelan_anomalies_total{anomaly_type='IntentDeviation'}[5m])",      "legendFormat": "IntentDeviation" }
+      ]
+    },
 
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 }, "id": 31,
-      "title": "Anomaly Detection Latency — Critical Path P50 / P99",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "id": 31,
+      "title": "Anomaly Detection Latency (event-driven)",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.50, rate(kelan_anomaly_detection_ms_bucket{signal_type=\"critical\"}[5m]))",
-          "legendFormat": "P50" },
-        { "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.99, rate(kelan_anomaly_detection_ms_bucket{signal_type=\"critical\"}[5m]))",
-          "legendFormat": "P99" }
-      ] },
-
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "unit": "short" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 }, "id": 32,
-      "title": "Sentinel Channel Depth",
-      "type": "timeseries",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "kelan_sentinel_channel_depth", "legendFormat": "Pending Events" }],
-      "options": { "thresholds": { "mode": "absolute", "steps": [
-          { "color": "green", "value": null },
-          { "color": "yellow", "value": 1000 },
-          { "color": "red", "value": 3000 }
-        ] } } },
-
-    { "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
-      "id": 400, "title": "System Health", "type": "row" },
-
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "bytes" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 }, "id": 40,
-      "title": "Process Memory (RSS)",
-      "type": "timeseries",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "process_resident_memory_bytes{job=\"kelan_server\"}", "legendFormat": "RSS" }] },
-
-    { "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 }, "unit": "percentunit",
-        "min": 0, "max": 1 } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 }, "id": 41,
-      "title": "Process CPU Usage",
-      "type": "timeseries",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "rate(process_cpu_seconds_total{job=\"kelan_server\"}[1m])", "legendFormat": "CPU" }] }
+        { "expr": "histogram_quantile(0.50, rate(kelan_anomaly_detection_ms_bucket{signal_type='critical'}[5m]))", "legendFormat": "Critical P50" },
+        { "expr": "histogram_quantile(0.99, rate(kelan_anomaly_detection_ms_bucket{signal_type='critical'}[5m]))", "legendFormat": "Critical P99" }
+      ]
+    }
   ],
 
   "refresh": "30s",

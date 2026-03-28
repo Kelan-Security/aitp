@@ -1,88 +1,87 @@
-.PHONY: build release test test-integration test-gemini fmt fmt-check clippy \
-       docker-up docker-down docker-build validate logs clean doc dev dev-full
+.PHONY: dev build test clean stop logs frontend backend check
 
-# ───────────────── Build ─────────────────
+# ── Default: start the full stack ────────────────────────────────────────────
+dev: check
+	@echo ""
+	@echo "╔══════════════════════════════════════════════╗"
+	@echo "║       Kelan Security — Dev Stack             ║"
+	@echo "╚══════════════════════════════════════════════╝"
+	@echo ""
+	@$(MAKE) -j2 backend frontend
+
+# ── Check prerequisites ───────────────────────────────────────────────────────
+check:
+	@command -v cargo  >/dev/null || (echo "ERROR: Rust not installed. Run: curl https://sh.rustup.rs | sh" && exit 1)
+	@command -v node   >/dev/null || echo "WARN: Node.js not found — frontend will be skipped"
+	@echo "Prerequisites OK"
+
+# ── Backend (Intelligence Core server) ───────────────────────────────────────
+backend:
+	@echo "Building aitp-server..."
+	@cargo build -p aitp-server 2>&1 | grep -E "^error" | head -20 || true
+	@echo "Starting Intelligence Core on http://localhost:3000..."
+	@RUST_LOG=aitp_server=info \
+		cargo run -p aitp-server
+
+# ── Frontend (dashboard) ──────────────────────────────────────────────────────
+frontend:
+	@if [ -d "aitp-dashboard" ] && command -v node >/dev/null; then \
+		echo "Starting frontend on http://localhost:5173..."; \
+		cd aitp-dashboard && npm install --silent && npm run dev; \
+	elif [ -d "frontend" ] && command -v node >/dev/null; then \
+		echo "Starting frontend on http://localhost:5173..."; \
+		cd frontend && npm install --silent && npm run dev; \
+	else \
+		echo "No frontend directory found or Node.js not installed."; \
+		echo "Dashboard is served by Axum at http://localhost:3000"; \
+	fi
+
+# ── Build release binary ─────────────────────────────────────────────────────
 build:
-	cargo build --workspace
+	cargo build --release -p aitp-server
+	@echo "Binary: target/release/aitp_server"
 
-release:
-	cargo build --workspace --release
-
-# ───────────────── Quality ─────────────────
+# ── Run all tests ─────────────────────────────────────────────────────────────
 test:
-	cargo test --workspace
+	cargo test --workspace -- --test-threads=1
 
-test-integration:
-	cargo test --workspace -- --include-ignored
+# ── Stop all running instances ────────────────────────────────────────────────
+stop:
+	@pkill -f aitp_server 2>/dev/null && echo "Server stopped" || echo "Server was not running"
+	@pkill -f "npm run dev" 2>/dev/null || true
+	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	@lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+	@echo "All processes stopped. Ports 3000 and 5173 freed."
 
-test-gemini:
-	AITP_AI_ENGINE_GEMINI_API_KEY=$(AITP_GEMINI_API_KEY) \
-	cargo test --package aitp-ai-engine -- --include-ignored gemini
-
-fmt:
-	cargo fmt --all
-
-fmt-check:
-	cargo fmt --all -- --check
-
-clippy:
-	cargo clippy --workspace -- -D warnings
-
-# ───────────────── Documentation ─────────────────
-doc:
-	cargo doc --no-deps --workspace --open
-
-doc-sdk:
-	cargo doc --no-deps -p aitp-sdk --open
-
-# ───────────────── Docker ─────────────────
-docker-build:
-	docker compose build
-
-docker-up:
-	docker compose up --build -d
-
-docker-down:
-	docker compose down -v
-
+# ── Tail server logs ──────────────────────────────────────────────────────────
 logs:
-	docker compose logs -f --tail=100
+	@RUST_LOG=aitp_server=debug cargo run -p aitp-server
 
-logs-nodes:
-	docker compose logs -f aitp-node-alpha aitp-node-beta --tail=100
+# ── Lint ─────────────────────────────────────────────────────────────────────
+lint:
+	cargo fmt --all -- --check
+	cargo clippy --all-targets -- -D warnings
 
-# ───────────────── Validation ─────────────────
-validate:
-	./scripts/validate_stack.sh
-
-# ───────────────── Examples ─────────────────
-example-echo:
-	cargo run --example simple_echo_server
-
-example-client:
-	cargo run --example simple_client
-
-example-ai:
-	cargo run --example ai_model_connector
-
-example-multi:
-	cargo run --example multi_session
-
-example-revoke:
-	cargo run --example revoke_demo
-
-# ───────────────── Clean ─────────────────
+# ── Clean build artifacts ─────────────────────────────────────────────────────
 clean:
 	cargo clean
-	docker compose down -v --remove-orphans 2>/dev/null || true
-	pkill -f "aitp_server" 2>/dev/null || true
-	pkill -f "npm.*aitp-web" 2>/dev/null || true
+	rm -f aitp-server/data/*.db aitp-server/data/*.db-shm aitp-server/data/*.db-wal
+	@echo "Cleaned"
 
-# ───────────────── Development ─────────────────
-# Start EVERYTHING: Frontend, Backend, Server, Docker, Database
-dev:
-	./start_all.sh --docker
+# ── Fresh start (wipe DB + restart) ──────────────────────────────────────────
+fresh: stop clean
+	@$(MAKE) dev
 
-# Start local only: Frontend + Backend
-dev-local:
-	./start_all.sh
+# ── Docker targets ────────────────────────────────────────────────────────────
+docker-build:
+	docker build -t kelan-server:local .
+
+docker-run:
+	docker run -p 3000:3000 -p 9999:9999/udp \
+		-e GEMINI_API_KEY=$${GEMINI_API_KEY} \
+		-e AITP_JWT_SECRET=$${AITP_JWT_SECRET:-$(shell openssl rand -base64 48)} \
+		-v kelan_data:/app/data \
+		kelan-server:local
+
+docker-stop:
+	docker ps -q --filter "ancestor=kelan-server:local" | xargs -r docker stop
