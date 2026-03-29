@@ -1,8 +1,8 @@
 // Kelan Security Client Agent — channel.rs
 // Persistent WebSocket to Intelligence Core for receiving commands.
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -103,9 +103,15 @@ impl IcChannel {
 #[derive(serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum IcCommand {
-    Quarantine { reason: String },
-    Release { reason: String },
+    Quarantine {
+        reason: String,
+    },
+    Release {
+        reason: String,
+    },
     #[serde(rename = "revoke_session")]
-    RevokeSession { session_id: u64 },
+    RevokeSession {
+        session_id: u64,
+    },
     Ping,
 }

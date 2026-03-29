@@ -7,11 +7,11 @@ pub mod session;
 
 // Re-export everything the user needs
 pub use client::{KelanClient, KelanClientBuilder};
-pub use server::{KelanServer, KelanServerBuilder};
-pub use session::SessionHandle;
-pub use protocol::{IntentCode, TrustResult, TrustVerdict};
 pub use config::KelanConfig;
 pub use error::KelanError;
+pub use protocol::{IntentCode, TrustResult, TrustVerdict};
+pub use server::{KelanServer, KelanServerBuilder};
+pub use session::SessionHandle;
 
 /// SDK version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

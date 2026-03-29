@@ -12,8 +12,7 @@ use crate::session::SessionTable;
 
 pub async fn run(config: Arc<AgentConfig>, config_path: std::path::PathBuf) -> anyhow::Result<()> {
     // 1. Load identity (use same dir as config for keys)
-    let key_dir = config_path.parent();
-    let identity = Arc::new(EntityIdentity::load_or_generate(key_dir)?);
+    let identity = Arc::new(EntityIdentity::load_or_generate()?);
     let sessions = SessionTable::new();
 
     tracing::info!(
@@ -29,7 +28,9 @@ pub async fn run(config: Arc<AgentConfig>, config_path: std::path::PathBuf) -> a
         let config_clone = Arc::clone(&config);
         let identity_clone = Arc::clone(&identity);
         tokio::spawn(async move {
-            if let Err(e) = ipc::start_ipc_server(sessions_clone, config_clone, identity_clone).await {
+            if let Err(e) =
+                ipc::start_ipc_server(sessions_clone, config_clone, identity_clone).await
+            {
                 tracing::error!("IPC server error: {}", e);
             }
         });

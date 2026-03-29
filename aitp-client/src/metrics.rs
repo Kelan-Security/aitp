@@ -1,7 +1,7 @@
 // Kelan Security Client Agent — metrics.rs
 // Local Prometheus metrics for sessions, latency, and blocks.
 
-use prometheus::{IntCounter, IntGauge, Histogram, HistogramOpts, Opts, Registry};
+use prometheus::{Histogram, HistogramOpts, IntCounter, IntGauge, Opts, Registry};
 
 #[allow(dead_code)]
 pub struct AgentMetrics {
@@ -17,19 +17,22 @@ impl AgentMetrics {
     pub fn new() -> Self {
         let registry = Registry::new();
 
-        let sessions_total = IntCounter::with_opts(
-            Opts::new("kelan_sessions_total", "Total sessions evaluated"),
-        )
+        let sessions_total = IntCounter::with_opts(Opts::new(
+            "kelan_sessions_total",
+            "Total sessions evaluated",
+        ))
         .unwrap();
 
-        let sessions_active = IntGauge::with_opts(
-            Opts::new("kelan_sessions_active", "Currently active sessions"),
-        )
+        let sessions_active = IntGauge::with_opts(Opts::new(
+            "kelan_sessions_active",
+            "Currently active sessions",
+        ))
         .unwrap();
 
-        let sessions_denied = IntCounter::with_opts(
-            Opts::new("kelan_sessions_denied", "Total sessions denied by IC"),
-        )
+        let sessions_denied = IntCounter::with_opts(Opts::new(
+            "kelan_sessions_denied",
+            "Total sessions denied by IC",
+        ))
         .unwrap();
 
         let handshake_latency = Histogram::with_opts(
@@ -37,7 +40,9 @@ impl AgentMetrics {
                 "kelan_handshake_latency_ms",
                 "Handshake latency in milliseconds",
             )
-            .buckets(vec![1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0]),
+            .buckets(vec![
+                1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0,
+            ]),
         )
         .unwrap();
 

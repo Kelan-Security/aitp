@@ -1,18 +1,13 @@
 // Kelan Security Client Agent — interceptor/monitor.rs
 // Monitor-only mode — no blocking, just logging.
 
-use std::sync::Arc;
 use crate::config::AgentConfig;
+use std::sync::Arc;
 
 /// Run in monitor mode — log all connections but never block.
 pub async fn run_monitor(config: Arc<AgentConfig>) -> anyhow::Result<()> {
-    tracing::info!(
-        "Running in MONITOR mode — all connections are allowed, events are logged"
-    );
-    tracing::info!(
-        "Excluded ports: {:?}",
-        config.interception.exclude_ports
-    );
+    tracing::info!("Running in MONITOR mode — all connections are allowed, events are logged");
+    tracing::info!("Excluded ports: {:?}", config.interception.exclude_ports);
 
     // In monitor mode, we don't start any proxy or iptables.
     // The daemon simply runs, performs heartbeats, and reports status.

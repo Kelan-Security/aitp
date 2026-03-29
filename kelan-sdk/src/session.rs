@@ -1,6 +1,6 @@
 use crate::{KelanError, TrustResult};
-use tokio::net::UdpSocket;
 use std::sync::Arc;
+use tokio::net::UdpSocket;
 
 /// An established, evaluated session.
 /// Dropped sessions are automatically closed.
@@ -13,12 +13,23 @@ pub struct SessionHandle {
 }
 
 impl SessionHandle {
-    pub(crate) fn new(socket: Arc<UdpSocket>, target_addr: String, session_id: u64, trust_result: TrustResult) -> Self {
-        Self { socket, target_addr, session_id, trust_result }
+    pub(crate) fn new(
+        socket: Arc<UdpSocket>,
+        target_addr: String,
+        session_id: u64,
+        trust_result: TrustResult,
+    ) -> Self {
+        Self {
+            socket,
+            target_addr,
+            session_id,
+            trust_result,
+        }
     }
 
     pub async fn send(&self, data: &[u8]) -> Result<(), KelanError> {
-        self.socket.send_to(data, &self.target_addr)
+        self.socket
+            .send_to(data, &self.target_addr)
             .await
             .map_err(|e| KelanError::Transport(e.to_string()))?;
         Ok(())
@@ -26,7 +37,9 @@ impl SessionHandle {
 
     pub async fn recv(&self) -> Result<Vec<u8>, KelanError> {
         let mut buf = vec![0u8; 65535];
-        let (len, _) = self.socket.recv_from(&mut buf)
+        let (len, _) = self
+            .socket
+            .recv_from(&mut buf)
             .await
             .map_err(|e| KelanError::Transport(e.to_string()))?;
         buf.truncate(len);

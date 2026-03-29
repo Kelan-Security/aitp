@@ -19,7 +19,7 @@ type SharedHandler = Arc<
 /// KelanServer::builder()
 ///     .config("kelan.toml")
 ///     .on_session(|session| async move {
-///         println!("Session from {:?}, trust: {}", 
+///         println!("Session from {:?}, trust: {}",
 ///             session.trust_result().verdict,
 ///             session.trust_result().trust_score);
 ///         session.send(b"acknowledged").await?;
@@ -40,7 +40,10 @@ pub struct KelanServerBuilder {
 
 impl Default for KelanServerBuilder {
     fn default() -> Self {
-        Self { _config_path: None, handler: None }
+        Self {
+            _config_path: None,
+            handler: None,
+        }
     }
 }
 
@@ -60,7 +63,9 @@ impl KelanServerBuilder {
     }
 
     pub async fn build(self) -> Result<KelanServer, KelanError> {
-        Ok(KelanServer { handler: self.handler })
+        Ok(KelanServer {
+            handler: self.handler,
+        })
     }
 }
 
@@ -74,7 +79,7 @@ impl KelanServer {
         let socket = UdpSocket::bind("0.0.0.0:9999")
             .await
             .map_err(|e| KelanError::Transport(e.to_string()))?;
-        
+
         let socket_arc = Arc::new(socket);
         let mut buf = vec![0u8; 65535];
 

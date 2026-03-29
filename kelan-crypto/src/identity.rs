@@ -3,13 +3,15 @@
 //! Backward compatible: loads old Ed25519-only keys and wraps them.
 //! On new enrollment: generates hybrid keypair automatically.
 
+use crate::{
+    algorithm::CryptoAlgorithm,
+    hybrid_sig::{HybridSignature, HybridSigningKey, HybridVerifyingKey},
+};
 use keyring::Entry;
-use super::hybrid_sig::{HybridSigningKey, HybridVerifyingKey, HybridSignature};
-use super::CryptoAlgorithm;
 
 const KEYRING_SERVICE: &str = "kelan-server";
-const KEYRING_KEY_V1:  &str = "ed25519-private-key";          // legacy
-const KEYRING_KEY_V2:  &str = "hybrid-pq-private-key-v2";     // new
+const KEYRING_KEY_V1: &str = "ed25519-private-key"; // legacy
+const KEYRING_KEY_V2: &str = "hybrid-pq-private-key-v2"; // new
 
 pub struct HybridEntityIdentity {
     /// The stable 32-byte entity identifier
@@ -91,7 +93,8 @@ impl HybridEntityIdentity {
 
     fn save_hybrid_key(entry: &Entry, key: &HybridSigningKey) -> anyhow::Result<()> {
         let secret_bytes = key.to_secret_bytes();
-        entry.set_password(&hex::encode(&secret_bytes))
+        entry
+            .set_password(&hex::encode(&secret_bytes))
             .map_err(|e| anyhow::anyhow!("Failed to save hybrid key: {}", e))?;
         tracing::info!("Hybrid PQ keypair saved to OS keystore");
         Ok(())

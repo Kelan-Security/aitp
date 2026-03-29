@@ -154,14 +154,30 @@ impl Default for LoggingConfig {
 }
 
 // ── default functions ──
-fn default_api_port() -> u16 { 3000 }
-fn default_udp_port() -> u16 { 9999 }
-fn default_proxy_port() -> u16 { 7654 }
-fn default_entity_type() -> String { "workstation".to_string() }
-fn default_mode() -> InterceptionMode { InterceptionMode::Proxy }
-fn default_log_level() -> String { "info".to_string() }
-fn default_true() -> bool { true }
-fn default_exclude_ports() -> Vec<u16> { vec![22, 53, 123] }
+fn default_api_port() -> u16 {
+    3000
+}
+fn default_udp_port() -> u16 {
+    9999
+}
+fn default_proxy_port() -> u16 {
+    7654
+}
+fn default_entity_type() -> String {
+    "workstation".to_string()
+}
+fn default_mode() -> InterceptionMode {
+    InterceptionMode::Proxy
+}
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_exclude_ports() -> Vec<u16> {
+    vec![22, 53, 123]
+}
 
 impl AgentConfig {
     /// Load from file, fall back to defaults + env overrides
@@ -192,7 +208,10 @@ impl AgentConfig {
     /// Intelligence Core base URL
     pub fn ic_url(&self) -> String {
         let scheme = if self.server.tls { "https" } else { "http" };
-        format!("{}://{}:{}", scheme, self.server.address, self.server.api_port)
+        format!(
+            "{}://{}:{}",
+            scheme, self.server.address, self.server.api_port
+        )
     }
 
     /// WebSocket URL for command channel

@@ -64,7 +64,9 @@ impl KelanClientBuilder {
 
     pub async fn build(self) -> Result<KelanClient, KelanError> {
         Ok(KelanClient {
-            inner: Arc::new(KelanClientInner { _config_path: self.config_path })
+            inner: Arc::new(KelanClientInner {
+                _config_path: self.config_path,
+            }),
         })
     }
 }
@@ -91,10 +93,11 @@ impl std::future::IntoFuture for KelanSessionBuilder {
             let socket = UdpSocket::bind("0.0.0.0:0")
                 .await
                 .map_err(|e| KelanError::Transport(e.to_string()))?;
-            
+
             // Send synthetic SYN packet equivalent to target just for SDK demonstration capability
             let msg = format!("SYN {:?}", self.intent);
-            socket.send_to(msg.as_bytes(), &self.addr)
+            socket
+                .send_to(msg.as_bytes(), &self.addr)
                 .await
                 .map_err(|e| KelanError::Transport(e.to_string()))?;
 
@@ -112,7 +115,7 @@ impl std::future::IntoFuture for KelanSessionBuilder {
                 Arc::new(socket),
                 self.addr,
                 rand::random(),
-                simulated_trust
+                simulated_trust,
             ))
         })
     }

@@ -43,7 +43,10 @@ impl SessionTable {
     /// Purge sessions older than their expiry.
     pub async fn purge_expired(&self) {
         let now = std::time::Instant::now();
-        self.inner.write().await.retain(|_, permit| permit.expires_at > now);
+        self.inner
+            .write()
+            .await
+            .retain(|_, permit| permit.expires_at > now);
     }
 
     /// Return count of active sessions.
@@ -61,7 +64,8 @@ impl SessionTable {
                 trust_score: permit.trust_score,
                 verdict: permit.verdict.to_string(),
                 intent: permit.intent.to_string(),
-                age_secs: permit.expires_at
+                age_secs: permit
+                    .expires_at
                     .checked_duration_since(std::time::Instant::now())
                     .map(|d| 3600u64.saturating_sub(d.as_secs()))
                     .unwrap_or(3600),

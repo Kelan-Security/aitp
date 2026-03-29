@@ -6,6 +6,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rand::RngCore;
 
+use kelan_crypto::{
+    hybrid_sig::{verify_hybrid, HybridSignature, HybridVerifyingKey},
+    kem::{HybridKem, KemPublicKey},
+    CryptoError, SharedSecret,
+};
+
+use x25519_dalek::PublicKey as X25519Pk;
+
 use crate::identity::EntityIdentity;
 
 #[derive(Debug, Clone)]
@@ -39,27 +47,27 @@ impl std::fmt::Display for Verdict {
 #[repr(u16)]
 #[allow(dead_code)]
 pub enum IntentCode {
-    ModelInference  = 0x0001,
-    DataSync        = 0x0002,
-    ControlSignal   = 0x0003,
-    Telemetry       = 0x0004,
+    ModelInference = 0x0001,
+    DataSync = 0x0002,
+    ControlSignal = 0x0003,
+    Telemetry = 0x0004,
     AgentCoordinate = 0x0005,
-    FileTransfer    = 0x0006,
-    Heartbeat       = 0x0007,
-    Unknown         = 0x00FF,
+    FileTransfer = 0x0006,
+    Heartbeat = 0x0007,
+    Unknown = 0x00FF,
 }
 
 impl std::fmt::Display for IntentCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IntentCode::ModelInference  => write!(f, "ModelInference"),
-            IntentCode::DataSync        => write!(f, "DataSync"),
-            IntentCode::ControlSignal   => write!(f, "ControlSignal"),
-            IntentCode::Telemetry       => write!(f, "Telemetry"),
+            IntentCode::ModelInference => write!(f, "ModelInference"),
+            IntentCode::DataSync => write!(f, "DataSync"),
+            IntentCode::ControlSignal => write!(f, "ControlSignal"),
+            IntentCode::Telemetry => write!(f, "Telemetry"),
             IntentCode::AgentCoordinate => write!(f, "AgentCoordinate"),
-            IntentCode::FileTransfer    => write!(f, "FileTransfer"),
-            IntentCode::Heartbeat       => write!(f, "Heartbeat"),
-            IntentCode::Unknown         => write!(f, "Unknown"),
+            IntentCode::FileTransfer => write!(f, "FileTransfer"),
+            IntentCode::Heartbeat => write!(f, "Heartbeat"),
+            IntentCode::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -77,9 +85,9 @@ impl AitpHandshake {
         server_host: &str,
         server_port: u16,
     ) -> anyhow::Result<Self> {
-        let server_addr: std::net::SocketAddr =
-            format!("{}:{}", server_host, server_port).parse()
-                .map_err(|e| anyhow::anyhow!("Invalid server address: {}", e))?;
+        let server_addr: std::net::SocketAddr = format!("{}:{}", server_host, server_port)
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Invalid server address: {}", e))?;
 
         let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
         Ok(Self {
@@ -110,13 +118,12 @@ impl AitpHandshake {
         let session_id = rand::random::<u64>();
         let mut nonce = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce);
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?.as_micros() as u64;
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros() as u64;
 
         // ── Phase 1: AITP_HELLO (SYN)
         let mut hello = Vec::with_capacity(128);
-        hello.push(3u8);          // version
-        hello.push(0x01u8);       // flags: SYN
+        hello.push(3u8); // version
+        hello.push(0x01u8); // flags: SYN
         hello.extend_from_slice(&(intent as u16).to_be_bytes());
         hello.extend_from_slice(&session_id.to_be_bytes());
         hello.extend_from_slice(&timestamp.to_be_bytes());
@@ -124,7 +131,7 @@ impl AitpHandshake {
         hello.extend_from_slice(&self.identity.entity_id);
         hello.extend_from_slice(&parse_entity_id(dest_entity_id)?);
 
-        let signature = self.identity.sign(&hello);
+        let signature = self.identity.sign(&hello).to_bytes();
         hello.extend_from_slice(&signature);
 
         self.socket.send_to(&hello, self.server_addr).await?;
@@ -134,12 +141,12 @@ impl AitpHandshake {
         let challenge = self.recv_challenge(session_id).await?;
         tracing::debug!(session_id, "Phase 2: Challenge received");
 
-        let challenge_sig = self.identity.sign(&challenge);
+        let challenge_sig = self.identity.sign(&challenge).to_bytes();
         let mut response = Vec::with_capacity(128);
         response.push(0x02u8); // type: challenge_response
         response.extend_from_slice(&session_id.to_be_bytes());
         response.extend_from_slice(&challenge_sig);
-        response.extend_from_slice(&self.identity.public_key_bytes);
+        response.extend_from_slice(&self.identity.public_key_bytes());
 
         self.socket.send_to(&response, self.server_addr).await?;
         tracing::debug!(session_id, "Phase 2: Challenge response sent");
@@ -148,7 +155,7 @@ impl AitpHandshake {
         let mut intent_bytes = Vec::new();
         intent_bytes.extend_from_slice(&session_id.to_be_bytes());
         intent_bytes.extend_from_slice(&(intent as u16).to_be_bytes());
-        let intent_sig = self.identity.sign(&intent_bytes);
+        let intent_sig = self.identity.sign(&intent_bytes).to_bytes();
 
         let mut intent_packet = Vec::with_capacity(80);
         intent_packet.push(0x03u8); // type: intent_declare
@@ -156,7 +163,9 @@ impl AitpHandshake {
         intent_packet.extend_from_slice(&(intent as u16).to_be_bytes());
         intent_packet.extend_from_slice(&intent_sig);
 
-        self.socket.send_to(&intent_packet, self.server_addr).await?;
+        self.socket
+            .send_to(&intent_packet, self.server_addr)
+            .await?;
         tracing::debug!(session_id, "Phase 3: Intent declared");
 
         // ── Phase 4+5: Wait for AI evaluation + verdict
@@ -210,7 +219,11 @@ impl AitpHandshake {
                 if recv_sid == session_id {
                     let trust_score = buf[9];
                     let verdict = if buf[0] == 0x20 {
-                        if trust_score >= 128 { Verdict::Allow } else { Verdict::Monitor }
+                        if trust_score >= 128 {
+                            Verdict::Allow
+                        } else {
+                            Verdict::Monitor
+                        }
                     } else {
                         Verdict::Deny
                     };
@@ -238,6 +251,44 @@ impl AitpHandshake {
                 }
             }
         }
+    }
+    #[allow(dead_code)] // Used by agent binaries full flow
+    async fn perform_kem_exchange(
+        &self,
+        server_x25519_pk: &X25519Pk,
+        server_pq_pk: &KemPublicKey,
+        session_id: u64,
+    ) -> Result<SharedSecret, CryptoError> {
+        let (ephemeral_x25519_pk, pq_ciphertext, shared_secret) =
+            HybridKem::encapsulate(server_x25519_pk, server_pq_pk);
+
+        let mut kem_packet = Vec::with_capacity(1200);
+        kem_packet.push(0x05u8); // type: kem_encapsulate
+        kem_packet.extend_from_slice(&session_id.to_be_bytes());
+        kem_packet.extend_from_slice(ephemeral_x25519_pk.as_bytes());
+        kem_packet.extend_from_slice(&pq_ciphertext);
+
+        let _ = self.socket.send_to(&kem_packet, self.server_addr).await;
+
+        tracing::debug!(
+            session_id = session_id,
+            algorithm = "X25519 + ML-KEM-768 hybrid",
+            "KEM exchange complete — shared session secret established"
+        );
+
+        Ok(shared_secret)
+    }
+
+    #[allow(dead_code)] // Used by agent binaries full flow
+    fn verify_server_signature(
+        server_pk: &HybridVerifyingKey,
+        message: &[u8],
+        signature: &HybridSignature,
+    ) -> Result<(), CryptoError> {
+        verify_hybrid(server_pk, message, signature).map_err(|e| {
+            tracing::warn!("Server signature verification failed: {}", e);
+            e
+        })
     }
 }
 

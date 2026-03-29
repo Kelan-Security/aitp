@@ -19,17 +19,17 @@ impl Default for EntityType {
 #[derive(Debug, Deserialize)]
 pub struct KelanConfig {
     #[serde(default = "default_intelligence_core_url")]
-    pub intelligence_core_url: String,  // e.g. "http://localhost:3000"
-    
+    pub intelligence_core_url: String, // e.g. "http://localhost:3000"
+
     #[serde(default = "default_entity_name")]
     pub entity_name: String,
-    
+
     #[serde(default)]
     pub entity_type: EntityType,
-    
+
     #[serde(default)]
     pub department: Option<String>,
-    
+
     #[serde(default)]
     pub clearance_level: u8,
 }

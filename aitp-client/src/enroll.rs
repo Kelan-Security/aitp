@@ -1,9 +1,9 @@
 // Kelan Security Client Agent — enroll.rs
 // Device enrollment with the Kelan Intelligence Core.
 
-use std::path::Path;
 use crate::config::AgentConfig;
 use crate::identity::EntityIdentity;
+use std::path::Path;
 
 /// Enroll this device with the Intelligence Core.
 /// Registers the entity via REST API and saves the token to config.
@@ -16,9 +16,16 @@ pub async fn run(
     println!("Server: {}", server_address);
 
     // 1. Generate or load keypair
-    let identity = EntityIdentity::load_or_generate(config_path.parent())?;
-    println!("Entity ID: {}", identity.entity_id_hex());
-    println!("Public Key: {}...", &identity.public_key_hex()[..32.min(identity.public_key_hex().len())]);
+    let identity = EntityIdentity::load_or_generate()?;
+
+    println!("╔══════════════════════════════════════════════════╗");
+    println!("║           Kelan Agent Enrollment                 ║");
+    println!("╠══════════════════════════════════════════════════╣");
+    println!("  Entity ID:   {}", identity.entity_id_hex());
+    println!("  Algorithm:   {:?}", identity.algorithm);
+    println!("  Public key:  {} bytes", identity.public_key_bytes().len());
+    println!("  PQ capable:  {}", identity.algorithm.is_pq_capable());
+    println!("╚══════════════════════════════════════════════════╝");
 
     // 2. Auto-detect device name
     let hostname = std::env::var("HOSTNAME")
@@ -48,7 +55,9 @@ pub async fn run(
         .json(&serde_json::json!({
             "name": hostname,
             "entity_type": "workstation",
-            "public_key": identity.public_key_hex(),
+            "public_key": hex::encode(identity.public_key_bytes()), // We use the new hybrid composite struct size
+            "pq_public_key": hex::encode(identity.public_key_bytes()), // Full hybrid ~1985 bytes!
+            "crypto_algorithm": format!("{:?}", identity.algorithm),
             "entity_id": identity.entity_id_hex(),
         }))
         .send()

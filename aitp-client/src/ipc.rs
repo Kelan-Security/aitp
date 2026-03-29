@@ -55,7 +55,8 @@ pub async fn start_ipc_server(
 
 /// Query the IPC socket for agent status.
 pub async fn query_status() -> anyhow::Result<AgentStatus> {
-    let mut stream = tokio::net::UnixStream::connect(IPC_SOCKET_PATH).await
+    let mut stream = tokio::net::UnixStream::connect(IPC_SOCKET_PATH)
+        .await
         .map_err(|_| anyhow::anyhow!("Cannot connect to agent — is it running?"))?;
 
     stream.write_all(b"status").await?;

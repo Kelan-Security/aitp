@@ -9,6 +9,7 @@ members = [
     "aitp-observability",
     "aitp-server",
     "aitp-client",
+    "kelan-crypto",
     "kelan-ebpf/kelan-ebpf-loader",
     "tools/kelan-license-tool"
 ]

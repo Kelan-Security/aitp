@@ -66,7 +66,9 @@ pub struct EnforcerStats {
 pub enum EnforcerMode {
     #[default]
     Software,
-    BpfXdp { interface: String },
+    BpfXdp {
+        interface: String,
+    },
 }
 
 #[cfg(target_os = "linux")]
@@ -130,10 +132,12 @@ mod linux {
                 XdpFlags::SKB_MODE
             };
 
-            program.attach(interface, flags)
+            program
+                .attach(interface, flags)
                 .map_err(|e| anyhow::anyhow!("Failed to attach XDP to {}: {}", interface, e))?;
 
-            let permit_map_data = bpf.take_map("PERMIT_MAP")
+            let permit_map_data = bpf
+                .take_map("PERMIT_MAP")
                 .ok_or_else(|| anyhow::anyhow!("PERMIT_MAP not found in BPF object"))?;
             let permit_map = HashMap::try_from(permit_map_data)?;
 
@@ -156,7 +160,11 @@ mod linux {
             })
         }
 
-        pub async fn permit(&self, session_id: u64, permit: super::SessionPermit) -> anyhow::Result<()> {
+        pub async fn permit(
+            &self,
+            session_id: u64,
+            permit: super::SessionPermit,
+        ) -> anyhow::Result<()> {
             {
                 let mut map = self.permit_map.write().await;
                 map.insert(session_id, permit, 0)

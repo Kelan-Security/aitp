@@ -5,19 +5,17 @@
 //! Verification requires BOTH to pass.
 //! An attacker must break BOTH to forge — provides maximum security.
 
-use ed25519_dalek::{SigningKey as Ed25519SigningKey, VerifyingKey as Ed25519VerifyingKey,
-                    Signer, Verifier, Signature as Ed25519Signature};
-use pqcrypto_mldsa::mldsa65::{
-    self,
-    PublicKey  as MlDsa65PublicKey,
-    SecretKey  as MlDsa65SecretKey,
-    SignedMessage,
+use ed25519_dalek::{
+    Signature as Ed25519Signature, Signer, SigningKey as Ed25519SigningKey, Verifier,
+    VerifyingKey as Ed25519VerifyingKey,
 };
-use pqcrypto_traits::sign::{SignedMessage as SignedMessageTrait,
-                             PublicKey    as PublicKeyTrait,
-                             SecretKey    as SecretKeyTrait};
-use sha2::{Sha256, Digest};
-use zeroize::Zeroize;
+use pqcrypto_mldsa::mldsa65::{
+    self, PublicKey as MlDsa65PublicKey, SecretKey as MlDsa65SecretKey, SignedMessage,
+};
+use pqcrypto_traits::sign::{
+    PublicKey as PublicKeyTrait, SecretKey as SecretKeyTrait, SignedMessage as SignedMessageTrait,
+};
+use sha2::{Digest, Sha256};
 
 /// A hybrid verifying key containing both classical and PQ components.
 #[derive(Clone)]
@@ -39,28 +37,37 @@ impl HybridVerifyingKey {
 
     /// Deserialise from bytes. Returns None if format is invalid.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < 1 { return None; }
+        if bytes.len() < 1 {
+            return None;
+        }
 
         let alg = super::CryptoAlgorithm::from_byte(bytes[0])?;
 
         match alg {
             super::CryptoAlgorithm::Classical => {
                 // Classical-only: only Ed25519 public key present
-                if bytes.len() < 1 + super::ED25519_PK_BYTES { return None; }
+                if bytes.len() < 1 + super::ED25519_PK_BYTES {
+                    return None;
+                }
                 let classical_bytes: [u8; 32] = bytes[1..33].try_into().ok()?;
-                let classical = Ed25519VerifyingKey::from_bytes(&classical_bytes).ok()?;
+                let _classical = Ed25519VerifyingKey::from_bytes(&classical_bytes).ok()?;
                 // Dummy PQ key for classical-only mode (not used in verification)
                 // This is safe — verify() checks algorithm and skips PQ for Classical
                 None // Classical-only doesn't use HybridVerifyingKey
             }
-            super::CryptoAlgorithm::HybridPQ |
-            super::CryptoAlgorithm::PostQuantum => {
-                if bytes.len() < super::HYBRID_PK_BYTES { return None; }
+            super::CryptoAlgorithm::HybridPQ | super::CryptoAlgorithm::PostQuantum => {
+                if bytes.len() < super::HYBRID_PK_BYTES {
+                    return None;
+                }
                 let classical_bytes: [u8; 32] = bytes[1..33].try_into().ok()?;
                 let classical = Ed25519VerifyingKey::from_bytes(&classical_bytes).ok()?;
                 let pq_bytes = &bytes[33..33 + super::MLDSA65_PK_BYTES];
                 let post_quantum = MlDsa65PublicKey::from_bytes(pq_bytes).ok()?;
-                Some(Self { classical, post_quantum, algorithm: alg })
+                Some(Self {
+                    classical,
+                    post_quantum,
+                    algorithm: alg,
+                })
             }
         }
     }
@@ -77,8 +84,8 @@ impl HybridVerifyingKey {
 
 /// A hybrid signature: both Ed25519 and ML-DSA-65 signatures on the same message.
 pub struct HybridSignature {
-    pub classical:    [u8; 64],     // Ed25519 signature
-    pub post_quantum: Vec<u8>,      // ML-DSA-65 signature (3309 bytes)
+    pub classical: [u8; 64],   // Ed25519 signature
+    pub post_quantum: Vec<u8>, // ML-DSA-65 signature (3309 bytes)
 }
 
 impl HybridSignature {
@@ -94,21 +101,28 @@ impl HybridSignature {
 
     /// Deserialise a hybrid signature from bytes.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < 4 + super::ED25519_SIG_BYTES { return None; }
+        if bytes.len() < 4 + super::ED25519_SIG_BYTES {
+            return None;
+        }
         let pq_len = u32::from_le_bytes(bytes[..4].try_into().ok()?) as usize;
-        if bytes.len() < 4 + super::ED25519_SIG_BYTES + pq_len { return None; }
+        if bytes.len() < 4 + super::ED25519_SIG_BYTES + pq_len {
+            return None;
+        }
 
         let classical: [u8; 64] = bytes[4..68].try_into().ok()?;
         let post_quantum = bytes[68..68 + pq_len].to_vec();
 
-        Some(Self { classical, post_quantum })
+        Some(Self {
+            classical,
+            post_quantum,
+        })
     }
 }
 
 /// The hybrid signing key — holds both private keys.
 /// Must be zeroized on drop.
 pub struct HybridSigningKey {
-    classical:    Ed25519SigningKey,
+    classical: Ed25519SigningKey,
     post_quantum: MlDsa65SecretKey,
     pub verifying_key: HybridVerifyingKey,
 }
@@ -126,12 +140,16 @@ impl HybridSigningKey {
         let (pq_pk, pq_sk) = mldsa65::keypair();
 
         let verifying_key = HybridVerifyingKey {
-            classical:    classical_vk,
+            classical: classical_vk,
             post_quantum: pq_pk,
-            algorithm:    super::CryptoAlgorithm::HybridPQ,
+            algorithm: super::CryptoAlgorithm::HybridPQ,
         };
 
-        Self { classical, post_quantum: pq_sk, verifying_key }
+        Self {
+            classical,
+            post_quantum: pq_sk,
+            verifying_key,
+        }
     }
 
     /// Sign a message with both algorithms.
@@ -148,7 +166,7 @@ impl HybridSigningKey {
         let post_quantum_sig = signed.as_bytes()[..sig_len].to_vec();
 
         HybridSignature {
-            classical:    classical_sig.to_bytes(),
+            classical: classical_sig.to_bytes(),
             post_quantum: post_quantum_sig,
         }
     }
@@ -192,12 +210,16 @@ impl HybridSigningKey {
             .map_err(|e| anyhow::anyhow!("ML-DSA-65 pubkey: {:?}", e))?;
 
         let verifying_key = HybridVerifyingKey {
-            classical:    classical_vk,
+            classical: classical_vk,
             post_quantum: pq_pk,
-            algorithm:    super::CryptoAlgorithm::HybridPQ,
+            algorithm: super::CryptoAlgorithm::HybridPQ,
         };
 
-        Ok(Self { classical, post_quantum: pq_sk, verifying_key })
+        Ok(Self {
+            classical,
+            post_quantum: pq_sk,
+            verifying_key,
+        })
     }
 }
 
@@ -206,12 +228,13 @@ impl HybridSigningKey {
 /// For Classical: only Ed25519 is checked (backward compat).
 pub fn verify_hybrid(
     verifying_key: &HybridVerifyingKey,
-    message:       &[u8],
-    signature:     &HybridSignature,
+    message: &[u8],
+    signature: &HybridSignature,
 ) -> Result<(), CryptoError> {
     // Always verify classical Ed25519
     let ed_sig = Ed25519Signature::from_bytes(&signature.classical);
-    verifying_key.classical
+    verifying_key
+        .classical
         .verify(message, &ed_sig)
         .map_err(|_| CryptoError::ClassicalVerifyFailed)?;
 
@@ -225,11 +248,10 @@ pub fn verify_hybrid(
         let mut signed_message = signature.post_quantum.clone();
         signed_message.extend_from_slice(message);
 
-        let sm = SignedMessage::from_bytes(&signed_message)
-            .map_err(|_| CryptoError::PqVerifyFailed)?;
+        let sm =
+            SignedMessage::from_bytes(&signed_message).map_err(|_| CryptoError::PqVerifyFailed)?;
 
-        mldsa65::open(&sm, &verifying_key.post_quantum)
-            .map_err(|_| CryptoError::PqVerifyFailed)?;
+        mldsa65::open(&sm, &verifying_key.post_quantum).map_err(|_| CryptoError::PqVerifyFailed)?;
     }
 
     Ok(())
@@ -238,11 +260,12 @@ pub fn verify_hybrid(
 /// Verify a classical Ed25519-only signature (backward compat for old clients).
 pub fn verify_classical(
     verifying_key: &Ed25519VerifyingKey,
-    message:       &[u8],
-    signature:     &[u8; 64],
+    message: &[u8],
+    signature: &[u8; 64],
 ) -> Result<(), CryptoError> {
     let sig = Ed25519Signature::from_bytes(signature);
-    verifying_key.verify(message, &sig)
+    verifying_key
+        .verify(message, &sig)
         .map_err(|_| CryptoError::ClassicalVerifyFailed)
 }
 

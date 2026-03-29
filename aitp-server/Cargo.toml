@@ -50,6 +50,7 @@ zerocopy = { version = "0.7", features = ["derive"] }
 mimalloc = { version = "0.1", default-features = false }
 http = "1"
 kelan-ebpf-loader = { path = "../kelan-ebpf/kelan-ebpf-loader" }
+kelan-crypto  = { path = "../kelan-crypto" }
 prometheus    = { version = "0.13", default-features = false, features = ["process"] }
 lazy_static   = "1"
 

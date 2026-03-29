@@ -116,10 +116,7 @@ fn install_launchd() -> anyhow::Result<()> {
     );
 
     std::fs::create_dir_all("/var/log/kelan")?;
-    std::fs::write(
-        "/Library/LaunchDaemons/io.kelan.agent.plist",
-        plist,
-    )?;
+    std::fs::write("/Library/LaunchDaemons/io.kelan.agent.plist", plist)?;
     std::process::Command::new("launchctl")
         .args(["load", "/Library/LaunchDaemons/io.kelan.agent.plist"])
         .status()?;
