@@ -33,6 +33,8 @@ pub struct ActiveSession {
     pub started_at: i64,
     pub last_activity: i64,
     pub anomaly_flags: Vec<String>,
+    #[serde(skip)]
+    pub session_key: Option<[u8; 32]>,
 }
 
 /// Manages active sessions in memory.

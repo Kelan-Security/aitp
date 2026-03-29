@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::crypto::CryptoAlgorithm;
+
 /// Application configuration loaded from environment variables.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -22,6 +24,11 @@ pub struct AppConfig {
     /// Path to TLS private key PEM file (TLS_KEY_PATH)
     pub tls_key_path: Option<String>,
     pub xdp_interface: String,
+    
+    /// Minimum cryptographic algorithm clients must use.
+    pub min_crypto_algorithm: CryptoAlgorithm,  
+    /// Advertise PQ support in server hello (clients know to use hybrid)
+    pub advertise_pq: bool,  
 }
 
 impl AppConfig {
@@ -85,6 +92,19 @@ impl AppConfig {
             tls_cert_path: std::env::var("TLS_CERT_PATH").ok(),
             tls_key_path:  std::env::var("TLS_KEY_PATH").ok(),
             xdp_interface: std::env::var("XDP_INTERFACE").unwrap_or_else(|_| "eth0".into()),
+            min_crypto_algorithm: std::env::var("MIN_CRYPTO_ALGORITHM")
+                .ok()
+                .and_then(|s| match s.as_str() {
+                    "Classical" => Some(CryptoAlgorithm::Classical),
+                    "HybridPQ" => Some(CryptoAlgorithm::HybridPQ),
+                    "PostQuantum" => Some(CryptoAlgorithm::PostQuantum),
+                    _ => None,
+                })
+                .unwrap_or(CryptoAlgorithm::Classical),
+            advertise_pq: std::env::var("ADVERTISE_PQ")
+                .unwrap_or_else(|_| "true".into())
+                .parse()
+                .unwrap_or(true),
         }
     }
 

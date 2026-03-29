@@ -9,7 +9,6 @@ use std::sync::Arc;
 use crate::auth::OrgId;
 use crate::db::models::*;
 use crate::error::AppError;
-use crate::identity::crypto;
 use crate::state::AppState;
 use crate::trust::SessionContext;
 
@@ -19,7 +18,12 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/entities/:id", get(get_entity).delete(delete_entity))
         .route("/api/entities/:id/quarantine", put(quarantine_entity))
         .route("/api/entities/:id/release", put(release_entity))
-        .route("/api/entities/:id/test-session", post(test_session))
+        .route(
+            "/api/entities/:id/test-session",
+            post(test_session).route_layer(axum::middleware::from_fn(
+                crate::api::middleware::require_hybrid_signature,
+            )),
+        )
 }
 
 async fn list_entities(
@@ -41,11 +45,13 @@ async fn create_entity(
         .check_node_limit(current_count)
         .map_err(|e| AppError::LicenseError(e.to_string()))?;
 
-    // Generate Ed25519 keypair
-    let (sk_bytes, pk_bytes) = crypto::generate_keypair();
-    let entity_id = crypto::entity_id_from_pubkey(&pk_bytes);
-    let public_key_hex = hex::encode(pk_bytes);
-    let private_key_hex = hex::encode(sk_bytes);
+    // Generate Hybrid PQ keypair
+    let signing_key = crate::crypto::HybridSigningKey::generate();
+    let pk_bytes = signing_key.verifying_key.to_bytes();
+    let sk_bytes = signing_key.to_secret_bytes();
+    let entity_id = hex::encode(signing_key.verifying_key.entity_id());
+    let public_key_hex = hex::encode(&pk_bytes);
+    let private_key_hex = hex::encode(&sk_bytes);
 
     let allowed_intents = req.allowed_intents.unwrap_or_else(|| {
         vec![

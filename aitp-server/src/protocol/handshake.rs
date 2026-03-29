@@ -1,8 +1,10 @@
-#![allow(dead_code)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::{AitpHeader, IntentCode};
+use crate::crypto::HybridKem;
+use x25519_dalek::{PublicKey as X25519Pk, StaticSecret as X25519Sk};
+use pqcrypto_mlkem::mlkem768::SecretKey as KemSk;
 
 #[cfg(test)]
 use super::{FLAG_ACK, FLAG_SYN};
@@ -25,7 +27,7 @@ pub enum HandshakePhase {
 }
 
 /// Context for an in-progress handshake.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HandshakeContext {
     pub phase: HandshakePhase,
     pub session_id: u64,
@@ -36,6 +38,7 @@ pub struct HandshakeContext {
     pub trust_score: Option<u8>,
     pub verdict: Option<String>,
     pub started_at: i64,
+    pub session_key: Option<[u8; 32]>,
 }
 
 /// Manages in-progress handshakes.
@@ -59,13 +62,14 @@ impl HandshakeManager {
         let ctx = HandshakeContext {
             phase: HandshakePhase::AwaitingSynAck,
             session_id: header.session_id,
-            source_entity_id: hex::encode(header.source_id),
+            source_entity_id: hex::encode(header.source_id()),
             dest_entity_id: hex::encode(header.dest_id),
             intent: IntentCode::from_u16(header.intent),
             challenge_nonce: Some(header.nonce),
             trust_score: None,
             verdict: None,
             started_at: chrono::Utc::now().timestamp(),
+            session_key: None,
         };
 
         self.active.insert(header.session_id, ctx);
@@ -88,6 +92,31 @@ impl HandshakeManager {
         ctx.verdict = Some(verdict.to_string());
         ctx.phase = HandshakePhase::Complete;
         Ok(ctx)
+    }
+
+    /// Process a received KEM ciphertext from an initiator to derive the session shared secret.
+    pub fn decapsulate_session_key(
+        &mut self,
+        session_id: u64,
+        server_classical_sk: X25519Sk,
+        server_pq_sk: &KemSk,
+        client_classical_pk: &X25519Pk,
+        pq_ciphertext: &[u8],
+    ) -> Result<(), &'static str> {
+        let ctx = self
+            .active
+            .get_mut(&session_id)
+            .ok_or("no active handshake for session")?;
+
+        let shared_secret = HybridKem::decapsulate(
+            server_classical_sk,
+            server_pq_sk,
+            client_classical_pk,
+            pq_ciphertext,
+        ).map_err(|_| "Failed to decapsulate hybrid KEM ciphertext")?;
+
+        ctx.session_key = Some(shared_secret.0);
+        Ok(())
     }
 
     /// Get a handshake context.
@@ -122,14 +151,19 @@ mod tests {
     #[test]
     fn test_handshake_begin() {
         let mut mgr = HandshakeManager::new();
-        let hdr = AitpHeader::new(
-            FLAG_SYN,
-            IntentCode::ModelInference,
-            100,
-            [1u8; 32],
-            [2u8; 32],
-            0,
-        );
+        let hdr = AitpHeader {
+            version: 4,
+            flags: FLAG_SYN,
+            intent: IntentCode::ModelInference as u16,
+            session_id: 100,
+            timestamp: 0,
+            nonce: [0u8; 12],
+            algorithm: 1,
+            source_pk: vec![1u8; 32],
+            dest_id: [2u8; 32],
+            signature: vec![],
+            payload_len: 0,
+        };
 
         let ctx = mgr.begin(&hdr).unwrap();
         assert_eq!(ctx.phase, HandshakePhase::AwaitingSynAck);
@@ -140,14 +174,19 @@ mod tests {
     #[test]
     fn test_handshake_non_syn_fails() {
         let mut mgr = HandshakeManager::new();
-        let hdr = AitpHeader::new(
-            FLAG_ACK,
-            IntentCode::ModelInference,
-            100,
-            [1u8; 32],
-            [2u8; 32],
-            0,
-        );
+        let hdr = AitpHeader {
+            version: 4,
+            flags: FLAG_ACK,
+            intent: IntentCode::ModelInference as u16,
+            session_id: 100,
+            timestamp: 0,
+            nonce: [0u8; 12],
+            algorithm: 1,
+            source_pk: vec![1u8; 32],
+            dest_id: [2u8; 32],
+            signature: vec![],
+            payload_len: 0,
+        };
 
         assert!(mgr.begin(&hdr).is_err());
     }
@@ -155,7 +194,7 @@ mod tests {
     #[test]
     fn test_handshake_complete() {
         let mut mgr = HandshakeManager::new();
-        let hdr = AitpHeader::new(FLAG_SYN, IntentCode::DataSync, 200, [1u8; 32], [2u8; 32], 0);
+        let hdr = AitpHeader { version: 4, flags: FLAG_SYN, intent: IntentCode::DataSync as u16, session_id: 200, timestamp: 0, nonce: [0; 12], algorithm: 1, source_pk: vec![1; 32], dest_id: [2; 32], signature: vec![], payload_len: 0 };
 
         mgr.begin(&hdr).unwrap();
         let ctx = mgr.complete_trust_eval(200, 180, "Allow").unwrap();
@@ -167,14 +206,19 @@ mod tests {
     #[test]
     fn test_handshake_cleanup() {
         let mut mgr = HandshakeManager::new();
-        let hdr = AitpHeader::new(
-            FLAG_SYN,
-            IntentCode::Heartbeat,
-            300,
-            [1u8; 32],
-            [2u8; 32],
-            0,
-        );
+        let hdr = AitpHeader {
+            version: 4,
+            flags: FLAG_SYN,
+            intent: IntentCode::Heartbeat as u16,
+            session_id: 300,
+            timestamp: 0,
+            nonce: [0u8; 12],
+            algorithm: 1,
+            source_pk: vec![1u8; 32],
+            dest_id: [2u8; 32],
+            signature: vec![],
+            payload_len: 0,
+        };
 
         mgr.begin(&hdr).unwrap();
         // Should not clean up fresh handshakes

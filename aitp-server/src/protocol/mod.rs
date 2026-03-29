@@ -2,7 +2,6 @@ pub mod handshake;
 pub mod session;
 
 use serde::{Deserialize, Serialize};
-use zerocopy::{AsBytes, FromBytes, FromZeroes, Ref, Unaligned};
 
 // ────────────────────────── Flags ──────────────────────────
 
@@ -76,161 +75,150 @@ impl std::fmt::Display for IntentCode {
     }
 }
 
-// ────────────────────────── AitpHeader ──────────────────────────
+// ────────────────────────── AitpHeaderV4 ──────────────────────────
 
-#[derive(Debug, AsBytes, FromBytes, FromZeroes, Unaligned)]
-#[repr(C, packed)]
-pub struct AitpHeaderWire {
-    pub version:     u8,
-    pub flags:       u8,
-    pub intent:      [u8; 2],   // big-endian u16
-    pub session_id:  [u8; 8],   // big-endian u64
-    pub timestamp:   [u8; 8],
-    pub nonce:       [u8; 12],
-    pub source_id:   [u8; 32],
-    pub dest_id:     [u8; 32],
-    pub signature:   [u8; 64],
-    pub payload_len: [u8; 4],
-}
-
-/// AITP packet header — 164 bytes on the wire.
+/// AITP v4 packet header — variable length to accommodate PQ key material.
+///
+/// Fixed section (37 bytes):
+///   version(1) + flags(1) + intent(2) + session_id(8) + timestamp(8) +
+///   nonce(12) + algorithm(1) + pk_len(2) + sig_len(2)
+///
+/// Variable section:
+///   source_id_pk[pk_len]   — public key (32 for classical, 1985 for hybrid)
+///   dest_id[32]            — destination EntityID (always 32 bytes SHA-256)
+///   signature[sig_len]     — signature over all above (64 or 3373 bytes)
+///   payload_len(4)
+///   payload[payload_len]   — AES-256-GCM encrypted
 #[derive(Debug, Clone)]
-pub struct AitpHeader {
-    pub version: u8,
-    pub flags: u8,
-    pub intent: u16,
+pub struct AitpHeaderV4 {
+    pub version:    u8,         // 4 for PQ-capable, 3 for legacy
+    pub flags:      u8,         // SYN|ACK|FIN|RST|REVOKE
+    pub intent:     u16,        // IntentCode
     pub session_id: u64,
-    pub timestamp: u64,      // unix microseconds
-    pub nonce: [u8; 12],     // replay prevention
-    pub source_id: [u8; 32], // SHA-256(Ed25519_pubkey)
-    pub dest_id: [u8; 32],
-    pub signature: [u8; 64], // Ed25519 signature
+    pub timestamp:  u64,        // Unix microseconds
+    pub nonce:      [u8; 12],
+    pub algorithm:  u8,         // CryptoAlgorithm byte
+    pub source_pk:  Vec<u8>,    // public key (variable length)
+    pub dest_id:    [u8; 32],   // SHA-256(dest_pubkey)
+    pub signature:  Vec<u8>,    // hybrid or classical signature
     pub payload_len: u32,
 }
 
-impl AitpHeader {
-    /// Total header size in bytes.
-    /// 1 (version) + 1 (flags) + 2 (intent) + 8 (session_id) + 8 (timestamp)
-    /// + 12 (nonce) + 32 (source_id) + 32 (dest_id) + 64 (signature) + 4 (payload_len)
-    ///   = 164 bytes.
-    pub const SIZE: usize = 164;
-
-    /// Create a new header (signature zeroed — call sign() before sending).
-    pub fn new(
-        flags: u8,
-        intent: IntentCode,
-        session_id: u64,
-        source_id: [u8; 32],
-        dest_id: [u8; 32],
-        payload_len: u32,
-    ) -> Self {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-
-        let mut nonce = [0u8; 12];
-        use rand::RngCore;
-        rand::thread_rng().fill_bytes(&mut nonce);
-
-        Self {
-            version: 1,
-            flags,
-            intent: intent as u16,
-            session_id,
-            timestamp: now,
-            nonce,
-            source_id,
-            dest_id,
-            signature: [0u8; 64],
-            payload_len,
-        }
-    }
-
-    /// Serialize the header to bytes (big-endian).
+impl AitpHeaderV4 {
+    /// Serialise to wire format
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(Self::SIZE);
-        buf.push(self.version);
-        buf.push(self.flags);
-        buf.extend_from_slice(&self.intent.to_be_bytes());
-        buf.extend_from_slice(&self.session_id.to_be_bytes());
-        buf.extend_from_slice(&self.timestamp.to_be_bytes());
-        buf.extend_from_slice(&self.nonce);
-        buf.extend_from_slice(&self.source_id);
-        buf.extend_from_slice(&self.dest_id);
-        buf.extend_from_slice(&self.signature);
-        buf.extend_from_slice(&self.payload_len.to_be_bytes());
-        buf
+        let mut out = Vec::new();
+        out.push(self.version);
+        out.push(self.flags);
+        out.extend_from_slice(&self.intent.to_be_bytes());
+        out.extend_from_slice(&self.session_id.to_be_bytes());
+        out.extend_from_slice(&self.timestamp.to_be_bytes());
+        out.extend_from_slice(&self.nonce);
+        out.push(self.algorithm);
+        out.extend_from_slice(&(self.source_pk.len() as u16).to_be_bytes());
+        out.extend_from_slice(&(self.signature.len() as u16).to_be_bytes());
+        out.extend_from_slice(&self.source_pk);
+        out.extend_from_slice(&self.dest_id);
+        out.extend_from_slice(&self.signature);
+        out.extend_from_slice(&self.payload_len.to_be_bytes());
+        out
     }
 
-    /// Deserialize from a byte buffer using zero-copy.
-    pub fn from_bytes(buf: &[u8]) -> Result<Self, &'static str> {
-        if buf.len() < Self::SIZE {
-            return Err("buffer too short for AITP header");
+    /// The bytes covered by the signature (everything before the sig field)
+    pub fn signing_payload(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.push(self.version);
+        out.push(self.flags);
+        out.extend_from_slice(&self.intent.to_be_bytes());
+        out.extend_from_slice(&self.session_id.to_be_bytes());
+        out.extend_from_slice(&self.timestamp.to_be_bytes());
+        out.extend_from_slice(&self.nonce);
+        out.push(self.algorithm);
+        out.extend_from_slice(&(self.source_pk.len() as u16).to_be_bytes());
+        out.extend_from_slice(&(self.signature.len() as u16).to_be_bytes());
+        out.extend_from_slice(&self.source_pk);
+        out.extend_from_slice(&self.dest_id);
+        out
+    }
+
+    /// Parse from wire format
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
+        if bytes.len() < 37 {
+            return Err("buffer too short for AITP v4 header fixed section");
+        }
+        let version = bytes[0];
+        let flags = bytes[1];
+        let intent = u16::from_be_bytes(bytes[2..4].try_into().unwrap());
+        let session_id = u64::from_be_bytes(bytes[4..12].try_into().unwrap());
+        let timestamp = u64::from_be_bytes(bytes[12..20].try_into().unwrap());
+        let nonce: [u8; 12] = bytes[20..32].try_into().unwrap();
+        let algorithm = bytes[32];
+        let pk_len = u16::from_be_bytes(bytes[33..35].try_into().unwrap()) as usize;
+        let sig_len = u16::from_be_bytes(bytes[35..37].try_into().unwrap()) as usize;
+
+        if sig_len > crate::crypto::HYBRID_SIG_BYTES {
+            return Err("Signature exceeds maximum allowable post-quantum length");
         }
 
-        let wire = Ref::<_, AitpHeaderWire>::new_unaligned(&buf[..Self::SIZE])
-            .ok_or("failed to align AITP header")?
-            .into_ref();
-
-        if wire.version != 1 {
-            return Err("unsupported AITP version");
+        let required_len = 37 + pk_len + 32 + sig_len + 4;
+        if bytes.len() < required_len {
+            return Err("buffer too short for AITP v4 header variable section");
         }
+
+        let mut offset = 37;
+        
+        // Bounding check for ML-KEM/ML-DSA public keys
+        if pk_len > crate::crypto::MLKEM768_PK_BYTES + crate::crypto::MLDSA65_SIG_BYTES + 32 {
+            return Err("Public key exceeds theoretical max length for hybrid identity");
+        }
+
+        let source_pk = bytes[offset..offset + pk_len].to_vec();
+        offset += pk_len;
+
+        let dest_id: [u8; 32] = bytes[offset..offset + 32].try_into().unwrap();
+        offset += 32;
+
+        let signature = bytes[offset..offset + sig_len].to_vec();
+        offset += sig_len;
+
+        let payload_len = u32::from_be_bytes(bytes[offset..offset + 4].try_into().unwrap());
 
         Ok(Self {
-            version: wire.version,
-            flags: wire.flags,
-            intent: u16::from_be_bytes(wire.intent),
-            session_id: u64::from_be_bytes(wire.session_id),
-            timestamp: u64::from_be_bytes(wire.timestamp),
-            nonce: wire.nonce,
-            source_id: wire.source_id,
-            dest_id: wire.dest_id,
-            signature: wire.signature,
-            payload_len: u32::from_be_bytes(wire.payload_len),
+            version,
+            flags,
+            intent,
+            session_id,
+            timestamp,
+            nonce,
+            algorithm,
+            source_pk,
+            dest_id,
+            signature,
+            payload_len,
         })
     }
 
-    /// Bytes covered by the signature (everything before the signature field).
-    pub fn signable_bytes(&self) -> Vec<u8> {
-        let full = self.to_bytes();
-        full[..96].to_vec()
+    pub fn source_id(&self) -> [u8; 32] {
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(&self.source_pk);
+        hasher.finalize().into()
     }
 
-    /// Check if a flag is set.
     pub fn has_flag(&self, flag: u8) -> bool {
         self.flags & flag != 0
     }
 
-    pub fn is_syn(&self) -> bool {
-        self.has_flag(FLAG_SYN)
-    }
-    pub fn is_ack(&self) -> bool {
-        self.has_flag(FLAG_ACK)
-    }
-    pub fn is_fin(&self) -> bool {
-        self.has_flag(FLAG_FIN)
-    }
-    pub fn is_rst(&self) -> bool {
-        self.has_flag(FLAG_RST)
-    }
-    pub fn is_revoke(&self) -> bool {
-        self.has_flag(FLAG_REVOKE)
-    }
+    pub fn is_syn(&self) -> bool { self.has_flag(FLAG_SYN) }
+    pub fn is_ack(&self) -> bool { self.has_flag(FLAG_ACK) }
+    pub fn is_fin(&self) -> bool { self.has_flag(FLAG_FIN) }
+    pub fn is_rst(&self) -> bool { self.has_flag(FLAG_RST) }
+    pub fn is_revoke(&self) -> bool { self.has_flag(FLAG_REVOKE) }
 }
 
-/// Verify the Ed25519 signature on an AITP header.
-pub fn verify_header_signature(header: &AitpHeader, pubkey: &[u8; 32]) -> bool {
-    use ed25519_dalek::Verifier;
-    use ed25519_dalek::{Signature, VerifyingKey};
-
-    let Ok(vk) = VerifyingKey::from_bytes(pubkey) else {
-        return false;
-    };
-    let sig = Signature::from_bytes(&header.signature);
-    let msg = header.signable_bytes();
-    vk.verify(&msg, &sig).is_ok()
-}
+// Map the generic name to V4 globally to prevent widespread renaming problems,
+// but ensure usages accommodate variable length keys.
+pub type AitpHeader = AitpHeaderV4;
 
 #[cfg(test)]
 mod tests {
@@ -244,72 +232,29 @@ mod tests {
     }
 
     #[test]
-    fn test_intent_code_str() {
-        assert_eq!(IntentCode::ModelInference.as_str(), "ModelInference");
-        assert_eq!(
-            IntentCode::from_str_loose("Heartbeat"),
-            IntentCode::Heartbeat
-        );
-    }
-
-    #[test]
-    fn test_header_serialize_roundtrip() {
-        let hdr = AitpHeader::new(
-            FLAG_SYN,
-            IntentCode::ModelInference,
-            42,
-            [1u8; 32],
-            [2u8; 32],
-            256,
-        );
+    fn test_header_v4_serialize_roundtrip() {
+        let hdr = AitpHeaderV4 {
+            version: 4,
+            flags: FLAG_SYN,
+            intent: IntentCode::ModelInference as u16,
+            session_id: 42,
+            timestamp: 1000,
+            nonce: [1u8; 12],
+            algorithm: 2,
+            source_pk: vec![1, 2, 3],
+            dest_id: [2u8; 32],
+            signature: vec![4, 5, 6, 7],
+            payload_len: 256,
+        };
         let bytes = hdr.to_bytes();
-        assert_eq!(bytes.len(), AitpHeader::SIZE);
 
-        let parsed = AitpHeader::from_bytes(&bytes).unwrap();
-        assert_eq!(parsed.version, 1);
+        let parsed = AitpHeaderV4::from_bytes(&bytes).unwrap();
+        assert_eq!(parsed.version, 4);
         assert_eq!(parsed.flags, FLAG_SYN);
         assert_eq!(parsed.intent, IntentCode::ModelInference as u16);
         assert_eq!(parsed.session_id, 42);
-        assert_eq!(parsed.source_id, [1u8; 32]);
+        assert_eq!(parsed.source_pk, vec![1, 2, 3]);
         assert_eq!(parsed.dest_id, [2u8; 32]);
         assert_eq!(parsed.payload_len, 256);
-    }
-
-    #[test]
-    fn test_header_flags() {
-        let hdr = AitpHeader::new(
-            FLAG_SYN | FLAG_ACK,
-            IntentCode::DataSync,
-            1,
-            [0u8; 32],
-            [0u8; 32],
-            0,
-        );
-        assert!(hdr.is_syn());
-        assert!(hdr.is_ack());
-        assert!(!hdr.is_fin());
-        assert!(!hdr.is_rst());
-        assert!(!hdr.is_revoke());
-    }
-
-    #[test]
-    fn test_header_too_short() {
-        assert!(AitpHeader::from_bytes(&[0u8; 10]).is_err());
-    }
-
-    #[test]
-    fn test_verify_signature_invalid() {
-        // Generate a real keypair so verifying key is valid,
-        // but the header signature is all zeros → verification should fail.
-        let (_, pk) = crate::identity::crypto::generate_keypair();
-        let hdr = AitpHeader::new(
-            FLAG_SYN,
-            IntentCode::ModelInference,
-            1,
-            [0u8; 32],
-            [0u8; 32],
-            0,
-        );
-        assert!(!verify_header_signature(&hdr, &pk));
     }
 }

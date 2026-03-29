@@ -41,3 +41,29 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
         }
     }
 }
+
+/// Abstract conceptual mapping bridging userspace Post-Quantum state into eBPF maps
+pub async fn register_kernel_session(
+    enforcer: &BpfEnforcer,
+    session_id: u64,
+    source_id: &[u8; 32],
+    dest_id: &[u8; 32],
+    intent: u16,
+    trust_score: u8,
+    verdict: u8,
+    _shared_secret: [u8; crate::crypto::MLKEM768_SS_BYTES],
+) {
+    let permit = SessionPermit::new(
+        source_id,
+        dest_id,
+        intent,
+        trust_score,
+        verdict,
+        3600, // 1 hour TTL
+    );
+    
+    // In actual implementation, modifying the XDP eBPF map to enforce AES acceleration
+    // utilizes the negotiated ML-KEM shared_secret block.
+    // For now we push the pre-authenticated session payload:
+    let _ = enforcer.permit(session_id, permit).await;
+}
