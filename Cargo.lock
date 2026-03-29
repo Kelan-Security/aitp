@@ -98,12 +98,16 @@ dependencies = [
  "hex",
  "iptables",
  "nix 0.27.1",
+ "pqcrypto-mldsa",
+ "pqcrypto-mlkem",
+ "pqcrypto-traits",
  "prometheus",
  "rand 0.8.5",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
  "sha2",
+ "sha3",
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite 0.21.0",
@@ -112,6 +116,8 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "uuid",
+ "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
@@ -215,12 +221,17 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "http 1.4.0",
+ "http-body-util",
  "jsonwebtoken",
  "kelan-ebpf-loader",
+ "keyring",
  "lazy_static",
  "mimalloc",
  "moka",
  "num_cpus",
+ "pqcrypto-mldsa",
+ "pqcrypto-mlkem",
+ "pqcrypto-traits",
  "prometheus",
  "rand 0.8.5",
  "reqwest 0.11.27",
@@ -228,6 +239,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sha3",
  "sqlx",
  "thiserror 1.0.69",
  "tokio",
@@ -236,7 +248,9 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "x25519-dalek",
  "zerocopy 0.7.35",
+ "zeroize",
 ]
 
 [[package]]
@@ -1265,7 +1279,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1389,7 +1403,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2078,7 +2092,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "tokio",
  "tower-service",
  "tracing",
@@ -2360,6 +2374,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
+dependencies = [
+ "cpufeatures",
+]
+
+[[package]]
 name = "kelan-ebpf-loader"
 version = "0.3.0"
 dependencies = [
@@ -2367,10 +2390,19 @@ dependencies = [
  "aya",
  "aya-log",
  "aya-obj",
+ "ed25519-dalek",
+ "pqcrypto-mldsa",
+ "pqcrypto-mlkem",
+ "pqcrypto-traits",
+ "rand 0.8.5",
+ "sha2",
+ "sha3",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
  "tracing",
+ "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
@@ -2408,6 +2440,16 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "keyring"
+version = "3.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
+dependencies = [
+ "log",
+ "zeroize",
 ]
 
 [[package]]
@@ -2752,7 +2794,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3377,7 +3419,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls 0.23.37",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -3414,9 +3456,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3835,7 +3877,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4161,6 +4203,16 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
 ]
 
 [[package]]
@@ -4703,7 +4755,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

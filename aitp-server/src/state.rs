@@ -20,6 +20,7 @@ pub struct AppState {
     pub trust_engine: crate::trust::HybridTrustEngine,
     pub memory_budget: Arc<MemoryBudget>,
     pub enforcer: Arc<crate::enforcement::BpfEnforcer>,
+    pub server_identity: Arc<crate::crypto::HybridEntityIdentity>,
 }
 
 impl AppState {

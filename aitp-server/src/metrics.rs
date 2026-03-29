@@ -229,14 +229,4 @@ pub fn record_gemini_call(model: &str, outcome: &str, latency_ms: f64) {
     }
 }
 
-/// Helper: record an anomaly detection event
-pub fn record_anomaly(anomaly_type: &str, severity: &str,
-                      org_id: &str, detection_latency_ms: f64,
-                      signal_type: &str) {
-    ANOMALIES_DETECTED
-        .with_label_values(&[anomaly_type, severity, org_id])
-        .inc();
-    ANOMALY_DETECTION_LATENCY
-        .with_label_values(&[signal_type])
-        .observe(detection_latency_ms);
-}
+

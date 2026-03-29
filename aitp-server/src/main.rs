@@ -13,6 +13,7 @@ mod api;
 mod auth;
 mod budget;
 mod config;
+mod crypto;
 mod db;
 #[allow(dead_code)]
 mod enforcement;
@@ -156,9 +157,14 @@ async fn async_main() -> anyhow::Result<()> {
     let enforcer = crate::enforcement::init_enforcer(&app_config.xdp_interface).await?;
     let enforcer = Arc::new(enforcer);
 
+    // ── Server Identity ────────────────────────────────────────────────────────
+    let server_identity = crate::crypto::HybridEntityIdentity::load_or_generate()
+        .expect("Failed to load or generate server identity");
+    let server_identity = Arc::new(server_identity);
+
     let app_state = Arc::new(state::AppState {
         db: db_pool,
-        hub: ws::WsHub::new(memory_budget.clone()),
+        hub: ws::WsHub::new(memory_budget.clone(), server_identity.clone()),
         config: app_config.clone(),
         start_time: Instant::now(),
         sentinel: sentinel_instance.clone(),
@@ -166,6 +172,7 @@ async fn async_main() -> anyhow::Result<()> {
         trust_engine,
         memory_budget,
         enforcer,
+        server_identity: server_identity.clone(),
     });
 
     // 6. Handle trigger-agent subcommand
@@ -309,7 +316,7 @@ async fn async_main() -> anyhow::Result<()> {
         .layer(cors);
 
     // 9. Print startup banner
-    print_banner(&app_config);
+    print_banner(&app_config, &server_identity);
 
     // 10. Start server — auto-select HTTP or HTTPS
     match tls::detect_mode(&app_config) {
@@ -400,7 +407,7 @@ pub async fn cmd_generate_token(
     Ok(())
 }
 
-fn print_banner(config: &config::AppConfig) {
+fn print_banner(config: &config::AppConfig, identity: &crate::crypto::HybridEntityIdentity) {
     let (mode_line, api_line, dashboard_line) = if config.tls_enabled() {
         (
             "║  Mode:      HTTPS PRODUCTION                    ║".to_string(),
@@ -441,8 +448,13 @@ fn print_banner(config: &config::AppConfig) {
     println!("    ║  Sentinel:  ACTIVE                                ║");
     println!("    ╚═══════════════════════════════════════════════════╝");
     println!();
+    println!("    EntityID: {}", identity.entity_id_hex());
     println!("    Version:  0.3.0");
     println!("    Config:   {}", config.summary());
     println!("    Status:   ONLINE");
+    println!("    Crypto:   {} (Strict: {:?})", 
+        if config.advertise_pq { "Hybrid Post-Quantum (ML-DSA-65) ✅" } else { "Classical (Ed25519) ⚠️" },
+        config.min_crypto_algorithm
+    );
     println!();
 }

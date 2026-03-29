@@ -666,4 +666,17 @@ impl DbPool {
             }
         }
     }
+
+    pub async fn get_crypto_stats(&self) -> Result<Vec<(String, i64)>, sqlx::Error> {
+        let sql_pg = "SELECT crypto_algorithm, count(*)::bigint FROM entities GROUP BY crypto_algorithm";
+        let sql_sq = "SELECT crypto_algorithm, count(*) FROM entities GROUP BY crypto_algorithm";
+        match self {
+            DbPool::Postgres(p) => {
+                sqlx::query_as(sql_pg).fetch_all(p).await
+            }
+            DbPool::Sqlite(p) => {
+                sqlx::query_as(sql_sq).fetch_all(p).await
+            }
+        }
+    }
 }

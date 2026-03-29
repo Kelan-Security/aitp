@@ -3,6 +3,13 @@ pub mod crypto;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 
+use crate::crypto::{
+    CryptoAlgorithm,
+    hybrid_sig::{HybridVerifyingKey, HybridSignature, verify_hybrid, verify_classical},
+};
+use ed25519_dalek::VerifyingKey as Ed25519VerifyingKey;
+use crate::protocol::AitpHeader; // AitpHeaderV4 aliases this
+
 // ────────────────────────── EntityIdentity ──────────────────────────
 
 /// Represents a registered entity's identity.
@@ -30,12 +37,14 @@ pub struct EntityIdentity {
 
 /// In-memory registry of known entities (backed by DB).
 pub struct EntityRegistry {
+    pub config: std::sync::Arc<crate::config::AppConfig>,
     entities: DashMap<String, EntityIdentity>,
 }
 
 impl EntityRegistry {
-    pub fn new() -> Self {
+    pub fn new(config: std::sync::Arc<crate::config::AppConfig>) -> Self {
         Self {
+            config,
             entities: DashMap::new(),
         }
     }
@@ -92,6 +101,76 @@ impl EntityRegistry {
     pub fn count(&self) -> usize {
         self.entities.len()
     }
+
+    /// Verify an incoming AITP packet signature.
+    /// Handles both legacy Ed25519-only and new hybrid PQ clients.
+    pub fn verify_packet_signature(
+        &self,
+        header:    &AitpHeader,
+        _entity:    &EntityIdentity, // Using EntityIdentity mapping from earlier
+    ) -> Result<(), CryptoVerifyError> {
+        let payload = header.signing_payload();
+        let algorithm = CryptoAlgorithm::from_byte(header.algorithm)
+            .ok_or(CryptoVerifyError::UnknownAlgorithm(header.algorithm))?;
+
+        // Check if this entity's algorithm satisfies server policy
+        let policy = self.config.min_crypto_algorithm;
+        if !algorithm.satisfies_policy(policy) {
+            return Err(CryptoVerifyError::AlgorithmBelowPolicy {
+                client: algorithm,
+                required: policy,
+            });
+        }
+
+        match algorithm {
+            CryptoAlgorithm::Classical => {
+                // Legacy Ed25519-only path
+                if header.source_pk.len() != 32 {
+                    return Err(CryptoVerifyError::InvalidKeyLength);
+                }
+                let pk_bytes: [u8; 32] = header.source_pk.as_slice().try_into()
+                    .map_err(|_| CryptoVerifyError::InvalidKeyLength)?;
+                let vk = Ed25519VerifyingKey::from_bytes(&pk_bytes)
+                    .map_err(|_| CryptoVerifyError::InvalidKey)?;
+                let sig: [u8; 64] = header.signature.as_slice().try_into()
+                    .map_err(|_| CryptoVerifyError::InvalidSignatureLength)?;
+                verify_classical(&vk, &payload, &sig)
+                    .map_err(|_| CryptoVerifyError::VerificationFailed)?;
+            }
+
+            CryptoAlgorithm::HybridPQ |
+            CryptoAlgorithm::PostQuantum => {
+                // New hybrid PQ path — both algorithms must verify
+                let vk = HybridVerifyingKey::from_bytes(&header.source_pk)
+                    .ok_or(CryptoVerifyError::InvalidKey)?;
+                let sig = HybridSignature::from_bytes(&header.signature)
+                    .ok_or(CryptoVerifyError::InvalidSignatureLength)?;
+                verify_hybrid(&vk, &payload, &sig)
+                    .map_err(|_| CryptoVerifyError::VerificationFailed)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CryptoVerifyError {
+    #[error("Unknown algorithm byte: {0:#x}")]
+    UnknownAlgorithm(u8),
+    #[error("Client algorithm {client:?} below server policy {required:?}")]
+    AlgorithmBelowPolicy {
+        client: CryptoAlgorithm,
+        required: CryptoAlgorithm,
+    },
+    #[error("Invalid public key material")]
+    InvalidKey,
+    #[error("Invalid key length")]
+    InvalidKeyLength,
+    #[error("Invalid signature length")]
+    InvalidSignatureLength,
+    #[error("Signature verification failed")]
+    VerificationFailed,
 }
 
 #[cfg(test)]
@@ -113,7 +192,8 @@ mod tests {
 
     #[test]
     fn test_registry_crud() {
-        let reg = EntityRegistry::new();
+        let config = std::sync::Arc::new(crate::config::AppConfig::default());
+        let reg = EntityRegistry::new(config);
         reg.register(make_entity("abc123"));
         assert!(reg.contains("abc123"));
         assert!(!reg.contains("xyz"));
@@ -128,7 +208,8 @@ mod tests {
 
     #[test]
     fn test_quarantine() {
-        let reg = EntityRegistry::new();
+        let config = std::sync::Arc::new(crate::config::AppConfig::default());
+        let reg = EntityRegistry::new(config);
         reg.register(make_entity("q1"));
         assert!(!reg.is_quarantined("q1"));
 

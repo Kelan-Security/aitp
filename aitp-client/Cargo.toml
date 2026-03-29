@@ -13,10 +13,16 @@ path = "src/main.rs"
 tokio = { version = "1", features = ["full"] }
 
 # Crypto — identity + encryption
-ed25519-dalek = { version = "2", features = ["rand_core"] }
-sha2          = "0.10"
+pqcrypto-mldsa   = { workspace = true }
+pqcrypto-mlkem   = { workspace = true }
+pqcrypto-traits  = { workspace = true }
+ed25519-dalek    = { workspace = true }
+x25519-dalek     = { workspace = true }
+sha2             = { workspace = true }
+sha3             = { workspace = true }
+rand             = { workspace = true }
+zeroize          = { workspace = true }
 aes-gcm       = "0.10"
-rand          = "0.8"
 hex           = "0.4"
 
 # Serialisation
