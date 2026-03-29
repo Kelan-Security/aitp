@@ -18,7 +18,9 @@ fn main() {
     // On non-Linux: always create the dummy object file
     #[cfg(not(target_os = "linux"))]
     {
-        println!("cargo:warning=Non-Linux build — eBPF XDP not available. Software enforcement active.");
+        println!(
+            "cargo:warning=Non-Linux build — eBPF XDP not available. Software enforcement active."
+        );
         create_dummy_bpf_object();
     }
 
@@ -43,12 +45,18 @@ fn compile_ebpf_program() {
     let status = std::process::Command::new("cargo")
         .args([
             "build",
-            "--package", "kelan-ebpf-program",
+            "--package",
+            "kelan-ebpf-program",
             "--release",
-            "--target", "bpfel-unknown-none",
-            "-Z", "build-std=core",
+            "--target",
+            "bpfel-unknown-none",
+            "-Z",
+            "build-std=core",
         ])
-        .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../kelan-ebpf-program"))
+        .current_dir(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../kelan-ebpf-program"
+        ))
         .env("CARGO_CFG_BPF", "1")
         .status()
         .expect("Failed to run cargo for eBPF program");
@@ -69,8 +77,7 @@ fn compile_ebpf_program() {
 
     for candidate in &bpf_obj_candidates {
         if std::path::Path::new(candidate).exists() {
-            std::fs::copy(candidate, &dest)
-                .expect("Failed to copy compiled eBPF object");
+            std::fs::copy(candidate, &dest).expect("Failed to copy compiled eBPF object");
             println!("cargo:warning=eBPF XDP program compiled successfully.");
             return;
         }

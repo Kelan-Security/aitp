@@ -92,8 +92,7 @@ async fn handle_connection(
             sessions.insert(session_id, permit).await;
             socks5_reply_success(&mut client).await?;
 
-            let mut server =
-                TcpStream::connect(format!("{}:{}", target_host, target_port)).await?;
+            let mut server = TcpStream::connect(format!("{}:{}", target_host, target_port)).await?;
             let result = bidirectional_proxy(&mut client, &mut server).await;
 
             sessions.remove(session_id).await;
@@ -182,10 +181,7 @@ async fn socks5_reply_refused(stream: &mut TcpStream) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn bidirectional_proxy(
-    client: &mut TcpStream,
-    server: &mut TcpStream,
-) -> anyhow::Result<()> {
+async fn bidirectional_proxy(client: &mut TcpStream, server: &mut TcpStream) -> anyhow::Result<()> {
     let (mut cr, mut cw) = client.split();
     let (mut sr, mut sw) = server.split();
 
@@ -196,11 +192,7 @@ async fn bidirectional_proxy(
     Ok(())
 }
 
-async fn forward_direct(
-    client: &mut TcpStream,
-    host: &str,
-    port: u16,
-) -> anyhow::Result<()> {
+async fn forward_direct(client: &mut TcpStream, host: &str, port: u16) -> anyhow::Result<()> {
     socks5_reply_success(client).await?;
     let mut server = TcpStream::connect(format!("{}:{}", host, port)).await?;
     tokio::io::copy_bidirectional(client, &mut server).await?;

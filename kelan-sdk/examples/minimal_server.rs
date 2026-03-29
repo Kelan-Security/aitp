@@ -6,12 +6,16 @@ async fn main() -> Result<(), kelan_sdk::KelanError> {
     KelanServer::builder()
         .config("kelan.toml")
         .on_session(|session| async move {
-            println!("Session from {}, trust: {}", 
+            println!(
+                "Session from {}, trust: {}",
                 session.session_id(),
-                session.trust_result().trust_score);
+                session.trust_result().trust_score
+            );
             session.send(b"acknowledged").await?;
             Ok(())
         })
-        .build().await?
-        .run().await
+        .build()
+        .await?
+        .run()
+        .await
 }

@@ -14,8 +14,8 @@ mod ipc;
 mod metrics;
 mod session;
 
-use std::sync::Arc;
 use clap::{Parser, Subcommand};
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "kelan-agent")]
@@ -113,6 +113,9 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Commands::Status => {
+            let identity = identity::load_or_generate()?;
+            identity::print_identity_summary(&identity);
+
             match ipc::query_status().await {
                 Ok(status) => {
                     println!("{}", serde_json::to_string_pretty(&status)?);
@@ -151,8 +154,11 @@ async fn main() -> anyhow::Result<()> {
             let mut line = String::new();
             std::io::stdin().read_line(&mut line)?;
             if line.trim() == "yes" {
-                identity::EntityIdentity::delete_stored_key()?;
-                println!("Keys reset. Run 'kelan-agent enroll' to re-enroll.");
+                let entry = keyring::Entry::new("kelan-agent", "hybrid-pq-private-key-v2")?;
+                entry.delete_password().ok();
+                let entry_v1 = keyring::Entry::new("kelan-agent", "ed25519-private-key")?;
+                entry_v1.delete_password().ok();
+                println!("Keys reset (both v1 Ed25519 and v2 Hybrid PQ). Run 'kelan-agent enroll' to re-enroll.");
             } else {
                 println!("Aborted.");
             }
@@ -163,8 +169,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn init_logging(config: &config::AgentConfig) {
-    let level = std::env::var("KELAN_LOG_LEVEL")
-        .unwrap_or_else(|_| config.logging.level.clone());
+    let level = std::env::var("KELAN_LOG_LEVEL").unwrap_or_else(|_| config.logging.level.clone());
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -184,13 +189,18 @@ fn print_banner() {
     eprintln!();
 }
 
-async fn run_test(config: &config::AgentConfig, target: &str, key_dir: Option<&std::path::Path>) -> anyhow::Result<()> {
-    let identity = Arc::new(identity::EntityIdentity::load_or_generate(key_dir)?);
+async fn run_test(
+    config: &config::AgentConfig,
+    target: &str,
+    _key_dir: Option<&std::path::Path>,
+) -> anyhow::Result<()> {
+    let identity = Arc::new(identity::load_or_generate()?);
 
     // Parse target
     let (host, port) = if let Some(idx) = target.rfind(':') {
         let h = &target[..idx];
-        let p: u16 = target[idx + 1..].parse()
+        let p: u16 = target[idx + 1..]
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid port in target: {}", target))?;
         (h.to_string(), p)
     } else {
@@ -203,12 +213,9 @@ async fn run_test(config: &config::AgentConfig, target: &str, key_dir: Option<&s
     println!("Evaluating: {}:{} ({})", host, port, intent);
 
     let t0 = std::time::Instant::now();
-    let hs = handshake::AitpHandshake::new(
-        identity,
-        &config.server.address,
-        config.server.udp_port,
-    )
-    .await?;
+    let hs =
+        handshake::AitpHandshake::new(identity, &config.server.address, config.server.udp_port)
+            .await?;
 
     let dest_id = "0".repeat(64);
     match hs.establish(&dest_id, intent).await {

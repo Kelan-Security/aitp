@@ -1,8 +1,8 @@
 // Kelan Security Client Agent — interceptor/mod.rs
 // Connection interception modes: SOCKS5 proxy, iptables, monitor.
 
-pub mod proxy;
 pub mod monitor;
+pub mod proxy;
 
 #[cfg(target_os = "linux")]
 pub mod iptables;
@@ -19,9 +19,7 @@ pub async fn start(
     sessions: SessionTable,
 ) -> anyhow::Result<()> {
     match config.interception.mode {
-        InterceptionMode::Proxy => {
-            proxy::run_socks5_proxy(config, identity, sessions).await
-        }
+        InterceptionMode::Proxy => proxy::run_socks5_proxy(config, identity, sessions).await,
         InterceptionMode::Iptables => {
             #[cfg(target_os = "linux")]
             {
@@ -42,8 +40,6 @@ pub async fn start(
                 proxy::run_socks5_proxy(config, identity, sessions).await
             }
         }
-        InterceptionMode::Monitor => {
-            monitor::run_monitor(config).await
-        }
+        InterceptionMode::Monitor => monitor::run_monitor(config).await,
     }
 }
