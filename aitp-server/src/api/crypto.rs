@@ -1,7 +1,7 @@
-use axum::{routing::get, Router, extract::State, Json};
+use crate::state::AppState;
+use axum::{extract::State, routing::get, Json, Router};
 use serde_json::json;
 use std::sync::Arc;
-use crate::state::AppState;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new().route("/status", get(status_handler))
@@ -12,7 +12,7 @@ async fn status_handler(State(state): State<Arc<AppState>>) -> Json<serde_json::
     let mut classical = 0;
     let mut hybrid = 0;
     let mut pq = 0;
-    
+
     // We would need a DB method to count algorithms.
     let count = state.db.get_crypto_stats().await.unwrap_or_default();
 

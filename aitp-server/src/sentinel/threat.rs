@@ -107,25 +107,41 @@ pub async fn activate_threat_response(
 
     let sql_pg = "INSERT INTO security_incidents (id, org_id, severity, attack_type, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
     let sql_sq = "INSERT INTO security_incidents (id, org_id, severity, attack_type, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, detected_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    
+
     match &state.db {
         crate::db::DbPool::Postgres(pool) => {
             let _ = sqlx::query(sql_pg)
-                .bind(&incident.id).bind(&incident.org_id).bind(&incident.severity)
-                .bind(&incident.attack_type).bind(&incident.entry_point_entity_id)
-                .bind(&affected_json).bind(&timeline_json).bind(&mitre_json)
-                .bind(&incident.vulnerability).bind(&incident.remediation)
-                .bind(&incident.status).bind(incident.detected_at)
-                .execute(pool).await;
+                .bind(&incident.id)
+                .bind(&incident.org_id)
+                .bind(&incident.severity)
+                .bind(&incident.attack_type)
+                .bind(&incident.entry_point_entity_id)
+                .bind(&affected_json)
+                .bind(&timeline_json)
+                .bind(&mitre_json)
+                .bind(&incident.vulnerability)
+                .bind(&incident.remediation)
+                .bind(&incident.status)
+                .bind(incident.detected_at)
+                .execute(pool)
+                .await;
         }
         crate::db::DbPool::Sqlite(pool) => {
             let _ = sqlx::query(sql_sq)
-                .bind(&incident.id).bind(&incident.org_id).bind(&incident.severity)
-                .bind(&incident.attack_type).bind(&incident.entry_point_entity_id)
-                .bind(&affected_json).bind(&timeline_json).bind(&mitre_json)
-                .bind(&incident.vulnerability).bind(&incident.remediation)
-                .bind(&incident.status).bind(incident.detected_at)
-                .execute(pool).await;
+                .bind(&incident.id)
+                .bind(&incident.org_id)
+                .bind(&incident.severity)
+                .bind(&incident.attack_type)
+                .bind(&incident.entry_point_entity_id)
+                .bind(&affected_json)
+                .bind(&timeline_json)
+                .bind(&mitre_json)
+                .bind(&incident.vulnerability)
+                .bind(&incident.remediation)
+                .bind(&incident.status)
+                .bind(incident.detected_at)
+                .execute(pool)
+                .await;
         }
     }
 
@@ -170,31 +186,39 @@ pub async fn activate_threat_response(
 /// Quarantine an entity — revoke all active sessions.
 async fn quarantine_entity(state: &Arc<AppState>, entity_id: &str) -> u32 {
     let mut updated_rows = 0;
-    
+
     match &state.db {
         crate::db::DbPool::Postgres(pool) => {
             let _ = sqlx::query("UPDATE entities SET quarantined = 1 WHERE id = $1")
-                .bind(entity_id).execute(pool).await;
-            
+                .bind(entity_id)
+                .execute(pool)
+                .await;
+
             let result = sqlx::query(
                 "UPDATE sessions SET status = 'revoked', ended_at = $1, close_reason = 'quarantine_threat_response' WHERE (source_entity_id = $2 OR dest_entity_id = $3) AND status = 'active'"
             )
             .bind(chrono::Utc::now().timestamp()).bind(entity_id).bind(entity_id)
             .execute(pool).await;
-            
-            if let Ok(r) = result { updated_rows = r.rows_affected() as u32; }
+
+            if let Ok(r) = result {
+                updated_rows = r.rows_affected() as u32;
+            }
         }
         crate::db::DbPool::Sqlite(pool) => {
             let _ = sqlx::query("UPDATE entities SET quarantined = 1 WHERE id = ?")
-                .bind(entity_id).execute(pool).await;
-            
+                .bind(entity_id)
+                .execute(pool)
+                .await;
+
             let result = sqlx::query(
                 "UPDATE sessions SET status = 'revoked', ended_at = ?, close_reason = 'quarantine_threat_response' WHERE (source_entity_id = ? OR dest_entity_id = ?) AND status = 'active'"
             )
             .bind(chrono::Utc::now().timestamp()).bind(entity_id).bind(entity_id)
             .execute(pool).await;
-            
-            if let Ok(r) = result { updated_rows = r.rows_affected() as u32; }
+
+            if let Ok(r) = result {
+                updated_rows = r.rows_affected() as u32;
+            }
         }
     }
     updated_rows

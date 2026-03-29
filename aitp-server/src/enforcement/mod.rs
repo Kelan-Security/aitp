@@ -5,25 +5,16 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
         Ok(enforcer) => {
             match &enforcer.mode {
                 EnforcerMode::BpfXdp { interface } => {
-                    tracing::info!(
-                        "eBPF XDP enforcement active on interface '{}'",
-                        interface
-                    );
-                    tracing::info!(
-                        "Session revocation latency: < 1μs (kernel driver level)"
-                    );
+                    tracing::info!("eBPF XDP enforcement active on interface '{}'", interface);
+                    tracing::info!("Session revocation latency: < 1μs (kernel driver level)");
                     // Record XDP mode = 1 in Prometheus
                     crate::metrics::EBPF_MODE
                         .with_label_values(&[interface.as_str()])
                         .set(1.0);
                 }
                 EnforcerMode::Software => {
-                    tracing::warn!(
-                        "Software enforcement mode (application layer)."
-                    );
-                    tracing::warn!(
-                        "For kernel-level enforcement: run on Linux 5.15+ as root"
-                    );
+                    tracing::warn!("Software enforcement mode (application layer).");
+                    tracing::warn!("For kernel-level enforcement: run on Linux 5.15+ as root");
                     // Record software mode = 0 in Prometheus
                     crate::metrics::EBPF_MODE
                         .with_label_values(&["software"])
@@ -61,7 +52,7 @@ pub async fn register_kernel_session(
         verdict,
         3600, // 1 hour TTL
     );
-    
+
     // In actual implementation, modifying the XDP eBPF map to enforce AES acceleration
     // utilizes the negotiated ML-KEM shared_secret block.
     // For now we push the pre-authenticated session payload:

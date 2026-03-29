@@ -295,9 +295,19 @@ async fn test_session(
     let result = state.trust_engine.evaluate(&ctx).await;
 
     // 3b. Publish event to Sentinel (non-blocking)
-    let baseline_score = state.sentinel.get_baseline(&id).await.map(|b| b.avg_trust_score).unwrap_or(128.0);
-    let is_new_peer = !state.sentinel.get_baseline(&id).await.map(|b| b.known_peers.contains(&req.dest_entity_id)).unwrap_or(false);
-    
+    let baseline_score = state
+        .sentinel
+        .get_baseline(&id)
+        .await
+        .map(|b| b.avg_trust_score)
+        .unwrap_or(128.0);
+    let is_new_peer = !state
+        .sentinel
+        .get_baseline(&id)
+        .await
+        .map(|b| b.known_peers.contains(&req.dest_entity_id))
+        .unwrap_or(false);
+
     let signal = crate::sentinel::SentinelEvent::classify(
         &req.intent,
         result.trust_score,
@@ -305,17 +315,17 @@ async fn test_session(
         is_new_peer,
         result.verdict.as_str(),
     );
-    
+
     state.send_sentinel_event(crate::sentinel::SentinelEvent {
-        entity_id:      id.clone(),
-        org_id:         org_id.clone(),
-        session_id:     session_id.clone(),
+        entity_id: id.clone(),
+        org_id: org_id.clone(),
+        session_id: session_id.clone(),
         dest_entity_id: req.dest_entity_id.clone(),
-        intent:         req.intent.clone(),
-        trust_score:    result.trust_score,
-        verdict:        result.verdict.as_str().to_string(),
-        bytes_tx:       req.bytes_tx.unwrap_or(0),
-        occurred_at:    now,
+        intent: req.intent.clone(),
+        trust_score: result.trust_score,
+        verdict: result.verdict.as_str().to_string(),
+        bytes_tx: req.bytes_tx.unwrap_or(0),
+        occurred_at: now,
         signal,
     });
 
@@ -323,23 +333,23 @@ async fn test_session(
     use crate::enforcement::SessionPermit;
     use crate::protocol::IntentCode;
     use crate::trust::TrustVerdict;
-    
+
     let source_bytes = hex::decode(&id).unwrap_or(vec![0; 32]);
     let dest_bytes = hex::decode(&req.dest_entity_id).unwrap_or(vec![0; 32]);
-    
+
     if source_bytes.len() == 32 && dest_bytes.len() == 32 {
         let mut s_bytes = [0u8; 32];
         s_bytes.copy_from_slice(&source_bytes);
         let mut d_bytes = [0u8; 32];
         d_bytes.copy_from_slice(&dest_bytes);
-        
+
         let numeric_intent = IntentCode::from_str_loose(&req.intent) as u16;
         let p_verdict = match result.verdict {
             TrustVerdict::Allow => 1,
             TrustVerdict::Monitor => 2,
             _ => 0,
         };
-        
+
         let permit = SessionPermit::new(
             &s_bytes,
             &d_bytes,

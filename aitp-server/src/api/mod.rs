@@ -1,18 +1,18 @@
-pub mod crypto;
 pub mod auth;
 pub mod config;
+pub mod crypto;
 pub mod entities;
+pub mod middleware;
 pub mod policies;
 pub mod sentinel;
 pub mod sessions;
 pub mod stats;
 pub mod threat;
-pub mod middleware;
 
 use crate::state::AppState;
 use axum::Router;
-use tower_http::compression::CompressionLayer;
 use std::sync::Arc;
+use tower_http::compression::CompressionLayer;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()

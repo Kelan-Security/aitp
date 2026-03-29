@@ -20,6 +20,8 @@ mod enforcement;
 mod error;
 #[allow(dead_code)]
 mod identity;
+mod license;
+mod metrics;
 #[allow(dead_code)]
 mod protocol;
 mod sentinel;
@@ -28,8 +30,6 @@ mod tls;
 #[allow(dead_code)]
 mod trust;
 mod ws;
-mod license;
-mod metrics;
 
 fn main() -> anyhow::Result<()> {
     let cpu_count = num_cpus::get();
@@ -85,21 +85,19 @@ async fn async_main() -> anyhow::Result<()> {
     }
 
     // ── License check (first — before anything else) ──────────────────────────
-    let _license = license::init_license()
-        .map_err(|e| {
-            eprintln!("╔══════════════════════════════════════════════╗");
-            eprintln!("║         LICENSE VALIDATION FAILED            ║");
-            eprintln!("╠══════════════════════════════════════════════╣");
-            eprintln!("║ {}",
-                format!("{:width$}", e.to_string(), width = 44));
-            eprintln!("║                                              ║");
-            eprintln!("║ To run without a license (Community tier):   ║");
-            eprintln!("║   Remove the invalid license file and retry. ║");
-            eprintln!("║                                              ║");
-            eprintln!("║ To renew or purchase: tanush@kernex.io       ║");
-            eprintln!("╚══════════════════════════════════════════════╝");
-            e
-        })?;
+    let _license = license::init_license().map_err(|e| {
+        eprintln!("╔══════════════════════════════════════════════╗");
+        eprintln!("║         LICENSE VALIDATION FAILED            ║");
+        eprintln!("╠══════════════════════════════════════════════╣");
+        eprintln!("║ {}", format!("{:width$}", e.to_string(), width = 44));
+        eprintln!("║                                              ║");
+        eprintln!("║ To run without a license (Community tier):   ║");
+        eprintln!("║   Remove the invalid license file and retry. ║");
+        eprintln!("║                                              ║");
+        eprintln!("║ To renew or purchase: tanush@kernex.io       ║");
+        eprintln!("╚══════════════════════════════════════════════╝");
+        e
+    })?;
 
     // Start license watchdog background task
     tokio::spawn(license::run_license_watchdog());
@@ -130,16 +128,21 @@ async fn async_main() -> anyhow::Result<()> {
             std::process::exit(1);
         }
     }
-    
+
     let db_pool = match db::DbPool::connect(&app_config.db_path).await {
         Ok(pool) => pool,
         Err(e) => {
-            tracing::error!("Failed to connect to database at {}: {:?}", app_config.db_path, e);
+            tracing::error!(
+                "Failed to connect to database at {}: {:?}",
+                app_config.db_path,
+                e
+            );
             std::process::exit(1);
         }
     };
 
-    let (sentinel_tx, sentinel_rx) = tokio::sync::mpsc::channel::<crate::sentinel::SentinelEvent>(10_000);
+    let (sentinel_tx, sentinel_rx) =
+        tokio::sync::mpsc::channel::<crate::sentinel::SentinelEvent>(10_000);
     let sentinel_instance = Arc::new(crate::sentinel::SentinelState::new());
 
     // Pre-warm baseline memory cache globally
@@ -241,21 +244,29 @@ async fn async_main() -> anyhow::Result<()> {
                     // Delta-increment the counters (they're cumulative in BPF maps)
                     let pass_delta = ebpf_stats.packets_passed.saturating_sub(last_ebpf_passed);
                     let drop_delta = ebpf_stats.packets_dropped.saturating_sub(last_ebpf_dropped);
-                    let bypass_delta = ebpf_stats.packets_bypassed.saturating_sub(last_ebpf_bypassed);
+                    let bypass_delta = ebpf_stats
+                        .packets_bypassed
+                        .saturating_sub(last_ebpf_bypassed);
 
                     if pass_delta > 0 {
-                        metrics::EBPF_PACKETS.with_label_values(&["pass"]).inc_by(pass_delta as f64);
+                        metrics::EBPF_PACKETS
+                            .with_label_values(&["pass"])
+                            .inc_by(pass_delta as f64);
                     }
                     if drop_delta > 0 {
-                        metrics::EBPF_PACKETS.with_label_values(&["drop"]).inc_by(drop_delta as f64);
+                        metrics::EBPF_PACKETS
+                            .with_label_values(&["drop"])
+                            .inc_by(drop_delta as f64);
                     }
                     if bypass_delta > 0 {
-                        metrics::EBPF_PACKETS.with_label_values(&["bypass"]).inc_by(bypass_delta as f64);
+                        metrics::EBPF_PACKETS
+                            .with_label_values(&["bypass"])
+                            .inc_by(bypass_delta as f64);
                     }
                     metrics::EBPF_PERMITS.set(ebpf_stats.active_permits as f64);
 
-                    last_ebpf_passed   = ebpf_stats.packets_passed;
-                    last_ebpf_dropped  = ebpf_stats.packets_dropped;
+                    last_ebpf_passed = ebpf_stats.packets_passed;
+                    last_ebpf_dropped = ebpf_stats.packets_dropped;
                     last_ebpf_bypassed = ebpf_stats.packets_bypassed;
                 }
 
@@ -337,12 +348,10 @@ async fn async_main() -> anyhow::Result<()> {
             let https_addr: SocketAddr = format!("0.0.0.0:{}", https_port).parse()?;
 
             // Spawn HTTP→HTTPS redirect on port 80
-            let redirect_app = Router::new().fallback(
-                |Host(host): Host, uri: Uri| async move {
-                    let target = format!("https://{}{}", host, uri);
-                    Redirect::permanent(&target)
-                },
-            );
+            let redirect_app = Router::new().fallback(|Host(host): Host, uri: Uri| async move {
+                let target = format!("https://{}{}", host, uri);
+                Redirect::permanent(&target)
+            });
 
             tokio::spawn(async move {
                 let http_addr: SocketAddr = format!("0.0.0.0:{}", http_port)
@@ -452,8 +461,13 @@ fn print_banner(config: &config::AppConfig, identity: &crate::crypto::HybridEnti
     println!("    Version:  0.3.0");
     println!("    Config:   {}", config.summary());
     println!("    Status:   ONLINE");
-    println!("    Crypto:   {} (Strict: {:?})", 
-        if config.advertise_pq { "Hybrid Post-Quantum (ML-DSA-65) ✅" } else { "Classical (Ed25519) ⚠️" },
+    println!(
+        "    Crypto:   {} (Strict: {:?})",
+        if config.advertise_pq {
+            "Hybrid Post-Quantum (ML-DSA-65) ✅"
+        } else {
+            "Classical (Ed25519) ⚠️"
+        },
         config.min_crypto_algorithm
     );
     println!();

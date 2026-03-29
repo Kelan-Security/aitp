@@ -4,11 +4,11 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::{
+    hybrid_sig::{verify_classical, verify_hybrid, HybridSignature, HybridVerifyingKey},
     CryptoAlgorithm,
-    hybrid_sig::{HybridVerifyingKey, HybridSignature, verify_hybrid, verify_classical},
 };
-use ed25519_dalek::VerifyingKey as Ed25519VerifyingKey;
-use crate::protocol::AitpHeader; // AitpHeaderV4 aliases this
+use crate::protocol::AitpHeader;
+use ed25519_dalek::VerifyingKey as Ed25519VerifyingKey; // AitpHeaderV4 aliases this
 
 // ────────────────────────── EntityIdentity ──────────────────────────
 
@@ -106,8 +106,8 @@ impl EntityRegistry {
     /// Handles both legacy Ed25519-only and new hybrid PQ clients.
     pub fn verify_packet_signature(
         &self,
-        header:    &AitpHeader,
-        _entity:    &EntityIdentity, // Using EntityIdentity mapping from earlier
+        header: &AitpHeader,
+        _entity: &EntityIdentity, // Using EntityIdentity mapping from earlier
     ) -> Result<(), CryptoVerifyError> {
         let payload = header.signing_payload();
         let algorithm = CryptoAlgorithm::from_byte(header.algorithm)
@@ -128,18 +128,23 @@ impl EntityRegistry {
                 if header.source_pk.len() != 32 {
                     return Err(CryptoVerifyError::InvalidKeyLength);
                 }
-                let pk_bytes: [u8; 32] = header.source_pk.as_slice().try_into()
+                let pk_bytes: [u8; 32] = header
+                    .source_pk
+                    .as_slice()
+                    .try_into()
                     .map_err(|_| CryptoVerifyError::InvalidKeyLength)?;
                 let vk = Ed25519VerifyingKey::from_bytes(&pk_bytes)
                     .map_err(|_| CryptoVerifyError::InvalidKey)?;
-                let sig: [u8; 64] = header.signature.as_slice().try_into()
+                let sig: [u8; 64] = header
+                    .signature
+                    .as_slice()
+                    .try_into()
                     .map_err(|_| CryptoVerifyError::InvalidSignatureLength)?;
                 verify_classical(&vk, &payload, &sig)
                     .map_err(|_| CryptoVerifyError::VerificationFailed)?;
             }
 
-            CryptoAlgorithm::HybridPQ |
-            CryptoAlgorithm::PostQuantum => {
+            CryptoAlgorithm::HybridPQ | CryptoAlgorithm::PostQuantum => {
                 // New hybrid PQ path — both algorithms must verify
                 let vk = HybridVerifyingKey::from_bytes(&header.source_pk)
                     .ok_or(CryptoVerifyError::InvalidKey)?;

@@ -17,9 +17,9 @@ async fn stats(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let uptime = state.start_time.elapsed().as_secs();
     let stats = state.db.get_stats(uptime).await?;
-    
+
     let ebpf_stats = state.enforcer.stats().await.unwrap_or_default();
-    
+
     let mut resp = serde_json::to_value(&stats).unwrap();
     resp["ebpf_packets_total"] = serde_json::json!(ebpf_stats.packets_total);
     resp["ebpf_packets_dropped"] = serde_json::json!(ebpf_stats.packets_dropped);

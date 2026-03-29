@@ -56,14 +56,18 @@ async fn revoke_session(
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     // Get session first to find entity_id
-    let session = state.db.get_session(&id).await.map_err(|_| AppError::NotFound)?;
+    let session = state
+        .db
+        .get_session(&id)
+        .await
+        .map_err(|_| AppError::NotFound)?;
     let entity_id = session.source_entity_id.clone();
 
     let affected = state.db.revoke_session(&id).await?;
     if affected == 0 {
         return Err(AppError::NotFound);
     }
-    
+
     // Mark entity dirty so sentinel scans it immediately
     state.sentinel.mark_dirty(&entity_id);
 

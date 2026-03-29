@@ -55,16 +55,16 @@ impl AnomalySeverity {
 /// A detected anomaly — compatible with event-driven Sentinel v0.4.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Anomaly {
-    pub entity_id:    String,
-    pub org_id:       String,
+    pub entity_id: String,
+    pub org_id: String,
     pub anomaly_type: AnomalyType,
-    pub severity:     AnomalySeverity,
-    pub description:  String,
+    pub severity: AnomalySeverity,
+    pub description: String,
     pub recommended_action: String,
-    pub confidence:   f32,
-    pub session_id:   Option<String>,
-    pub detected_at:  i64,
-    pub metadata:     serde_json::Value,
+    pub confidence: f32,
+    pub session_id: Option<String>,
+    pub detected_at: i64,
+    pub metadata: serde_json::Value,
 }
 
 // ────────────────────────── Anomaly Scanning ──────────────────────────
@@ -74,7 +74,7 @@ pub struct Anomaly {
 pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>) {
     // DashMap doesn't need explicit read lock for iteration in this context
     let fifteen_mins_ago = chrono::Utc::now().timestamp() - 900;
-    
+
     use sqlx::Row;
     let recent_sessions: Vec<Session> = match &state.db {
         crate::db::DbPool::Postgres(pool) => {
@@ -136,11 +136,16 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
     // Group recent sessions by entity
     let mut recent_grouped: HashMap<String, Vec<Session>> = HashMap::new();
     for sess in recent_sessions {
-        recent_grouped.entry(sess.source_entity_id.clone()).or_default().push(sess);
+        recent_grouped
+            .entry(sess.source_entity_id.clone())
+            .or_default()
+            .push(sess);
     }
 
     // Only scan entities that are marked dirty (had activity)
-    let dirty_list: Vec<String> = sentinel.dirty_entities.iter()
+    let dirty_list: Vec<String> = sentinel
+        .dirty_entities
+        .iter()
         .filter(|e| e.value().elapsed() < std::time::Duration::from_secs(30))
         .map(|e| e.key().clone())
         .collect();
@@ -368,7 +373,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
                 let sql_pg = "INSERT INTO audit_chain (id, org_id, event_type, severity, source_entity_id, description, metadata, prev_hash, entry_hash, created_at) VALUES ($1, 'system', 'SentinelAnomaly', $2, $3, $4, '{}', '', '', $5)";
                 let sql_sq = "INSERT INTO audit_chain (id, org_id, event_type, severity, source_entity_id, description, metadata, prev_hash, entry_hash, created_at) VALUES (?, 'system', 'SentinelAnomaly', ?, ?, ?, '{}', '', '', ?)";
                 let new_audit_id = uuid::Uuid::new_v4().to_string();
-                
+
                 match &state.db {
                     crate::db::DbPool::Postgres(pool) => {
                         let _ = sqlx::query(sql_pg)
@@ -399,7 +404,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
                 log.push_back(anomaly);
             }
         }
-        
+
         // Remove from dirty list after scan
         sentinel.dirty_entities.remove(&entity_id);
     }

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use super::{AitpHeader, IntentCode};
 use crate::crypto::HybridKem;
-use x25519_dalek::{PublicKey as X25519Pk, StaticSecret as X25519Sk};
 use pqcrypto_mlkem::mlkem768::SecretKey as KemSk;
+use x25519_dalek::{PublicKey as X25519Pk, StaticSecret as X25519Sk};
 
 #[cfg(test)]
 use super::{FLAG_ACK, FLAG_SYN};
@@ -113,7 +113,8 @@ impl HandshakeManager {
             server_pq_sk,
             client_classical_pk,
             pq_ciphertext,
-        ).map_err(|_| "Failed to decapsulate hybrid KEM ciphertext")?;
+        )
+        .map_err(|_| "Failed to decapsulate hybrid KEM ciphertext")?;
 
         ctx.session_key = Some(shared_secret.0);
         Ok(())
@@ -194,7 +195,19 @@ mod tests {
     #[test]
     fn test_handshake_complete() {
         let mut mgr = HandshakeManager::new();
-        let hdr = AitpHeader { version: 4, flags: FLAG_SYN, intent: IntentCode::DataSync as u16, session_id: 200, timestamp: 0, nonce: [0; 12], algorithm: 1, source_pk: vec![1; 32], dest_id: [2; 32], signature: vec![], payload_len: 0 };
+        let hdr = AitpHeader {
+            version: 4,
+            flags: FLAG_SYN,
+            intent: IntentCode::DataSync as u16,
+            session_id: 200,
+            timestamp: 0,
+            nonce: [0; 12],
+            algorithm: 1,
+            source_pk: vec![1; 32],
+            dest_id: [2; 32],
+            signature: vec![],
+            payload_len: 0,
+        };
 
         mgr.begin(&hdr).unwrap();
         let ctx = mgr.complete_trust_eval(200, 180, "Allow").unwrap();

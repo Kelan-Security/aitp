@@ -154,9 +154,13 @@ impl GeminiTrustEngine {
         if !response.status().is_success() {
             let status = response.status();
             let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
-            let err_type = if status.as_u16() == 429 { "rate_limit" }
-                           else if status.as_u16() == 403 { "auth" }
-                           else { "error" };
+            let err_type = if status.as_u16() == 429 {
+                "rate_limit"
+            } else if status.as_u16() == 403 {
+                "auth"
+            } else {
+                "error"
+            };
             crate::metrics::record_gemini_call(&self.model, err_type, latency_ms);
             let body = response.text().await.unwrap_or_default();
             return Err(format!("Gemini API returned {}: {}", status, body));
