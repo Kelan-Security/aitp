@@ -14,9 +14,16 @@ pub struct WsHub {
 }
 
 impl WsHub {
-    pub fn new(budget: Arc<crate::budget::MemoryBudget>, identity: std::sync::Arc<crate::crypto::HybridEntityIdentity>) -> Self {
+    pub fn new(
+        budget: Arc<crate::budget::MemoryBudget>,
+        identity: std::sync::Arc<crate::crypto::HybridEntityIdentity>,
+    ) -> Self {
         let (tx, _) = broadcast::channel(512);
-        WsHub { tx, budget, identity }
+        WsHub {
+            tx,
+            budget,
+            identity,
+        }
     }
 
     /// Broadcast an event to all connected clients.

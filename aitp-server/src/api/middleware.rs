@@ -1,9 +1,5 @@
 use axum::{
-    body::Body,
-    extract::Request,
-    http::StatusCode,
-    middleware::Next,
-    response::IntoResponse,
+    body::Body, extract::Request, http::StatusCode, middleware::Next, response::IntoResponse,
 };
 use http_body_util::BodyExt; // For `collect` method
 

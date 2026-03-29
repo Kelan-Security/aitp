@@ -465,15 +465,17 @@ impl ThreatResponseAgent {
                     .bind(start).bind(end)
                     .fetch_all(pool).await.unwrap_or_default()
                 };
-                rows.into_iter().map(|r| {
-                    serde_json::json!({
-                        "event_type": r.get::<String, _>("event_type"),
-                        "severity": r.get::<String, _>("severity"),
-                        "entity_id": r.get::<Option<String>, _>("source_entity_id"),
-                        "description": r.get::<String, _>("description"),
-                        "created_at": r.get::<i64, _>("created_at"),
+                rows.into_iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "event_type": r.get::<String, _>("event_type"),
+                            "severity": r.get::<String, _>("severity"),
+                            "entity_id": r.get::<Option<String>, _>("source_entity_id"),
+                            "description": r.get::<String, _>("description"),
+                            "created_at": r.get::<i64, _>("created_at"),
+                        })
                     })
-                }).collect()
+                    .collect()
             }
             crate::db::DbPool::Sqlite(pool) => {
                 let rows = if let Some(eid) = entity_id {
@@ -489,15 +491,17 @@ impl ThreatResponseAgent {
                     .bind(start).bind(end)
                     .fetch_all(pool).await.unwrap_or_default()
                 };
-                rows.into_iter().map(|r| {
-                    serde_json::json!({
-                        "event_type": r.get::<String, _>("event_type"),
-                        "severity": r.get::<String, _>("severity"),
-                        "entity_id": r.get::<Option<String>, _>("source_entity_id"),
-                        "description": r.get::<String, _>("description"),
-                        "created_at": r.get::<i64, _>("created_at"),
+                rows.into_iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "event_type": r.get::<String, _>("event_type"),
+                            "severity": r.get::<String, _>("severity"),
+                            "entity_id": r.get::<Option<String>, _>("source_entity_id"),
+                            "description": r.get::<String, _>("description"),
+                            "created_at": r.get::<i64, _>("created_at"),
+                        })
                     })
-                }).collect()
+                    .collect()
             }
         };
 
@@ -550,7 +554,7 @@ impl ThreatResponseAgent {
         let since = chrono::Utc::now().timestamp() - window_secs;
 
         use sqlx::Row;
-        
+
         let peers: Vec<Value> = match &self.db {
             crate::db::DbPool::Postgres(pool) => {
                 let rows = sqlx::query(
@@ -558,12 +562,16 @@ impl ThreatResponseAgent {
                 )
                 .bind(entity_id).bind(since).bind(entity_id).bind(since)
                 .fetch_all(pool).await.unwrap_or_default();
-                
-                rows.iter().map(|r| serde_json::json!({
-                    "peer_entity_id": r.get::<String, _>("peer"),
-                    "intent": r.get::<String, _>("intent"),
-                    "trust_score": r.get::<i64, _>("trust_score"),
-                })).collect()
+
+                rows.iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "peer_entity_id": r.get::<String, _>("peer"),
+                            "intent": r.get::<String, _>("intent"),
+                            "trust_score": r.get::<i64, _>("trust_score"),
+                        })
+                    })
+                    .collect()
             }
             crate::db::DbPool::Sqlite(pool) => {
                 let rows = sqlx::query(
@@ -571,12 +579,16 @@ impl ThreatResponseAgent {
                 )
                 .bind(entity_id).bind(since).bind(entity_id).bind(since)
                 .fetch_all(pool).await.unwrap_or_default();
-                
-                rows.iter().map(|r| serde_json::json!({
-                    "peer_entity_id": r.get::<String, _>("peer"),
-                    "intent": r.get::<String, _>("intent"),
-                    "trust_score": r.get::<i64, _>("trust_score"),
-                })).collect()
+
+                rows.iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "peer_entity_id": r.get::<String, _>("peer"),
+                            "intent": r.get::<String, _>("intent"),
+                            "trust_score": r.get::<i64, _>("trust_score"),
+                        })
+                    })
+                    .collect()
             }
         };
 
@@ -597,14 +609,18 @@ impl ThreatResponseAgent {
                 )
                 .bind(chrono::Utc::now().timestamp() - 86400)
                 .fetch_all(pool).await.unwrap_or_default();
-                
-                rows.iter().map(|r| serde_json::json!({
-                    "source": r.get::<String, _>("source_entity_id"),
-                    "dest": r.get::<String, _>("dest_entity_id"),
-                    "intent": r.get::<String, _>("intent"),
-                    "sessions": r.get::<i64, _>("session_count"),
-                    "avg_trust": r.get::<f64, _>("avg_trust"),
-                })).collect()
+
+                rows.iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "source": r.get::<String, _>("source_entity_id"),
+                            "dest": r.get::<String, _>("dest_entity_id"),
+                            "intent": r.get::<String, _>("intent"),
+                            "sessions": r.get::<i64, _>("session_count"),
+                            "avg_trust": r.get::<f64, _>("avg_trust"),
+                        })
+                    })
+                    .collect()
             }
             crate::db::DbPool::Sqlite(pool) => {
                 let rows = sqlx::query(
@@ -612,14 +628,18 @@ impl ThreatResponseAgent {
                 )
                 .bind(chrono::Utc::now().timestamp() - 86400)
                 .fetch_all(pool).await.unwrap_or_default();
-                
-                rows.iter().map(|r| serde_json::json!({
-                    "source": r.get::<String, _>("source_entity_id"),
-                    "dest": r.get::<String, _>("dest_entity_id"),
-                    "intent": r.get::<String, _>("intent"),
-                    "sessions": r.get::<i64, _>("session_count"),
-                    "avg_trust": r.get::<f64, _>("avg_trust"),
-                })).collect()
+
+                rows.iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "source": r.get::<String, _>("source_entity_id"),
+                            "dest": r.get::<String, _>("dest_entity_id"),
+                            "intent": r.get::<String, _>("intent"),
+                            "sessions": r.get::<i64, _>("session_count"),
+                            "avg_trust": r.get::<f64, _>("avg_trust"),
+                        })
+                    })
+                    .collect()
             }
         };
 

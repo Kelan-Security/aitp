@@ -91,16 +91,16 @@ impl std::fmt::Display for IntentCode {
 ///   payload[payload_len]   — AES-256-GCM encrypted
 #[derive(Debug, Clone)]
 pub struct AitpHeaderV4 {
-    pub version:    u8,         // 4 for PQ-capable, 3 for legacy
-    pub flags:      u8,         // SYN|ACK|FIN|RST|REVOKE
-    pub intent:     u16,        // IntentCode
+    pub version: u8, // 4 for PQ-capable, 3 for legacy
+    pub flags: u8,   // SYN|ACK|FIN|RST|REVOKE
+    pub intent: u16, // IntentCode
     pub session_id: u64,
-    pub timestamp:  u64,        // Unix microseconds
-    pub nonce:      [u8; 12],
-    pub algorithm:  u8,         // CryptoAlgorithm byte
-    pub source_pk:  Vec<u8>,    // public key (variable length)
-    pub dest_id:    [u8; 32],   // SHA-256(dest_pubkey)
-    pub signature:  Vec<u8>,    // hybrid or classical signature
+    pub timestamp: u64, // Unix microseconds
+    pub nonce: [u8; 12],
+    pub algorithm: u8,      // CryptoAlgorithm byte
+    pub source_pk: Vec<u8>, // public key (variable length)
+    pub dest_id: [u8; 32],  // SHA-256(dest_pubkey)
+    pub signature: Vec<u8>, // hybrid or classical signature
     pub payload_len: u32,
 }
 
@@ -166,7 +166,7 @@ impl AitpHeaderV4 {
         }
 
         let mut offset = 37;
-        
+
         // Bounding check for ML-KEM/ML-DSA public keys
         if pk_len > crate::crypto::MLKEM768_PK_BYTES + crate::crypto::MLDSA65_SIG_BYTES + 32 {
             return Err("Public key exceeds theoretical max length for hybrid identity");
@@ -199,7 +199,7 @@ impl AitpHeaderV4 {
     }
 
     pub fn source_id(&self) -> [u8; 32] {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(&self.source_pk);
         hasher.finalize().into()
@@ -209,11 +209,21 @@ impl AitpHeaderV4 {
         self.flags & flag != 0
     }
 
-    pub fn is_syn(&self) -> bool { self.has_flag(FLAG_SYN) }
-    pub fn is_ack(&self) -> bool { self.has_flag(FLAG_ACK) }
-    pub fn is_fin(&self) -> bool { self.has_flag(FLAG_FIN) }
-    pub fn is_rst(&self) -> bool { self.has_flag(FLAG_RST) }
-    pub fn is_revoke(&self) -> bool { self.has_flag(FLAG_REVOKE) }
+    pub fn is_syn(&self) -> bool {
+        self.has_flag(FLAG_SYN)
+    }
+    pub fn is_ack(&self) -> bool {
+        self.has_flag(FLAG_ACK)
+    }
+    pub fn is_fin(&self) -> bool {
+        self.has_flag(FLAG_FIN)
+    }
+    pub fn is_rst(&self) -> bool {
+        self.has_flag(FLAG_RST)
+    }
+    pub fn is_revoke(&self) -> bool {
+        self.has_flag(FLAG_REVOKE)
+    }
 }
 
 // Map the generic name to V4 globally to prevent widespread renaming problems,

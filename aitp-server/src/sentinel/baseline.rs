@@ -1,38 +1,38 @@
 use dashmap::DashMap;
-use tokio::sync::Mutex;
 use std::collections::{HashMap, VecDeque};
+use tokio::sync::Mutex;
 
+use super::{Anomaly, SecurityIncident, SentinelEvent};
 use crate::db::{self, DbPool};
-use super::{SentinelEvent, Anomaly, SecurityIncident};
 
 /// Behavioral baseline for an entity.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EntityBaseline {
-    pub entity_id:             String,
+    pub entity_id: String,
     pub avg_sessions_per_hour: f64,
-    pub intent_distribution:   HashMap<String, f64>,
-    pub avg_trust_score:       f64,
-    pub known_peers:           Vec<String>,
-    pub avg_payload_bytes:     f64,
-    pub normal_hours:          Vec<u8>,
-    pub learning_complete:     bool,
-    pub sample_count:          usize,
-    pub last_updated:          i64,
+    pub intent_distribution: HashMap<String, f64>,
+    pub avg_trust_score: f64,
+    pub known_peers: Vec<String>,
+    pub avg_payload_bytes: f64,
+    pub normal_hours: Vec<u8>,
+    pub learning_complete: bool,
+    pub sample_count: usize,
+    pub last_updated: i64,
 }
 
 impl EntityBaseline {
     pub fn new(entity_id: &str) -> Self {
         Self {
-            entity_id:             entity_id.to_string(),
+            entity_id: entity_id.to_string(),
             avg_sessions_per_hour: 0.0,
-            intent_distribution:   HashMap::new(),
-            avg_trust_score:       128.0,
-            known_peers:           Vec::new(),
-            avg_payload_bytes:     0.0,
-            normal_hours:          Vec::new(),
-            learning_complete:     false,
-            sample_count:          0,
-            last_updated:          chrono::Utc::now().timestamp(),
+            intent_distribution: HashMap::new(),
+            avg_trust_score: 128.0,
+            known_peers: Vec::new(),
+            avg_payload_bytes: 0.0,
+            normal_hours: Vec::new(),
+            learning_complete: false,
+            sample_count: 0,
+            last_updated: chrono::Utc::now().timestamp(),
         }
     }
 }
@@ -63,12 +63,12 @@ pub struct SentinelState {
 impl SentinelState {
     pub fn new() -> Self {
         Self {
-            baselines:       DashMap::new(),
+            baselines: DashMap::new(),
             dirty_baselines: DashMap::new(),
-            recent_denials:  DashMap::new(),
-            anomalies:       Mutex::new(VecDeque::with_capacity(1000)),
-            incidents:       Mutex::new(Vec::new()),
-            dirty_entities:  DashMap::new(),
+            recent_denials: DashMap::new(),
+            anomalies: Mutex::new(VecDeque::with_capacity(1000)),
+            incidents: Mutex::new(Vec::new()),
+            dirty_entities: DashMap::new(),
         }
     }
 
@@ -78,8 +78,12 @@ impl SentinelState {
     }
 
     /// Get or create a baseline (mutable ref for updating)
-    pub async fn get_or_create_baseline(&self, entity_id: &str) -> dashmap::mapref::one::RefMut<'_, String, EntityBaseline> {
-        self.baselines.entry(entity_id.to_string())
+    pub async fn get_or_create_baseline(
+        &self,
+        entity_id: &str,
+    ) -> dashmap::mapref::one::RefMut<'_, String, EntityBaseline> {
+        self.baselines
+            .entry(entity_id.to_string())
             .or_insert_with(|| EntityBaseline::new(entity_id))
     }
 
@@ -88,11 +92,14 @@ impl SentinelState {
     }
 
     pub fn mark_dirty(&self, entity_id: &str) {
-        self.dirty_entities.insert(entity_id.to_string(), std::time::Instant::now());
+        self.dirty_entities
+            .insert(entity_id.to_string(), std::time::Instant::now());
     }
 
     pub async fn take_dirty_baselines(&self) -> Vec<String> {
-        let dirty: Vec<String> = self.dirty_baselines.iter()
+        let dirty: Vec<String> = self
+            .dirty_baselines
+            .iter()
             .map(|r| r.key().clone())
             .collect();
         self.dirty_baselines.clear();
@@ -101,13 +108,15 @@ impl SentinelState {
 
     /// Update the entity's baseline after a session (lightweight touch)
     pub async fn touch_baseline(&self, entity_id: &str, event: &SentinelEvent) {
-        let _entry = self.baselines
+        let _entry = self
+            .baselines
             .entry(entity_id.to_string())
             .or_insert_with(|| EntityBaseline::new(entity_id));
 
         // Track denial for spike detection
         if event.verdict == "Deny" {
-            let mut denials = self.recent_denials
+            let mut denials = self
+                .recent_denials
                 .entry(entity_id.to_string())
                 .or_default();
             denials.push_back(event.occurred_at);
@@ -136,8 +145,10 @@ impl SentinelState {
         for baseline in baselines {
             self.baselines.insert(baseline.entity_id.clone(), baseline);
         }
-        tracing::info!("Loaded {} entity baselines into Sentinel cache",
-            self.baselines.len());
+        tracing::info!(
+            "Loaded {} entity baselines into Sentinel cache",
+            self.baselines.len()
+        );
         Ok(())
     }
 }

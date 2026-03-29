@@ -28,8 +28,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Entity registry ──
@@ -52,8 +56,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Sessions ──
@@ -78,8 +86,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Immutable audit chain ──
@@ -100,8 +112,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Entity baselines ──
@@ -120,8 +136,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Security incidents ──
@@ -146,8 +166,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Anomalies ──
@@ -166,8 +190,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Communication policies ──
@@ -187,8 +215,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         )
     "#;
     match pool {
-        DbPool::Sqlite(p) => { sqlx::query(sql).execute(p).await?; }
-        DbPool::Postgres(p) => { sqlx::query(sql).execute(p).await?; }
+        DbPool::Sqlite(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
+        DbPool::Postgres(p) => {
+            sqlx::query(sql).execute(p).await?;
+        }
     }
 
     // ── Indexes ──
@@ -207,8 +239,12 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_policies_org ON comm_policies(org_id)",
     ] {
         match pool {
-            DbPool::Sqlite(p) => { sqlx::query(idx).execute(p).await?; }
-            DbPool::Postgres(p) => { sqlx::query(idx).execute(p).await?; }
+            DbPool::Sqlite(p) => {
+                sqlx::query(idx).execute(p).await?;
+            }
+            DbPool::Postgres(p) => {
+                sqlx::query(idx).execute(p).await?;
+            }
         }
     }
 

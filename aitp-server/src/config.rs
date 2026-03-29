@@ -6,9 +6,9 @@ use crate::crypto::CryptoAlgorithm;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub token_config: crate::auth::TokenConfig,
-    pub http_port: u16,                // AITP_HTTP_PORT, default 3000
-    pub https_port: u16,               // AITP_HTTPS_PORT, default 8443
-    pub redirect_port: u16,            // AITP_REDIRECT_PORT, default 8080
+    pub http_port: u16,     // AITP_HTTP_PORT, default 3000
+    pub https_port: u16,    // AITP_HTTPS_PORT, default 8443
+    pub redirect_port: u16, // AITP_REDIRECT_PORT, default 8080
     pub udp_port: u16,
     pub db_path: String,
     pub gemini_api_key: String,
@@ -24,11 +24,11 @@ pub struct AppConfig {
     /// Path to TLS private key PEM file (TLS_KEY_PATH)
     pub tls_key_path: Option<String>,
     pub xdp_interface: String,
-    
+
     /// Minimum cryptographic algorithm clients must use.
-    pub min_crypto_algorithm: CryptoAlgorithm,  
+    pub min_crypto_algorithm: CryptoAlgorithm,
     /// Advertise PQ support in server hello (clients know to use hybrid)
-    pub advertise_pq: bool,  
+    pub advertise_pq: bool,
 }
 
 impl AppConfig {
@@ -90,7 +90,7 @@ impl AppConfig {
                 .unwrap_or(true),
             log_level: std::env::var("AITP_LOG_LEVEL").unwrap_or_else(|_| "info".into()),
             tls_cert_path: std::env::var("TLS_CERT_PATH").ok(),
-            tls_key_path:  std::env::var("TLS_KEY_PATH").ok(),
+            tls_key_path: std::env::var("TLS_KEY_PATH").ok(),
             xdp_interface: std::env::var("XDP_INTERFACE").unwrap_or_else(|_| "eth0".into()),
             min_crypto_algorithm: std::env::var("MIN_CRYPTO_ALGORITHM")
                 .ok()
@@ -112,7 +112,7 @@ impl AppConfig {
     pub fn summary(&self) -> String {
         let tls = match &self.tls_cert_path {
             Some(_) => "HTTPS PRODUCTION",
-            None    => "HTTP DEV",
+            None => "HTTP DEV",
         };
         format!(
             "Mode={} HTTP={} UDP={} DB={} Trust={} Alpha={:.1} Sentinel={} AutoQ={} Gemini={}",

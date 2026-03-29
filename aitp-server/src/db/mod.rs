@@ -33,7 +33,9 @@ impl DbPool {
             tracing::info!("Database: SQLite (development mode)");
 
             // Ensure local file and parent path exists
-            let path_str = url.trim_start_matches("sqlite://").trim_start_matches("sqlite:");
+            let path_str = url
+                .trim_start_matches("sqlite://")
+                .trim_start_matches("sqlite:");
             let path = std::path::Path::new(path_str);
             if let Some(parent) = path.parent() {
                 if !parent.exists() {
@@ -53,15 +55,20 @@ impl DbPool {
                 .await?;
 
             // SQLite pragmas — must run before migrations
-            sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
-            sqlx::query("PRAGMA synchronous=NORMAL").execute(&pool).await?;
+            sqlx::query("PRAGMA journal_mode=WAL")
+                .execute(&pool)
+                .await?;
+            sqlx::query("PRAGMA synchronous=NORMAL")
+                .execute(&pool)
+                .await?;
             sqlx::query("PRAGMA foreign_keys=ON").execute(&pool).await?;
-            sqlx::query("PRAGMA busy_timeout=5000").execute(&pool).await?;
+            sqlx::query("PRAGMA busy_timeout=5000")
+                .execute(&pool)
+                .await?;
 
             let db = DbPool::Sqlite(pool);
             db.run_migrations().await?;
             Ok(db)
-
         } else if url.starts_with("postgres") || url.starts_with("postgresql") {
             tracing::info!("Database: PostgreSQL (production mode)");
 
@@ -76,7 +83,6 @@ impl DbPool {
             let db = DbPool::Postgres(pool);
             db.run_migrations().await?;
             Ok(db)
-
         } else {
             anyhow::bail!(
                 "Unsupported DATABASE_URL: '{}'\n\
@@ -131,7 +137,9 @@ pub async fn upsert_baseline(
     entity_id: &str,
     baseline: &crate::sentinel::EntityBaseline,
 ) -> anyhow::Result<()> {
-    db.upsert_baseline(entity_id, baseline).await.map_err(Into::into)
+    db.upsert_baseline(entity_id, baseline)
+        .await
+        .map_err(Into::into)
 }
 
 pub async fn quarantine_entity(db: &DbPool, entity_id: &str) -> anyhow::Result<u64> {

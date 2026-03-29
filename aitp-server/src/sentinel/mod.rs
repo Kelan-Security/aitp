@@ -3,10 +3,10 @@ pub mod baseline;
 pub mod threat;
 
 use crate::state::AppState;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{interval, Duration};
-use std::collections::VecDeque;
 
 pub use anomaly::{Anomaly, AnomalySeverity, AnomalyType};
 pub use baseline::{EntityBaseline, SentinelState};
@@ -23,22 +23,22 @@ use crate::db::models::WsEvent;
 #[derive(Debug, Clone)]
 pub struct SentinelEvent {
     /// Entity that initiated the session
-    pub entity_id:      String,
-    pub org_id:         String,
+    pub entity_id: String,
+    pub org_id: String,
 
     /// The session that was evaluated
-    pub session_id:     String,
+    pub session_id: String,
     pub dest_entity_id: String,
-    pub intent:         String,
-    pub trust_score:    u8,
-    pub verdict:        String,  // "Allow" | "Monitor" | "Deny"
-    pub bytes_tx:       u64,
+    pub intent: String,
+    pub trust_score: u8,
+    pub verdict: String, // "Allow" | "Monitor" | "Deny"
+    pub bytes_tx: u64,
 
     /// Timestamp (Unix seconds)
-    pub occurred_at:    i64,
+    pub occurred_at: i64,
 
     /// Pre-classified signal strength — tells Sentinel how urgent this is
-    pub signal:         SentinelSignal,
+    pub signal: SentinelSignal,
 }
 
 /// How urgently the Sentinel should evaluate this event.
@@ -60,22 +60,36 @@ impl SentinelEvent {
     /// Classify signal strength based on session properties.
     /// Called by the trust engine before publishing the event.
     pub fn classify(
-        intent:         &str,
-        trust_score:    u8,
+        intent: &str,
+        trust_score: u8,
         baseline_score: f64,
-        is_new_peer:    bool,
-        verdict:        &str,
+        is_new_peer: bool,
+        verdict: &str,
     ) -> SentinelSignal {
         // Immediate critical signals — these bypass all timers
-        if is_new_peer                          { return SentinelSignal::Critical; }
-        if intent == "ControlSignal"            { return SentinelSignal::Critical; }
-        if verdict == "Deny"                    { return SentinelSignal::Critical; }
-        if (trust_score as f64) < baseline_score - 40.0 { return SentinelSignal::Critical; }
+        if is_new_peer {
+            return SentinelSignal::Critical;
+        }
+        if intent == "ControlSignal" {
+            return SentinelSignal::Critical;
+        }
+        if verdict == "Deny" {
+            return SentinelSignal::Critical;
+        }
+        if (trust_score as f64) < baseline_score - 40.0 {
+            return SentinelSignal::Critical;
+        }
 
         // Elevated signals — check within 1 second
-        if intent == "FileTransfer"             { return SentinelSignal::Elevated; }
-        if intent == "AgentCoordinate"          { return SentinelSignal::Elevated; }
-        if (trust_score as f64) < baseline_score - 20.0 { return SentinelSignal::Elevated; }
+        if intent == "FileTransfer" {
+            return SentinelSignal::Elevated;
+        }
+        if intent == "AgentCoordinate" {
+            return SentinelSignal::Elevated;
+        }
+        if (trust_score as f64) < baseline_score - 20.0 {
+            return SentinelSignal::Elevated;
+        }
 
         // Everything else is routine baseline maintenance
         SentinelSignal::Routine
@@ -87,10 +101,7 @@ impl SentinelEvent {
 /// Main Sentinel task — runs forever as a background tokio task.
 /// Receives session events via channel, processes them immediately
 /// (for Critical signals) or batches them (for Routine signals).
-pub async fn run_event_driven(
-    state:  Arc<AppState>,
-    mut rx: mpsc::Receiver<SentinelEvent>,
-) {
+pub async fn run_event_driven(state: Arc<AppState>, mut rx: mpsc::Receiver<SentinelEvent>) {
     tracing::info!("Sentinel v0.4 starting — event-driven mode");
     tracing::info!("Critical anomaly detection latency: < 5ms");
     tracing::info!("Background baseline update interval: 60s");
@@ -100,13 +111,13 @@ pub async fn run_event_driven(
     let mut deferred_buffer: VecDeque<SentinelEvent> = VecDeque::with_capacity(1000);
 
     // Background timers
-    let mut baseline_tick = interval(Duration::from_secs(60));  // update baselines
-    let mut deferred_tick = interval(Duration::from_secs(5));   // flush deferred buffer
-    let mut expiry_tick   = interval(Duration::from_secs(300)); // clean up old data
+    let mut baseline_tick = interval(Duration::from_secs(60)); // update baselines
+    let mut deferred_tick = interval(Duration::from_secs(5)); // flush deferred buffer
+    let mut expiry_tick = interval(Duration::from_secs(300)); // clean up old data
 
     loop {
         tokio::select! {
-            // ── HIGHEST PRIORITY: process incoming events 
+            // ── HIGHEST PRIORITY: process incoming events
             Some(event) = rx.recv() => {
                 match event.signal {
                     SentinelSignal::Critical => {
@@ -137,12 +148,12 @@ pub async fn run_event_driven(
                 }
             }
 
-            // ── Update behavioral baselines every 60 seconds 
+            // ── Update behavioral baselines every 60 seconds
             _ = baseline_tick.tick() => {
                 update_all_baselines(&state).await;
             }
 
-            // ── Expire old anomalies and sessions every 5 minutes 
+            // ── Expire old anomalies and sessions every 5 minutes
             _ = expiry_tick.tick() => {
                 cleanup_expired_data(&state).await;
             }
@@ -155,7 +166,7 @@ async fn process_critical_event(state: &Arc<AppState>, event: &SentinelEvent) {
 
     let baseline = match state.sentinel.get_baseline(&event.entity_id).await {
         Some(b) => b,
-        None    => {
+        None => {
             check_without_baseline(state, event).await;
             return;
         }
@@ -185,8 +196,8 @@ async fn process_critical_event(state: &Arc<AppState>, event: &SentinelEvent) {
 }
 
 async fn detect_targeted_anomalies(
-    state:    &Arc<AppState>,
-    event:    &SentinelEvent,
+    state: &Arc<AppState>,
+    event: &SentinelEvent,
     baseline: &EntityBaseline,
 ) -> Vec<Anomaly> {
     let mut anomalies = Vec::new();
@@ -196,10 +207,10 @@ async fn detect_targeted_anomalies(
         && !baseline.known_peers.contains(&event.dest_entity_id)
     {
         anomalies.push(Anomaly {
-            entity_id:   event.entity_id.clone(),
-            org_id:      event.org_id.clone(),
+            entity_id: event.entity_id.clone(),
+            org_id: event.org_id.clone(),
             anomaly_type: AnomalyType::NewPeer,
-            severity:    AnomalySeverity::Critical,
+            severity: AnomalySeverity::Critical,
             description: format!(
                 "Entity {} communicated with new peer {} — \
                  not seen in {} previous sessions",
@@ -207,10 +218,10 @@ async fn detect_targeted_anomalies(
                 &event.dest_entity_id[..8],
                 baseline.sample_count
             ),
-            confidence:  0.92,
-            session_id:  Some(event.session_id.clone()),
+            confidence: 0.92,
+            session_id: Some(event.session_id.clone()),
             detected_at: now,
-            metadata:    serde_json::json!({
+            metadata: serde_json::json!({
                 "new_peer":     event.dest_entity_id,
                 "intent":       event.intent,
                 "trust_score":  event.trust_score,
@@ -220,28 +231,26 @@ async fn detect_targeted_anomalies(
         });
     }
 
-    if (event.trust_score as f64) < baseline.avg_trust_score - 40.0
-        && baseline.sample_count > 20
-    {
+    if (event.trust_score as f64) < baseline.avg_trust_score - 40.0 && baseline.sample_count > 20 {
         let drop = baseline.avg_trust_score - event.trust_score as f64;
         anomalies.push(Anomaly {
-            entity_id:    event.entity_id.clone(),
-            org_id:       event.org_id.clone(),
+            entity_id: event.entity_id.clone(),
+            org_id: event.org_id.clone(),
             anomaly_type: AnomalyType::TrustScoreDrop,
-            severity:     if drop > 60.0 {
+            severity: if drop > 60.0 {
                 AnomalySeverity::Critical
             } else {
                 AnomalySeverity::Alert
             },
-            description:  format!(
+            description: format!(
                 "Trust score dropped {:.0} points below baseline \
                  (current: {}, baseline: {:.0})",
                 drop, event.trust_score, baseline.avg_trust_score
             ),
-            confidence:   (drop / 100.0).min(0.99) as f32,
-            session_id:   Some(event.session_id.clone()),
-            detected_at:  now,
-            metadata:     serde_json::json!({
+            confidence: (drop / 100.0).min(0.99) as f32,
+            session_id: Some(event.session_id.clone()),
+            detected_at: now,
+            metadata: serde_json::json!({
                 "current_score":  event.trust_score,
                 "baseline_score": baseline.avg_trust_score,
                 "drop":           drop,
@@ -252,26 +261,27 @@ async fn detect_targeted_anomalies(
     }
 
     if event.intent == "ControlSignal" {
-        let cs_fraction = baseline.intent_distribution
+        let cs_fraction = baseline
+            .intent_distribution
             .get("ControlSignal")
             .copied()
             .unwrap_or(0.0);
 
         if cs_fraction < 0.05 && baseline.sample_count > 10 {
             anomalies.push(Anomaly {
-                entity_id:    event.entity_id.clone(),
-                org_id:       event.org_id.clone(),
+                entity_id: event.entity_id.clone(),
+                org_id: event.org_id.clone(),
                 anomaly_type: AnomalyType::IntentDeviation,
-                severity:     AnomalySeverity::Critical,
-                description:  format!(
+                severity: AnomalySeverity::Critical,
+                description: format!(
                     "ControlSignal intent from entity that uses it in \
                      only {:.1}% of sessions (current session flagged)",
                     cs_fraction * 100.0
                 ),
-                confidence:   0.88,
-                session_id:   Some(event.session_id.clone()),
-                detected_at:  now,
-                metadata:     serde_json::json!({
+                confidence: 0.88,
+                session_id: Some(event.session_id.clone()),
+                detected_at: now,
+                metadata: serde_json::json!({
                     "intent":            event.intent,
                     "historical_fraction": cs_fraction,
                     "trust_score":       event.trust_score,
@@ -286,18 +296,19 @@ async fn detect_targeted_anomalies(
 
         if recent_denials >= 3 {
             anomalies.push(Anomaly {
-                entity_id:    event.entity_id.clone(),
-                org_id:       event.org_id.clone(),
+                entity_id: event.entity_id.clone(),
+                org_id: event.org_id.clone(),
                 anomaly_type: AnomalyType::SessionFrequencySpike,
-                severity:     AnomalySeverity::Alert,
-                description:  format!(
+                severity: AnomalySeverity::Alert,
+                description: format!(
                     "{} denied sessions in last 60 seconds for entity {}",
-                    recent_denials, &event.entity_id[..8]
+                    recent_denials,
+                    &event.entity_id[..8]
                 ),
-                confidence:   0.85,
-                session_id:   Some(event.session_id.clone()),
-                detected_at:  now,
-                metadata:     serde_json::json!({
+                confidence: 0.85,
+                session_id: Some(event.session_id.clone()),
+                detected_at: now,
+                metadata: serde_json::json!({
                     "recent_denials":  recent_denials,
                     "window_seconds":  60,
                 }),
@@ -312,29 +323,25 @@ async fn detect_targeted_anomalies(
 async fn check_without_baseline(state: &Arc<AppState>, event: &SentinelEvent) {
     if event.intent == "ControlSignal" && event.trust_score < 100 {
         let anomaly = Anomaly {
-            entity_id:    event.entity_id.clone(),
-            org_id:       event.org_id.clone(),
+            entity_id: event.entity_id.clone(),
+            org_id: event.org_id.clone(),
             anomaly_type: AnomalyType::IntentDeviation,
-            severity:     AnomalySeverity::Alert,
-            description:  format!(
+            severity: AnomalySeverity::Alert,
+            description: format!(
                 "ControlSignal from entity with no baseline history (score: {})",
                 event.trust_score
             ),
-            confidence:   0.70,
-            session_id:   Some(event.session_id.clone()),
-            detected_at:  chrono::Utc::now().timestamp(),
-            metadata:     serde_json::json!({ "intent": event.intent.clone() }),
+            confidence: 0.70,
+            session_id: Some(event.session_id.clone()),
+            detected_at: chrono::Utc::now().timestamp(),
+            metadata: serde_json::json!({ "intent": event.intent.clone() }),
             recommended_action: "Monitor new entity behavior".to_string(),
         };
         handle_anomaly(state, anomaly, event).await;
     }
 }
 
-async fn handle_anomaly(
-    state:   &Arc<AppState>,
-    anomaly: Anomaly,
-    _event:  &SentinelEvent,
-) {
+async fn handle_anomaly(state: &Arc<AppState>, anomaly: Anomaly, _event: &SentinelEvent) {
     tracing::warn!(
         entity_id  = %&anomaly.entity_id[..8],
         anomaly    = ?anomaly.anomaly_type,
@@ -353,12 +360,12 @@ async fn handle_anomaly(
         .inc();
 
     state.hub.broadcast(WsEvent::AnomalyDetected {
-        entity_id:    anomaly.entity_id.clone(),
+        entity_id: anomaly.entity_id.clone(),
         anomaly_type: anomaly.anomaly_type.as_str().to_string(),
-        severity:     anomaly.severity.as_str().to_string(),
-        description:  anomaly.description.clone(),
-        confidence:   anomaly.confidence,
-        ts:           anomaly.detected_at,
+        severity: anomaly.severity.as_str().to_string(),
+        description: anomaly.description.clone(),
+        confidence: anomaly.confidence,
+        ts: anomaly.detected_at,
     });
 
     if matches!(anomaly.severity, AnomalySeverity::Critical)
@@ -371,8 +378,7 @@ async fn handle_anomaly(
         );
 
         if let Ok(prefix) = parse_entity_prefix(&anomaly.entity_id) {
-            let revoked = state.enforcer.revoke_entity(&prefix).await
-                .unwrap_or(0);
+            let revoked = state.enforcer.revoke_entity(&prefix).await.unwrap_or(0);
             tracing::warn!(sessions_revoked = revoked, "XDP permits revoked");
         }
 
@@ -382,30 +388,33 @@ async fn handle_anomaly(
         crate::metrics::QUARANTINED_ENTITIES.inc();
 
         state.hub.broadcast(WsEvent::EntityQuarantined {
-            entity_id:              anomaly.entity_id.clone(),
-            reason:                 anomaly.description.clone(),
+            entity_id: anomaly.entity_id.clone(),
+            reason: anomaly.description.clone(),
             active_sessions_killed: 0,
-            ts:                     anomaly.detected_at,
+            ts: anomaly.detected_at,
         });
 
         // Activate Threat Response Agent asynchronously (expensive, don't block)
-        let state_clone  = Arc::clone(state);
+        let state_clone = Arc::clone(state);
         let anomaly_clone = anomaly.clone();
         tokio::spawn(async move {
             crate::agent::activate_agent(&state_clone, &anomaly_clone).await;
         });
     }
 
-    let _ = state.db.create_anomaly(
-        anomaly.entity_id.clone(),
-        anomaly.org_id.clone(),
-        format!("{:?}", anomaly.anomaly_type),
-        anomaly.severity.as_str().to_string(),
-        anomaly.description.clone(),
-        anomaly.confidence,
-        anomaly.session_id.clone(),
-        serde_json::to_string(&anomaly.metadata).unwrap_or_default(),
-    ).await;
+    let _ = state
+        .db
+        .create_anomaly(
+            anomaly.entity_id.clone(),
+            anomaly.org_id.clone(),
+            format!("{:?}", anomaly.anomaly_type),
+            anomaly.severity.as_str().to_string(),
+            anomaly.description.clone(),
+            anomaly.confidence,
+            anomaly.session_id.clone(),
+            serde_json::to_string(&anomaly.metadata).unwrap_or_default(),
+        )
+        .await;
 }
 
 async fn process_deferred_batch(state: &Arc<AppState>, events: Vec<SentinelEvent>) {
@@ -413,7 +422,8 @@ async fn process_deferred_batch(state: &Arc<AppState>, events: Vec<SentinelEvent
         std::collections::HashMap::new();
 
     for event in &events {
-        entity_events.entry(event.entity_id.clone())
+        entity_events
+            .entry(event.entity_id.clone())
             .or_default()
             .push(event);
     }
@@ -424,11 +434,7 @@ async fn process_deferred_batch(state: &Arc<AppState>, events: Vec<SentinelEvent
     }
 }
 
-async fn update_entity_baseline(
-    state:     &Arc<AppState>,
-    entity_id: &str,
-    events:    &[&SentinelEvent],
-) {
+async fn update_entity_baseline(state: &Arc<AppState>, entity_id: &str, events: &[&SentinelEvent]) {
     let mut baseline = state.sentinel.get_or_create_baseline(entity_id).await;
 
     for event in events {
@@ -436,7 +442,8 @@ async fn update_entity_baseline(
         baseline.avg_trust_score =
             (baseline.avg_trust_score * n + event.trust_score as f64) / (n + 1.0);
 
-        *baseline.intent_distribution
+        *baseline
+            .intent_distribution
             .entry(event.intent.clone())
             .or_insert(0.0) += 1.0 / (n + 1.0);
 
@@ -450,14 +457,10 @@ async fn update_entity_baseline(
     state.sentinel.mark_baseline_dirty(entity_id).await;
 }
 
-async fn check_slow_anomalies(
-    state:     &Arc<AppState>,
-    entity_id: &str,
-    events:    &[&SentinelEvent],
-) {
+async fn check_slow_anomalies(state: &Arc<AppState>, entity_id: &str, events: &[&SentinelEvent]) {
     let baseline = match state.sentinel.get_baseline(entity_id).await {
         Some(b) => b,
-        None    => return,
+        None => return,
     };
 
     for event in events.iter().filter(|e| e.intent == "FileTransfer") {
@@ -466,20 +469,20 @@ async fn check_slow_anomalies(
             && baseline.sample_count > 20
         {
             let anomaly = Anomaly {
-                entity_id:    entity_id.to_string(),
-                org_id:       event.org_id.clone(),
+                entity_id: entity_id.to_string(),
+                org_id: event.org_id.clone(),
                 anomaly_type: AnomalyType::ExfiltrationPattern,
-                severity:     AnomalySeverity::Alert,
-                description:  format!(
+                severity: AnomalySeverity::Alert,
+                description: format!(
                     "FileTransfer volume {}x above baseline ({} vs {:.0} avg)",
                     event.bytes_tx / baseline.avg_payload_bytes.max(1.0) as u64,
                     event.bytes_tx,
                     baseline.avg_payload_bytes
                 ),
-                confidence:   0.78,
-                session_id:   Some(event.session_id.clone()),
-                detected_at:  chrono::Utc::now().timestamp(),
-                metadata:     serde_json::json!({
+                confidence: 0.78,
+                session_id: Some(event.session_id.clone()),
+                detected_at: chrono::Utc::now().timestamp(),
+                metadata: serde_json::json!({
                     "bytes_tx":  event.bytes_tx,
                     "avg_bytes": baseline.avg_payload_bytes,
                 }),
@@ -492,7 +495,9 @@ async fn check_slow_anomalies(
 
 async fn update_all_baselines(state: &Arc<AppState>) {
     let dirty_ids = state.sentinel.take_dirty_baselines().await;
-    if dirty_ids.is_empty() { return; }
+    if dirty_ids.is_empty() {
+        return;
+    }
 
     tracing::debug!("Flushing {} baseline(s) to DB", dirty_ids.len());
 
@@ -510,5 +515,7 @@ async fn cleanup_expired_data(state: &Arc<AppState>) {
 
 fn parse_entity_prefix(entity_id: &str) -> anyhow::Result<[u8; 8]> {
     let bytes = hex::decode(&entity_id[..16.min(entity_id.len())])?;
-    Ok(bytes.try_into().map_err(|_| anyhow::anyhow!("bad prefix"))?)
+    Ok(bytes
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("bad prefix"))?)
 }

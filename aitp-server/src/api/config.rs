@@ -1,4 +1,8 @@
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use std::sync::Arc;
 
 use crate::auth::OrgId;
@@ -96,9 +100,7 @@ async fn verify_key(
 /// GET /api/config/ws-url
 /// Returns the WebSocket base URL — ws:// in HTTP mode, wss:// in HTTPS mode.
 /// Clients read this endpoint to auto-configure their WebSocket connection.
-async fn ws_url(
-    State(state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
+async fn ws_url(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let (scheme, port) = if state.config.tls_enabled() {
         ("wss", 443u16)
     } else {

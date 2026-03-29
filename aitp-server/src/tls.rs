@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use axum_server::tls_rustls::RustlsConfig;
+use std::path::PathBuf;
 
 use crate::config::AppConfig;
 
@@ -9,10 +9,10 @@ pub enum ServerMode {
     Http { port: u16 },
     /// HTTPS with an HTTP→HTTPS redirect on `http_port`.
     Https {
-        http_port:  u16,
+        http_port: u16,
         https_port: u16,
-        cert:       PathBuf,
-        key:        PathBuf,
+        cert: PathBuf,
+        key: PathBuf,
     },
 }
 
@@ -24,10 +24,10 @@ pub fn detect_mode(config: &AppConfig) -> ServerMode {
             tracing::warn!("║   HTTPS PRODUCTION MODE ACTIVE           ║");
             tracing::warn!("╚══════════════════════════════════════════╝");
             ServerMode::Https {
-                http_port:  config.redirect_port,
+                http_port: config.redirect_port,
                 https_port: config.https_port,
-                cert:       cert.into(),
-                key:        key.into(),
+                cert: cert.into(),
+                key: key.into(),
             }
         }
         _ => {
@@ -43,15 +43,17 @@ pub fn detect_mode(config: &AppConfig) -> ServerMode {
 /// Load a `RustlsConfig` from PEM cert + key files on disk.
 pub async fn load_rustls_config(
     cert_path: &PathBuf,
-    key_path:  &PathBuf,
+    key_path: &PathBuf,
 ) -> anyhow::Result<RustlsConfig> {
     let config = RustlsConfig::from_pem_file(cert_path, key_path)
         .await
-        .map_err(|e| anyhow::anyhow!(
-            "Failed to load TLS config (cert={}, key={}): {}",
-            cert_path.display(),
-            key_path.display(),
-            e
-        ))?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to load TLS config (cert={}, key={}): {}",
+                cert_path.display(),
+                key_path.display(),
+                e
+            )
+        })?;
     Ok(config)
 }

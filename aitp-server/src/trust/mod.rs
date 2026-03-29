@@ -2,8 +2,8 @@ pub mod gemini;
 pub mod rules;
 
 use moka::future::Cache;
-use std::time::Duration;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -112,8 +112,8 @@ impl HybridTrustEngine {
 
         let cache = Cache::builder()
             .max_capacity(10_000)
-            .time_to_live(Duration::from_secs(300))    // 5 min TTL
-            .time_to_idle(Duration::from_secs(60))     // Evict if unused 1 min
+            .time_to_live(Duration::from_secs(300)) // 5 min TTL
+            .time_to_idle(Duration::from_secs(60)) // Evict if unused 1 min
             .build();
 
         Self {
@@ -131,11 +131,15 @@ impl HybridTrustEngine {
 
         if let Some(cached) = self.cache.get(&cache_key).await {
             tracing::debug!(entity_id = %ctx.source_entity_id, "Trust cache hit");
-            crate::metrics::TRUST_CACHE.with_label_values(&["hit"]).inc();
+            crate::metrics::TRUST_CACHE
+                .with_label_values(&["hit"])
+                .inc();
             return (*cached).clone();
         }
 
-        crate::metrics::TRUST_CACHE.with_label_values(&["miss"]).inc();
+        crate::metrics::TRUST_CACHE
+            .with_label_values(&["miss"])
+            .inc();
         let result = self.evaluate_uncached(ctx).await;
         self.cache.insert(cache_key, Arc::new(result.clone())).await;
         result

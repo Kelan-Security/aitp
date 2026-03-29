@@ -30,7 +30,10 @@ async fn status(
         .filter(|a| matches!(a.severity, crate::sentinel::AnomalySeverity::Critical))
         .count();
 
-    let learning_count = state.sentinel.baselines.iter()
+    let learning_count = state
+        .sentinel
+        .baselines
+        .iter()
         .filter(|r| !r.value().learning_complete)
         .count();
 
@@ -57,7 +60,10 @@ async fn baselines(
     State(state): State<Arc<AppState>>,
     OrgId(_org_id): OrgId,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let list: Vec<_> = state.sentinel.baselines.iter()
+    let list: Vec<_> = state
+        .sentinel
+        .baselines
+        .iter()
         .map(|r| r.value().clone())
         .collect();
     Ok(Json(serde_json::json!(list)))

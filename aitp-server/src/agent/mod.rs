@@ -40,7 +40,7 @@ pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
     let mitre_json = serde_json::to_string(&report.mitre_ttps).unwrap_or_default();
     let affected_json = serde_json::to_string(&report.affected_entities).unwrap_or_default();
     let runbook_json = serde_json::to_string(&report.remediation_runbook).unwrap_or_default();
-    
+
     match &state.db {
         crate::db::DbPool::Postgres(pool) => {
             let _ = sqlx::query::<sqlx::Postgres>("INSERT INTO security_incidents (id, org_id, severity, attack_type, summary, entry_point_entity_id, affected_entities, attack_timeline, mitre_ttps, vulnerability, remediation, status, confidence, investigation_steps, detected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)")

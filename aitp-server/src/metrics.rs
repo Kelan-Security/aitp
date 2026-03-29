@@ -6,9 +6,8 @@
 
 use lazy_static::lazy_static;
 use prometheus::{
-    register_counter_vec, register_gauge, register_gauge_vec,
-    register_histogram_vec, CounterVec, Gauge, GaugeVec, HistogramVec,
-    TextEncoder, Encoder,
+    register_counter_vec, register_gauge, register_gauge_vec, register_histogram_vec, CounterVec,
+    Encoder, Gauge, GaugeVec, HistogramVec, TextEncoder,
 };
 
 lazy_static! {
@@ -198,14 +197,23 @@ pub async fn metrics_handler() -> impl axum::response::IntoResponse {
     encoder.encode(&metric_families, &mut buffer).unwrap();
 
     (
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         buffer,
     )
 }
 
 /// Helper: record a session evaluation result
-pub fn record_session(verdict: &str, intent: &str, org_id: &str,
-                      latency_ms: f64, trust_score: u8, trust_mode: &str) {
+pub fn record_session(
+    verdict: &str,
+    intent: &str,
+    org_id: &str,
+    latency_ms: f64,
+    trust_score: u8,
+    trust_mode: &str,
+) {
     SESSIONS_TOTAL
         .with_label_values(&[verdict, intent, org_id])
         .inc();
@@ -223,10 +231,6 @@ pub fn record_gemini_call(model: &str, outcome: &str, latency_ms: f64) {
         .with_label_values(&[model, outcome])
         .observe(latency_ms);
     if outcome != "success" {
-        GEMINI_ERRORS
-            .with_label_values(&[outcome])
-            .inc();
+        GEMINI_ERRORS.with_label_values(&[outcome]).inc();
     }
 }
-
-
