@@ -19,3 +19,13 @@
 ## Fuzzing
 fuzz/corpus/
 fuzz/artifacts/
+# KELAN Secrets
+config/.env
+config/.env.local
+config/.env.production
+!config/.env.example
+*.key
+*.pem
+certs/server.crt
+secrets/
+agent-identity.key

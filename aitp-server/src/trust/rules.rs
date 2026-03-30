@@ -130,6 +130,7 @@ mod tests {
 
     fn base_ctx() -> SessionContext {
         SessionContext {
+            org_id: "test-org".to_string(),
             source_entity_id: "abc123".to_string(),
             source_entity_type: "workstation".to_string(),
             source_department: Some("Engineering".to_string()),

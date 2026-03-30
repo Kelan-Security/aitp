@@ -143,6 +143,7 @@ mod tests {
             started_at: chrono::Utc::now().timestamp(),
             last_activity: chrono::Utc::now().timestamp(),
             anomaly_flags: vec![],
+            session_key: None,
         }
     }
 
@@ -189,6 +190,7 @@ mod tests {
             started_at: chrono::Utc::now().timestamp(),
             last_activity: chrono::Utc::now().timestamp(),
             anomaly_flags: vec![],
+            session_key: Some([0u8; 32]),
         });
         mgr.create(ActiveSession {
             id: "s5".to_string(),
@@ -202,6 +204,7 @@ mod tests {
             started_at: chrono::Utc::now().timestamp(),
             last_activity: chrono::Utc::now().timestamp(),
             anomaly_flags: vec![],
+            session_key: None,
         });
 
         let killed = mgr.revoke_all_for_entity("entity_a");

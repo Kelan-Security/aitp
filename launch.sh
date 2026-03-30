@@ -102,7 +102,7 @@ AITP_AI_ENGINE_TRUST_MODE=hybrid
 
 # Google Gemini (RECOMMENDED - set your key here)
 AITP_GEMINI_API_KEY=
-AITP_GEMINI_MODEL=gemini-2.5-flash-preview-05-20
+AITP_GEMINI_MODEL=gemini-2.5-flash
 
 # Anthropic Claude (alternative)
 # AITP_AI_ENGINE_PROVIDER=claude

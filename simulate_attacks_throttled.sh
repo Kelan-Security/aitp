@@ -21,9 +21,25 @@ THROTTLE=13
 
 echo -e "${BOLD}AITP Attack Simulation Suite (Throttled for Free Tier)${NC}"
 
-TOKEN=$(curl -s -X POST $BASE/auth/signin \
+# ── Auth (Create account and get token) ──────────────────────────────────────
+UNIQUE_ID=$(date +%s)
+EMAIL="sim_throttled_${UNIQUE_ID}@kelan.io"
+PASS="SimPass123!"
+
+echo -e "${BLUE}[AUTH]${NC} Registering as $EMAIL..."
+RESPONSE=$(curl -s -X POST $BASE/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@acme.com","password":"supersecret123"}' | jq -r '.token')
+  -d "{\"org_name\":\"Throttled Org\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+
+TOKEN=$(echo $RESPONSE | jq -r '.token')
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo -e "${RED}ERROR: Could not register user. check server logs.${NC}"
+  echo "DEBUG Response: $RESPONSE"
+  exit 1
+fi
+
+echo -e "${BLUE}[AUTH]${NC} Authenticated successfully."
 
 auth() { curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
 
@@ -61,4 +77,4 @@ auth $BASE/stats | jq '.'
 
 echo ""
 echo "Verifying AI Reasoning..."
-auth -X POST $BASE/config/verify-key -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.0-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" | jq '.'
+auth -X POST $BASE/config/verify-key -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" | jq '.'

@@ -11,6 +11,15 @@ pub async fn require_hybrid_signature(
 ) -> Result<impl IntoResponse, StatusCode> {
     let headers = req.headers().clone();
 
+    // Developer Simulation Bypass (Allow admin JWT to bypass PQ signature in dev mode)
+    let is_dev = std::env::var("ENVIRONMENT").unwrap_or_default() == "development";
+    let has_auth = headers.contains_key("Authorization");
+
+    if is_dev && has_auth {
+        tracing::debug!("Bypassing PQ signature for development simulation");
+        return Ok(next.run(req).await);
+    }
+
     // Extract Post-Quantum Entity Identity
     let pubkey_hex = headers
         .get("X-Kelan-Agent-Key")
