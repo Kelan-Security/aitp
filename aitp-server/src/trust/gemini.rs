@@ -85,102 +85,41 @@ struct GeminiCandidateContent {
     parts: Vec<GeminiPart>,
 }
 
-/// Gemini 2.5 Flash trust engine client.
+/// Gemini 1.5 Flash trust engine client.
 pub struct GeminiTrustEngine {
-    api_key: String,
-    model: String,
-    client: reqwest::Client,
+    pub client: std::sync::Arc<crate::ai::GeminiClient>,
+    pub model: String,
 }
 
 impl GeminiTrustEngine {
-    pub fn new(api_key: &str, model: &str) -> Self {
+    pub fn new(client: std::sync::Arc<crate::ai::GeminiClient>, model: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            client,
             model: model.to_string(),
-            client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_millis(4000))
-                .build()
-                .unwrap_or_default(),
         }
     }
 
-    /// Evaluate trust via Gemini API.
+    /// Evaluate trust via Gemini AI.
     pub async fn evaluate(&self, ctx: &SessionContext) -> Result<TrustResult, String> {
-        if self.api_key.is_empty() {
-            return Err("Gemini API key not configured".to_string());
-        }
-
         let ctx_json = serde_json::to_string(ctx)
             .map_err(|e| format!("Failed to serialize context: {}", e))?;
 
-        let request = GeminiRequest {
-            contents: vec![GeminiContent {
-                parts: vec![GeminiPart {
-                    text: format!("Evaluate this session:\n{}", ctx_json),
-                }],
-            }],
-            system_instruction: GeminiSystemInstruction {
-                parts: vec![GeminiPart {
-                    text: TRUST_SYSTEM_PROMPT.to_string(),
-                }],
-            },
-            generation_config: GeminiGenerationConfig {
-                temperature: 0.1,
-                max_output_tokens: 256,
-                response_mime_type: "application/json".to_string(),
-            },
-        };
+        let prompt = format!("Evaluate this session:\n{}", ctx_json);
 
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            self.model, self.api_key
-        );
-
+        // Record timing locally for metrics
         let gemini_start = std::time::Instant::now();
 
-        let response = self
+        let text = self
             .client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| {
-                let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
-                let err_type = if e.is_timeout() { "timeout" } else { "network" };
-                crate::metrics::record_gemini_call(&self.model, err_type, latency_ms);
-                format!("Gemini API request failed: {}", e)
-            })?;
+            .generate_content(&self.model, Some(TRUST_SYSTEM_PROMPT), &prompt, 0.1, true)
+            .await?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
-            let err_type = if status.as_u16() == 429 {
-                "rate_limit"
-            } else if status.as_u16() == 403 {
-                "auth"
-            } else {
-                "error"
-            };
-            crate::metrics::record_gemini_call(&self.model, err_type, latency_ms);
-            let body = response.text().await.unwrap_or_default();
-            return Err(format!("Gemini API returned {}: {}", status, body));
-        }
-
-        let api_response: GeminiApiResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse Gemini response: {}", e))?;
-
-        let text = api_response
-            .candidates
-            .and_then(|c| c.into_iter().next())
-            .and_then(|c| c.content.parts.into_iter().next())
-            .map(|p| p.text)
-            .ok_or_else(|| "Empty response from Gemini".to_string())?;
+        let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
 
         let gemini_result: GeminiTrustResponse = match serde_json::from_str(&text) {
             Ok(res) => res,
             Err(e) => {
+                // Fallback: try to extract JSON if it was wrapped in markdown (though client handles this via mime type)
                 let start = text.find('{');
                 let end = text.rfind('}');
 
@@ -198,22 +137,16 @@ impl GeminiTrustEngine {
             }
         };
 
-        let ok = TrustResult {
+        Ok(TrustResult {
             trust_score: gemini_result.trust_score,
             verdict: TrustVerdict::from_str_loose(&gemini_result.verdict),
             primary_risk: gemini_result.primary_risk,
             reasoning: gemini_result.reasoning,
             confidence: gemini_result.confidence as f32,
             behavioral_flags: gemini_result.behavioral_flags,
-            evaluation_ms: 0.0,
+            evaluation_ms: latency_ms,
             source: "gemini".to_string(),
-        };
-
-        // Record successful Gemini call latency
-        let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
-        crate::metrics::record_gemini_call(&self.model, "success", latency_ms);
-
-        Ok(ok)
+        })
     }
 
     /// Verify the API key by making a test trust evaluation.
@@ -242,6 +175,8 @@ impl GeminiTrustEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ai::GeminiClient;
+    use std::sync::Arc;
 
     #[test]
     fn test_system_prompt_not_empty() {
@@ -251,7 +186,8 @@ mod tests {
 
     #[test]
     fn test_gemini_engine_creation() {
-        let engine = GeminiTrustEngine::new("test_key", "gemini-2.5-flash");
+        let client = Arc::new(GeminiClient::new("test_key"));
+        let engine = GeminiTrustEngine::new(client, "gemini-2.5-flash");
         assert_eq!(engine.model, "gemini-2.5-flash");
     }
 

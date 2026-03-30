@@ -21,6 +21,7 @@ pub struct AppState {
     pub memory_budget: Arc<MemoryBudget>,
     pub enforcer: Arc<crate::enforcement::BpfEnforcer>,
     pub server_identity: Arc<crate::crypto::HybridEntityIdentity>,
+    pub gemini_client: Arc<crate::ai::GeminiClient>,
 }
 
 impl AppState {

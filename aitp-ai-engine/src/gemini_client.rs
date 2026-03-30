@@ -265,7 +265,7 @@ impl Default for GeminiConfig {
     fn default() -> Self {
         Self {
             api_key: String::new(),
-            model: "gemini-2.0-flash".into(),
+            model: "gemini-2.5-flash".into(),
             timeout_ms: 4000,
             cache_ttl_secs: 60,
             max_rps: 100,

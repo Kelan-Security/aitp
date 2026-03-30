@@ -47,7 +47,8 @@ async fn verify_key(
     OrgId(org_id): OrgId,
     Json(req): Json<VerifyKeyReq>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let engine = GeminiTrustEngine::new(&req.api_key, &req.model);
+    let client = Arc::new(crate::ai::GeminiClient::new(&req.api_key));
+    let engine = GeminiTrustEngine::new(client, &req.model);
 
     match engine.verify_key().await {
         Ok(result) => {

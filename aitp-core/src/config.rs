@@ -898,7 +898,7 @@ fn d_trust_mode() -> String {
     "hybrid".into()
 }
 fn d_gemini_model() -> String {
-    "gemini-2.0-flash".into()
+    "gemini-2.5-flash".into()
 }
 fn d_claude_model() -> String {
     "claude-haiku-4-5-20251001".into()

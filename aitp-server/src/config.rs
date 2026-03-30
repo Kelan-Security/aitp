@@ -70,7 +70,7 @@ impl AppConfig {
                 .or_else(|_| std::env::var("GEMINI_API_KEY"))
                 .unwrap_or_default(),
             gemini_model: std::env::var("AITP_GEMINI_MODEL")
-                .unwrap_or_else(|_| "gemini-2.0-flash".into()),
+                .unwrap_or_else(|_| "gemini-2.5-flash".into()),
             trust_mode: std::env::var("AITP_TRUST_MODE").unwrap_or_else(|_| "hybrid".into()),
             trust_alpha: std::env::var("AITP_TRUST_ALPHA")
                 .unwrap_or_else(|_| "0.4".into())

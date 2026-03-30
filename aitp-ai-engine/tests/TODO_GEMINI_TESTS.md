@@ -21,7 +21,7 @@ these tests should be hardened to **always assert real responses**.
 - [ ] **Retry on 429**: Test that the client retries with exponential backoff on rate limits
 - [ ] **Concurrent burst test**: Fire 50 evaluations simultaneously, verify all complete within budget
 - [ ] **Cache TTL expiry**: Wait for `cache_ttl_secs` to elapse, verify cache miss triggers a fresh API call
-- [ ] **Model fallback**: If `gemini-2.0-flash` is unavailable, fall back to `gemini-1.5-flash`
+- [ ] **Model fallback**: If `gemini-2.5-flash` is unavailable, fall back to `gemini-1.5-flash`
 - [ ] **Malformed response handling**: Inject a response where Gemini returns invalid JSON (non-strict schema)
 - [ ] **Token budget test**: Verify prompt + response stays under token limits for billing predictability
 

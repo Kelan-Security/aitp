@@ -24,8 +24,7 @@ pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
     }
 
     let agent = ThreatResponseAgent::new(
-        state.config.gemini_api_key.clone(),
-        // Use gemini-2.5-flash for speed in the agentic loop
+        state.gemini_client.clone(),
         state.config.gemini_model.clone(),
         state.db.clone(),
         Arc::new(state.hub.clone()),

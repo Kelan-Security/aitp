@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_registry_crud() {
-        let config = std::sync::Arc::new(crate::config::AppConfig::default());
+        let config = std::sync::Arc::new(crate::config::AppConfig::from_env());
         let reg = EntityRegistry::new(config);
         reg.register(make_entity("abc123"));
         assert!(reg.contains("abc123"));
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_quarantine() {
-        let config = std::sync::Arc::new(crate::config::AppConfig::default());
+        let config = std::sync::Arc::new(crate::config::AppConfig::from_env());
         let reg = EntityRegistry::new(config);
         reg.register(make_entity("q1"));
         assert!(!reg.is_quarantined("q1"));

@@ -35,5 +35,12 @@ async fn stats(
         "features": license.features.iter().map(|f| format!("{:?}", f)).collect::<Vec<_>>(),
     });
 
+    // Zero-trust server attestation: expose the server's cryptographic entity ID and algorithm.
+    // Clients can pin this value to detect server spoofing or MitM substitution.
+    resp["server_identity"] = serde_json::json!({
+        "entity_id": state.server_identity.entity_id_hex(),
+        "algorithm": format!("{:?}", state.server_identity.algorithm),
+    });
+
     Ok(Json(resp))
 }

@@ -52,9 +52,8 @@ Investigation principles:
 "#;
 
 pub struct ThreatResponseAgent {
-    api_key: String,
+    client: Arc<crate::ai::GeminiClient>,
     model: String,
-    client: reqwest::Client,
     db: DbPool,
     hub: Arc<WsHub>,
     cve: CveIntelligence,
@@ -64,7 +63,7 @@ pub struct ThreatResponseAgent {
 
 impl ThreatResponseAgent {
     pub fn new(
-        api_key: String,
+        client: Arc<crate::ai::GeminiClient>,
         model: String,
         db: DbPool,
         hub: Arc<WsHub>,
@@ -72,12 +71,8 @@ impl ThreatResponseAgent {
         memory_budget: Arc<crate::budget::MemoryBudget>,
     ) -> Self {
         Self {
-            api_key,
+            client,
             model,
-            client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .unwrap_or_default(),
             db,
             hub,
             cve: CveIntelligence::new(),
@@ -121,12 +116,11 @@ impl ThreatResponseAgent {
             // Acquire AI slot permit to limit concurrency
             let _permit = self.memory_budget.acquire_ai_slot().await;
 
-            // Call Gemini
-            let response = match self.call_gemini(&conversation).await {
+            // Call Gemini via shared client
+            let response = match self.client.chat(&self.model, Some(AGENT_SYSTEM_PROMPT), conversation.clone(), 0.2).await {
                 Ok(text) => text,
                 Err(e) => {
                     tracing::error!("Agent step {} Gemini call failed: {}", step_num, e);
-                    // Fallback: generate report from what we have
                     break;
                 }
             };
@@ -247,54 +241,6 @@ impl ThreatResponseAgent {
             "🤖 Investigation reached step limit — generating report from available evidence",
         );
         self.fallback_report(anomaly, steps, actions_taken)
-    }
-
-    async fn call_gemini(&self, conversation: &[Value]) -> Result<String, String> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            self.model, self.api_key
-        );
-
-        let request = serde_json::json!({
-            "contents": conversation,
-            "systemInstruction": {
-                "parts": [{ "text": AGENT_SYSTEM_PROMPT }]
-            },
-            "generationConfig": {
-                "temperature": 0.2,
-                "maxOutputTokens": 2048,
-                "responseMimeType": "application/json"
-            }
-        });
-
-        let resp = self
-            .client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| format!("Gemini request failed: {}", e))?;
-
-        if !resp.status().is_success() {
-            let s = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(format!("Gemini {}: {}", s, body));
-        }
-
-        let data: Value = resp
-            .json()
-            .await
-            .map_err(|e| format!("JSON parse error: {}", e))?;
-        let text = data["candidates"][0]["content"]["parts"][0]["text"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        if text.is_empty() {
-            return Err("Empty Gemini response".to_string());
-        }
-
-        Ok(text)
     }
 
     fn parse_agent_response(&self, response: &str) -> Result<(String, AgentAction), String> {

@@ -24,17 +24,25 @@ echo -e "${BOLD}║        AITP Attack Simulation Suite v0.3            ║${NC}
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
-TOKEN=$(curl -s -X POST $BASE/auth/signin \
+# ── Auth (Create account and get token) ──────────────────────────────────────
+UNIQUE_ID=$(date +%s)
+EMAIL="sim_${UNIQUE_ID}@kelan.io"
+PASS="SimPass123!"
+
+echo -e "${BLUE}[AUTH]${NC} Registering as $EMAIL..."
+RESPONSE=$(curl -s -X POST $BASE/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"dev@kelan.io","password":"DevPass123!"}' | jq -r '.token')
+  -d "{\"org_name\":\"Simulation Org\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+
+TOKEN=$(echo $RESPONSE | jq -r '.token')
 
 if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-  echo -e "${RED}ERROR: Could not authenticate. Is the server running? ./start.sh${NC}"
+  echo -e "${RED}ERROR: Could not register user. check server logs.${NC}"
+  echo "DEBUG Response: $RESPONSE"
   exit 1
 fi
 
-echo -e "${BLUE}[AUTH]${NC} Authenticated as admin@acme.com"
+echo -e "${BLUE}[AUTH]${NC} Authenticated successfully."
 
 auth() { curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
 
@@ -181,7 +189,7 @@ echo ""
 echo -e "${BLUE}[AI CHECK]${NC} Verifying Gemini reasoning..."
 # Use GEMINI_API_KEY from .env
 VERIFY=$(auth -X POST $BASE/config/verify-key \
-  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.0-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
+  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
   2>/dev/null || echo '{"test_evaluation":{"reasoning":"API call failed"}}')
 
 REASONING=$(echo $VERIFY | jq -r '.test_evaluation.reasoning // "not available"')

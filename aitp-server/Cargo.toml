@@ -55,4 +55,6 @@ prometheus    = { version = "0.13", default-features = false, features = ["proce
 lazy_static   = "1"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["test-util", "full"] }
+tokio   = { version = "1", features = ["test-util", "full"] }
+reqwest = { version = "0.11", features = ["json"] }
+uuid    = { version = "1", features = ["v4"] }

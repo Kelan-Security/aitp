@@ -103,12 +103,13 @@ pub struct HybridTrustEngine {
 }
 
 impl HybridTrustEngine {
-    pub fn new(gemini_api_key: &str, gemini_model: &str, alpha: f64, mode: &str) -> Self {
-        let gemini = if !gemini_api_key.is_empty() {
-            Some(gemini::GeminiTrustEngine::new(gemini_api_key, gemini_model))
-        } else {
-            None
-        };
+    pub fn new(
+        gemini_client: Arc<crate::ai::GeminiClient>,
+        gemini_model: &str,
+        alpha: f64,
+        mode: &str,
+    ) -> Self {
+        let gemini = Some(gemini::GeminiTrustEngine::new(gemini_client, gemini_model));
 
         let cache = Cache::builder()
             .max_capacity(10_000)

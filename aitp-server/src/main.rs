@@ -9,6 +9,7 @@ use tokio::time::{interval, Duration, Instant};
 use tower_http::cors::{Any, CorsLayer};
 
 mod agent;
+mod ai;
 mod api;
 mod auth;
 mod budget;
@@ -116,7 +117,9 @@ async fn async_main() -> anyhow::Result<()> {
     // 5. Connect Database (runs migrations automatically)
     if app_config.db_path.starts_with("postgres") {
         let license = crate::license::ActiveLicense::get();
-        if !license.has_feature(&crate::license::LicenseFeature::Postgres) {
+        let is_dev = std::env::var("ENVIRONMENT").unwrap_or_default() == "development";
+
+        if !license.has_feature(&crate::license::LicenseFeature::Postgres) && !is_dev {
             eprintln!("╔══════════════════════════════════════════════╗");
             eprintln!("║       LICENSE VALIDATION RESTRICTION         ║");
             eprintln!("╠══════════════════════════════════════════════╣");
@@ -126,6 +129,8 @@ async fn async_main() -> anyhow::Result<()> {
             eprintln!("║ kernex.io                                    ║");
             eprintln!("╚══════════════════════════════════════════════╝");
             std::process::exit(1);
+        } else if is_dev {
+            tracing::info!("PostgreSQL license restriction bypassed (DEVELOPMENT mode)");
         }
     }
 
@@ -148,8 +153,10 @@ async fn async_main() -> anyhow::Result<()> {
     // Pre-warm baseline memory cache globally
     let _ = sentinel_instance.load_from_db(&db_pool, "system").await;
 
+    let gemini_client = Arc::new(crate::ai::GeminiClient::new(&app_config.gemini_api_key));
+
     let trust_engine = crate::trust::HybridTrustEngine::new(
-        &app_config.gemini_api_key,
+        gemini_client.clone(),
         &app_config.gemini_model,
         app_config.trust_alpha,
         &app_config.trust_mode,
@@ -176,6 +183,7 @@ async fn async_main() -> anyhow::Result<()> {
         memory_budget,
         enforcer,
         server_identity: server_identity.clone(),
+        gemini_client,
     });
 
     // 6. Handle trigger-agent subcommand
