@@ -905,12 +905,14 @@ impl DbPool {
         // We load all baselines into memory
         let rows: Vec<DbBaseline> = match self {
             DbPool::Postgres(p) => {
-                sqlx::query_as("SELECT * FROM entity_baselines")
+                sqlx::query_as("SELECT * FROM entity_baselines WHERE org_id = $1")
+                    .bind(_org_id)
                     .fetch_all(p)
                     .await?
             }
             DbPool::Sqlite(p) => {
-                sqlx::query_as("SELECT * FROM entity_baselines")
+                sqlx::query_as("SELECT * FROM entity_baselines WHERE org_id = ?")
+                    .bind(_org_id)
                     .fetch_all(p)
                     .await?
             }
@@ -937,6 +939,7 @@ impl DbPool {
 
     pub async fn upsert_baseline(
         &self,
+        org_id: &str,
         entity_id: &str,
         b: &crate::sentinel::EntityBaseline,
     ) -> Result<(), sqlx::Error> {
@@ -947,12 +950,14 @@ impl DbPool {
         let sc = b.sample_count as i64;
         let ts = now();
 
-        let sql_pg = "INSERT INTO entity_baselines (entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (entity_id) DO UPDATE SET avg_sessions_per_hour = EXCLUDED.avg_sessions_per_hour, intent_distribution = EXCLUDED.intent_distribution, avg_trust_score = EXCLUDED.avg_trust_score, known_peers = EXCLUDED.known_peers, avg_payload_bytes = EXCLUDED.avg_payload_bytes, normal_hours = EXCLUDED.normal_hours, learning_complete = EXCLUDED.learning_complete, sample_count = EXCLUDED.sample_count, last_updated = EXCLUDED.last_updated";
-        let sql_sq = "INSERT INTO entity_baselines (entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (entity_id) DO UPDATE SET avg_sessions_per_hour = excluded.avg_sessions_per_hour, intent_distribution = excluded.intent_distribution, avg_trust_score = excluded.avg_trust_score, known_peers = excluded.known_peers, avg_payload_bytes = excluded.avg_payload_bytes, normal_hours = excluded.normal_hours, learning_complete = excluded.learning_complete, sample_count = excluded.sample_count, last_updated = excluded.last_updated";
+        // Postgres uses ON CONFLICT (org_id, entity_id) while SQLite uses ON CONFLICT (org_id, entity_id)
+        let sql_pg = "INSERT INTO entity_baselines (org_id, entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (org_id, entity_id) DO UPDATE SET avg_sessions_per_hour = EXCLUDED.avg_sessions_per_hour, intent_distribution = EXCLUDED.intent_distribution, avg_trust_score = EXCLUDED.avg_trust_score, known_peers = EXCLUDED.known_peers, avg_payload_bytes = EXCLUDED.avg_payload_bytes, normal_hours = EXCLUDED.normal_hours, learning_complete = EXCLUDED.learning_complete, sample_count = EXCLUDED.sample_count, last_updated = EXCLUDED.last_updated";
+        let sql_sq = "INSERT INTO entity_baselines (org_id, entity_id, avg_sessions_per_hour, intent_distribution, avg_trust_score, known_peers, avg_payload_bytes, normal_hours, learning_complete, sample_count, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (org_id, entity_id) DO UPDATE SET avg_sessions_per_hour = excluded.avg_sessions_per_hour, intent_distribution = excluded.intent_distribution, avg_trust_score = excluded.avg_trust_score, known_peers = excluded.known_peers, avg_payload_bytes = excluded.avg_payload_bytes, normal_hours = excluded.normal_hours, learning_complete = excluded.learning_complete, sample_count = excluded.sample_count, last_updated = excluded.last_updated";
 
         match self {
             DbPool::Postgres(p) => {
                 sqlx::query(sql_pg)
+                    .bind(org_id)
                     .bind(entity_id)
                     .bind(b.avg_sessions_per_hour)
                     .bind(&intents)
@@ -968,6 +973,7 @@ impl DbPool {
             }
             DbPool::Sqlite(p) => {
                 sqlx::query(sql_sq)
+                    .bind(org_id)
                     .bind(entity_id)
                     .bind(b.avg_sessions_per_hour)
                     .bind(&intents)

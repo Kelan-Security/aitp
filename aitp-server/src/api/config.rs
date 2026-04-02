@@ -31,7 +31,8 @@ async fn update_ai_config(
         .update_org_ai_config(&org_id, api_key_enc, trust_mode)
         .await?;
 
-    state.hub.log(
+    state.hub.log_org(
+        &org_id,
         "INFO",
         &format!("AI config updated: trust_mode={}", trust_mode),
     );
@@ -65,7 +66,8 @@ async fn verify_key(
                 )
                 .await;
 
-            state.hub.log(
+            state.hub.log_org(
+                &org_id,
                 "INFO",
                 &format!(
                     "Gemini key verified — model={} score={}",

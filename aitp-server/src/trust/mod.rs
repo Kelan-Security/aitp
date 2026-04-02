@@ -1,3 +1,6 @@
+pub mod breaker;
+pub mod circuit_breaker;
+pub mod fallback_rules;
 pub mod gemini;
 pub mod rules;
 
@@ -6,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use breaker::{CircuitBreaker, CircuitState};
 
 // ────────────────────────── Trust Types ──────────────────────────
 
@@ -100,6 +104,7 @@ pub struct HybridTrustEngine {
     pub alpha: f64,   // weight for rules vs AI (alpha=rules weight)
     pub mode: String, // "hybrid" | "rules" | "ai_only"
     pub cache: Cache<TrustCacheKey, Arc<TrustResult>>,
+    pub breaker: CircuitBreaker,
 }
 
 impl HybridTrustEngine {
@@ -112,7 +117,7 @@ impl HybridTrustEngine {
         let gemini = Some(gemini::GeminiTrustEngine::new(gemini_client, gemini_model));
 
         let cache = Cache::builder()
-            .max_capacity(10_000)
+            .max_capacity(50_000)
             .time_to_live(Duration::from_secs(300)) // 5 min TTL
             .time_to_idle(Duration::from_secs(60)) // Evict if unused 1 min
             .build();
@@ -123,6 +128,7 @@ impl HybridTrustEngine {
             alpha,
             mode: mode.to_string(),
             cache,
+            breaker: CircuitBreaker::new(20, 30), // 20% error threshold, 30s timeout
         }
     }
 
@@ -149,29 +155,26 @@ impl HybridTrustEngine {
     async fn evaluate_uncached(&self, ctx: &SessionContext) -> TrustResult {
         let start = std::time::Instant::now();
 
+        // Circuit breaker check
+        let is_ai_allowed = self.breaker.state() != CircuitState::Open;
+
         match self.mode.as_str() {
             "rules" => {
                 let mut result = self.rules.evaluate(ctx);
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
-                crate::metrics::record_session(
-                    result.verdict.as_str(),
-                    &ctx.intent,
-                    &ctx.org_id,
-                    result.evaluation_ms,
-                    result.trust_score,
-                    &result.source,
-                );
                 result
             }
-            "ai_only" => {
+            "ai_only" if is_ai_allowed => {
                 let result = if let Some(ref gemini) = self.gemini {
                     match gemini.evaluate(ctx).await {
                         Ok(mut r) => {
+                            self.breaker.record_success();
                             r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                             r
                         }
-                        Err(_) => {
-                            // Fallback to rules on AI failure
+                        Err(e) => {
+                            tracing::warn!("AI Evaluation Error: {}", e);
+                            self.breaker.record_error();
                             let mut r = self.rules.evaluate(ctx);
                             r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                             r.source = "rules_fallback".to_string();
@@ -183,25 +186,20 @@ impl HybridTrustEngine {
                     r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                     r
                 };
-                crate::metrics::record_session(
-                    result.verdict.as_str(),
-                    &ctx.intent,
-                    &ctx.org_id,
-                    result.evaluation_ms,
-                    result.trust_score,
-                    &result.source,
-                );
                 result
             }
-            _ => {
-                // "hybrid" mode — blend rules + AI
+            "hybrid" if is_ai_allowed => {
                 let rules_result = self.rules.evaluate(ctx);
 
                 let ai_result = if let Some(ref gemini) = self.gemini {
                     match gemini.evaluate(ctx).await {
-                        Ok(res) => Some(res),
+                        Ok(res) => {
+                            self.breaker.record_success();
+                            Some(res)
+                        }
                         Err(e) => {
-                            eprintln!("AI Evaluation Error: {}", e);
+                            tracing::warn!("AI Evaluation Error: {}", e);
+                            self.breaker.record_error();
                             None
                         }
                     }
@@ -210,7 +208,6 @@ impl HybridTrustEngine {
                 };
 
                 let mut result = if let Some(ai) = ai_result {
-                    // Weighted blend of scores
                     let blended_score = (self.alpha * rules_result.trust_score as f64
                         + (1.0 - self.alpha) * ai.trust_score as f64)
                         as u8;
@@ -223,7 +220,6 @@ impl HybridTrustEngine {
                         TrustVerdict::Deny
                     };
 
-                    // Merge behavioral flags
                     let mut flags = rules_result.behavioral_flags;
                     for f in ai.behavioral_flags {
                         if !flags.contains(&f) {
@@ -242,19 +238,21 @@ impl HybridTrustEngine {
                         source: "hybrid".to_string(),
                     }
                 } else {
-                    rules_result
+                    let mut r = rules_result;
+                    r.source = "rules_fallback".to_string();
+                    r
                 };
 
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
-                // Record metrics for each completed evaluation
-                crate::metrics::record_session(
-                    result.verdict.as_str(),
-                    &ctx.intent,
-                    &ctx.org_id,
-                    result.evaluation_ms,
-                    result.trust_score,
-                    &result.source,
-                );
+                result
+            }
+            _ => { // Breaker is OPEN or mode matches nothing
+                if self.mode != "rules" {
+                    tracing::warn!("Circuit Breaker OPEN. Falling back to rules fast-path.");
+                }
+                let mut result = self.rules.evaluate(ctx);
+                result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                result.source = "rules_fastpath".to_string();
                 result
             }
         }

@@ -93,9 +93,9 @@ pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
     };
     state.sentinel.incidents.lock().await.push(incident);
 
-    // Broadcast to WebSocket
+    // Broadcast to WebSocket — scoped to anomaly's org
     use crate::db::models::WsEvent;
-    state.hub.broadcast(WsEvent::ThreatIncident {
+    state.hub.broadcast(&report.org_id, WsEvent::ThreatIncident {
         incident_id: report.id.clone(),
         severity: report.severity.clone(),
         attack_type: report.attack_type.clone(),

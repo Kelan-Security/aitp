@@ -73,6 +73,7 @@ pub struct AuditEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[allow(dead_code)]
 pub struct DbBaseline {
+    pub org_id: String,
     pub entity_id: String,
     pub avg_sessions_per_hour: f64,
     pub intent_distribution: String,
@@ -83,6 +84,16 @@ pub struct DbBaseline {
     pub learning_complete: i64,
     pub sample_count: i64,
     pub last_updated: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TrustPolicy {
+    pub org_id: String,
+    pub deny_threshold: i64,
+    pub monitor_threshold: i64,
+    pub custom_anomaly_sensitivity: String,
+    pub allowed_intents: String,
+    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -6,6 +6,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -39,7 +40,7 @@ pub async fn ws_handler(
 }
 
 async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpClaims) {
-    let org_id = claims.org_id;
+    let org_id = claims.org_id.clone();
 
     // Look up org for welcome message
     let org_name = state
@@ -49,7 +50,7 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
         .map(|o| o.name)
         .unwrap_or_else(|_| "Unknown".to_string());
 
-    // Send welcome event
+    // Send welcome event scoped to this org
     if let Ok(json) = serde_json::to_string(&WsEvent::Connected {
         org_id: org_id.clone(),
         org_name,
@@ -57,7 +58,7 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
         let _ = sock.send(Message::Text(json)).await;
     }
 
-    // Replay last 20 audit entries as log messages
+    // Replay last 20 audit entries as log messages for this org only
     if let Ok(entries) = state.db.get_recent_audit(&org_id, 20).await {
         for e in entries.into_iter().rev() {
             let ws_event = WsEvent::Log {
@@ -71,12 +72,12 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
         }
     }
 
-    // Subscribe to broadcast channel
-    let mut rx = state.hub.tx.subscribe();
+    // FIX 5: Subscribe to THIS org's isolated channel only
+    let mut rx = state.hub.subscribe(&org_id);
 
     loop {
         tokio::select! {
-            // Forward broadcast events to this client
+            // Forward org-scoped broadcast events to this client
             result = rx.recv() => {
                 match result {
                     Ok(event) => {
@@ -92,7 +93,7 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!("WebSocket client lagged by {} messages", n);
+                        tracing::warn!(org_id = %org_id, "WS client lagged {} messages", n);
                     }
                     Err(_) => break,
                 }
@@ -109,6 +110,8 @@ async fn handle_socket(mut sock: WebSocket, state: Arc<AppState>, claims: AitpCl
             }
         }
     }
+
+    tracing::info!(org_id = %org_id, "WebSocket client disconnected");
 }
 
 /// Handle commands sent from the dashboard client.
@@ -117,7 +120,8 @@ async fn handle_client_cmd(text: &str, org_id: &str, state: &Arc<AppState>) {
         match v["cmd"].as_str() {
             Some("revoke") => {
                 if let Some(sid) = v["session_id"].as_str() {
-                    state.hub.log(
+                    state.hub.log_org(
+                        org_id,
                         "WARN",
                         &format!("Session {} revoked via dashboard by org {}", sid, org_id),
                     );

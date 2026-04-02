@@ -69,7 +69,7 @@ async fn revoke_session(
     }
 
     // Mark entity dirty so sentinel scans it immediately
-    state.sentinel.mark_dirty(&entity_id);
+    state.sentinel.mark_dirty(&org_id, &entity_id);
 
     let _ = state
         .db
@@ -84,7 +84,7 @@ async fn revoke_session(
         )
         .await;
 
-    state.hub.broadcast(WsEvent::SessionKilled {
+    state.hub.broadcast(&org_id, WsEvent::SessionKilled {
         session_id: id.clone(),
         entity_id: String::new(),
         reason: "Manual revoke via API".to_string(),

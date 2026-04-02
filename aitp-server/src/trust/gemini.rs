@@ -105,21 +105,52 @@ impl GeminiTrustEngine {
             .map_err(|e| format!("Failed to serialize context: {}", e))?;
 
         let prompt = format!("Evaluate this session:\n{}", ctx_json);
-
-        // Record timing locally for metrics
         let gemini_start = std::time::Instant::now();
+        let mut text = String::new();
+        let mut success = false;
+        let mut retries = 0;
 
-        let text = self
-            .client
-            .generate_content(&self.model, Some(TRUST_SYSTEM_PROMPT), &prompt, 0.1, true)
-            .await?;
+        while retries < 3 {
+            // Layer 2: Global response timeout (2000ms max for an attempt)
+            let attempt_future = tokio::time::timeout(
+                std::time::Duration::from_millis(2000), 
+                self.client.generate_content(&self.model, Some(TRUST_SYSTEM_PROMPT), &prompt, 0.1, true)
+            );
+
+            match attempt_future.await {
+                Ok(Ok(response)) => {
+                    text = response;
+                    success = true;
+                    break;
+                }
+                Ok(Err(api_err)) => {
+                    // API request finished within timeout but yielded internal error (ex: 429)
+                    tracing::warn!("Gemini API Error on attempt {}: {}", retries + 1, api_err);
+                    retries += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    continue;
+                }
+                Err(_) => {
+                    // Layer 2 Drop: Full 2000ms boundary breached, abort attempt
+                    tracing::warn!("Gemini API Timeout (2000ms) on attempt {}", retries + 1);
+                    crate::metrics::GEMINI_TIMEOUT_TOTAL.inc();
+                    retries += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    continue;
+                }
+            }
+        }
+
+        if !success {
+            return Err("GeminiTimeout: Exhausted all retries or breached temporal deadlines".to_string());
+        }
 
         let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
+        crate::metrics::GEMINI_REQUEST_DURATION.observe(latency_ms / 1000.0);
 
         let gemini_result: GeminiTrustResponse = match serde_json::from_str(&text) {
             Ok(res) => res,
             Err(e) => {
-                // Fallback: try to extract JSON if it was wrapped in markdown (though client handles this via mime type)
                 let start = text.find('{');
                 let end = text.rfind('}');
 
@@ -136,6 +167,8 @@ impl GeminiTrustEngine {
                 }
             }
         };
+
+        crate::metrics::TRUST_VERDICT_SOURCE.with_label_values(&["gemini"]).inc();
 
         Ok(TrustResult {
             trust_score: gemini_result.trust_score,
