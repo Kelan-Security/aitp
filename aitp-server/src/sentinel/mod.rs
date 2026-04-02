@@ -164,7 +164,7 @@ pub async fn run_event_driven(state: Arc<AppState>, mut rx: mpsc::Receiver<Senti
 async fn process_critical_event(state: &Arc<AppState>, event: &SentinelEvent) {
     let start = std::time::Instant::now();
 
-    let baseline = match state.sentinel.get_baseline(&event.entity_id).await {
+    let baseline = match state.sentinel.get_baseline(&event.org_id, &event.entity_id).await {
         Some(b) => b,
         None => {
             check_without_baseline(state, event).await;
@@ -192,7 +192,7 @@ async fn process_critical_event(state: &Arc<AppState>, event: &SentinelEvent) {
         handle_anomaly(state, anomaly, event).await;
     }
 
-    state.sentinel.touch_baseline(&event.entity_id, event).await;
+    state.sentinel.touch_baseline(&event.org_id, &event.entity_id, event).await;
 }
 
 async fn detect_targeted_anomalies(
@@ -292,7 +292,7 @@ async fn detect_targeted_anomalies(
     }
 
     if event.verdict == "Deny" {
-        let recent_denials = state.sentinel.count_recent_denials(&event.entity_id, 60);
+        let recent_denials = state.sentinel.count_recent_denials(&event.org_id, &event.entity_id, 60);
 
         if recent_denials >= 3 {
             anomalies.push(Anomaly {
@@ -359,7 +359,7 @@ async fn handle_anomaly(state: &Arc<AppState>, anomaly: Anomaly, _event: &Sentin
         ])
         .inc();
 
-    state.hub.broadcast(WsEvent::AnomalyDetected {
+    state.hub.broadcast(&anomaly.org_id, WsEvent::AnomalyDetected {
         entity_id: anomaly.entity_id.clone(),
         anomaly_type: anomaly.anomaly_type.as_str().to_string(),
         severity: anomaly.severity.as_str().to_string(),
@@ -387,7 +387,7 @@ async fn handle_anomaly(state: &Arc<AppState>, anomaly: Anomaly, _event: &Sentin
         // Increment quarantined entities gauge
         crate::metrics::QUARANTINED_ENTITIES.inc();
 
-        state.hub.broadcast(WsEvent::EntityQuarantined {
+        state.hub.broadcast(&anomaly.org_id, WsEvent::EntityQuarantined {
             entity_id: anomaly.entity_id.clone(),
             reason: anomaly.description.clone(),
             active_sessions_killed: 0,
@@ -418,24 +418,24 @@ async fn handle_anomaly(state: &Arc<AppState>, anomaly: Anomaly, _event: &Sentin
 }
 
 async fn process_deferred_batch(state: &Arc<AppState>, events: Vec<SentinelEvent>) {
-    let mut entity_events: std::collections::HashMap<String, Vec<&SentinelEvent>> =
+    let mut entity_events: std::collections::HashMap<(String, String), Vec<&SentinelEvent>> =
         std::collections::HashMap::new();
 
     for event in &events {
         entity_events
-            .entry(event.entity_id.clone())
+            .entry((event.org_id.clone(), event.entity_id.clone()))
             .or_default()
             .push(event);
     }
 
-    for (entity_id, entity_batch) in &entity_events {
-        update_entity_baseline(state, entity_id, entity_batch).await;
-        check_slow_anomalies(state, entity_id, entity_batch).await;
+    for ((org_id, entity_id), entity_batch) in &entity_events {
+        update_entity_baseline(state, org_id, entity_id, entity_batch).await;
+        check_slow_anomalies(state, org_id, entity_id, entity_batch).await;
     }
 }
 
-async fn update_entity_baseline(state: &Arc<AppState>, entity_id: &str, events: &[&SentinelEvent]) {
-    let mut baseline = state.sentinel.get_or_create_baseline(entity_id).await;
+async fn update_entity_baseline(state: &Arc<AppState>, org_id: &str, entity_id: &str, events: &[&SentinelEvent]) {
+    let mut baseline = state.sentinel.get_or_create_baseline(org_id, entity_id).await;
 
     for event in events {
         let n = baseline.sample_count as f64;
@@ -454,11 +454,11 @@ async fn update_entity_baseline(state: &Arc<AppState>, entity_id: &str, events: 
         baseline.sample_count += 1;
     }
 
-    state.sentinel.mark_baseline_dirty(entity_id).await;
+    state.sentinel.mark_baseline_dirty(org_id, entity_id).await;
 }
 
-async fn check_slow_anomalies(state: &Arc<AppState>, entity_id: &str, events: &[&SentinelEvent]) {
-    let baseline = match state.sentinel.get_baseline(entity_id).await {
+async fn check_slow_anomalies(state: &Arc<AppState>, org_id: &str, entity_id: &str, events: &[&SentinelEvent]) {
+    let baseline = match state.sentinel.get_baseline(org_id, entity_id).await {
         Some(b) => b,
         None => return,
     };
@@ -494,16 +494,16 @@ async fn check_slow_anomalies(state: &Arc<AppState>, entity_id: &str, events: &[
 }
 
 async fn update_all_baselines(state: &Arc<AppState>) {
-    let dirty_ids = state.sentinel.take_dirty_baselines().await;
-    if dirty_ids.is_empty() {
+    let dirty_keys = state.sentinel.take_dirty_baselines().await;
+    if dirty_keys.is_empty() {
         return;
     }
 
-    tracing::debug!("Flushing {} baseline(s) to DB", dirty_ids.len());
+    tracing::debug!("Flushing {} baseline(s) to DB", dirty_keys.len());
 
-    for entity_id in dirty_ids {
-        if let Some(baseline) = state.sentinel.get_baseline(&entity_id).await {
-            let _ = db::upsert_baseline(&state.db, &entity_id, &baseline).await;
+    for (org_id, entity_id) in dirty_keys {
+        if let Some(baseline) = state.sentinel.get_baseline(&org_id, &entity_id).await {
+            let _ = db::upsert_baseline(&state.db, &org_id, &entity_id, &baseline).await;
         }
     }
 }

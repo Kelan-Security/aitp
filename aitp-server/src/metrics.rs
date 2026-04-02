@@ -187,6 +187,75 @@ lazy_static! {
         "License node limit utilisation ratio (current/max)",
         &["org_id", "tier"]
     ).unwrap();
+
+    // ── Gemini / Circuit Breaker ─────────────────────────────────────────────
+
+    /// Gemini request durations (seconds)
+    pub static ref GEMINI_REQUEST_DURATION: prometheus::Histogram = prometheus::register_histogram!(
+        "kelan_gemini_request_duration_seconds",
+        "Gemini AI request duration in seconds",
+        vec![0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+    ).unwrap();
+
+    /// Gemini timeout counter
+    pub static ref GEMINI_TIMEOUT_TOTAL: prometheus::Counter = prometheus::register_counter!(
+        "kelan_gemini_timeout_total",
+        "Total number of Gemini request timeouts"
+    ).unwrap();
+
+    /// Circuit breaker state gauge (0=closed, 1=open, 2=half-open)
+    pub static ref GEMINI_CIRCUIT_BREAKER_STATE: Gauge = register_gauge!(
+        "kelan_gemini_circuit_breaker_state",
+        "Gemini circuit breaker state (0=closed 1=open 2=half-open)"
+    ).unwrap();
+
+    /// Trust verdict source counter (gemini | rules | fallback)
+    pub static ref TRUST_VERDICT_SOURCE: CounterVec = register_counter_vec!(
+        "kelan_trust_verdict_source_total",
+        "Trust verdicts by evaluation source",
+        &["source"]
+    ).unwrap();
+
+    // ── DB Write Buffer ───────────────────────────────────────────────────────
+
+    /// Current size of the DB write buffer
+    pub static ref DB_WRITE_BUFFER_SIZE: Gauge = register_gauge!(
+        "kelan_db_write_buffer_size",
+        "Current number of records pending in the DB write buffer"
+    ).unwrap();
+
+    /// DB write buffer overflow events
+    pub static ref DB_WRITE_BUFFER_OVERFLOW: prometheus::Counter = prometheus::register_counter!(
+        "kelan_db_write_buffer_overflow_total",
+        "Total DB write buffer overflow events (records dropped)"
+    ).unwrap();
+
+    /// DB write flush duration
+    pub static ref DB_WRITE_FLUSH_DURATION: prometheus::Histogram = prometheus::register_histogram!(
+        "kelan_db_write_flush_duration_seconds",
+        "Time taken to flush the DB write buffer",
+        vec![0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+    ).unwrap();
+
+    /// DB write batch size
+    pub static ref DB_WRITE_BATCH_SIZE: prometheus::Histogram = prometheus::register_histogram!(
+        "kelan_db_write_batch_size",
+        "Number of records per DB write flush",
+        vec![1.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0]
+    ).unwrap();
+
+    /// UDP packets received by the AITP listener
+    pub static ref UDP_PACKETS_RECEIVED: prometheus::Counter = prometheus::register_counter!(
+        "kelan_udp_packets_received_total",
+        "Total AITP UDP packets received"
+    ).unwrap();
+
+    /// UDP handshake completions
+    pub static ref UDP_HANDSHAKES_COMPLETED: CounterVec = register_counter_vec!(
+        "kelan_udp_handshakes_total",
+        "AITP UDP handshakes by outcome",
+        &["outcome"]  // completed | failed | timeout
+    ).unwrap();
 }
 
 /// Handler for GET /metrics — returns Prometheus text format

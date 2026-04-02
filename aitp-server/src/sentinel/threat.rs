@@ -60,8 +60,8 @@ pub async fn activate_threat_response(
     // 1. Immediately quarantine the flagged entity
     let sessions_killed = quarantine_entity(state, entity_id).await;
 
-    // Broadcast quarantine event
-    state.hub.broadcast(WsEvent::EntityQuarantined {
+    // Broadcast quarantine event — scoped to anomaly's org
+    state.hub.broadcast(&anomaly.org_id, WsEvent::EntityQuarantined {
         entity_id: entity_id.clone(),
         reason: anomaly.description.clone(),
         active_sessions_killed: sessions_killed,
@@ -148,8 +148,8 @@ pub async fn activate_threat_response(
     // Store in memory
     sentinel.incidents.lock().await.push(incident.clone());
 
-    // 8. Broadcast threat incident
-    state.hub.broadcast(WsEvent::ThreatIncident {
+    // 8. Broadcast threat incident — scoped to org
+    state.hub.broadcast(&incident.org_id, WsEvent::ThreatIncident {
         incident_id: incident.id.clone(),
         severity: "critical".to_string(),
         attack_type,
@@ -158,8 +158,8 @@ pub async fn activate_threat_response(
         ts: chrono::Utc::now().timestamp(),
     });
 
-    // 9. Broadcast admin alert
-    state.hub.broadcast(WsEvent::Alert {
+    // 9. Broadcast admin alert — scoped to org
+    state.hub.broadcast(&incident.org_id, WsEvent::Alert {
         alert_type: "ThreatResponse".to_string(),
         severity: "critical".to_string(),
         entity_id: Some(entity_id.clone()),
@@ -171,7 +171,8 @@ pub async fn activate_threat_response(
         ts: chrono::Utc::now().timestamp(),
     });
 
-    state.hub.log(
+    state.hub.log_org(
+        &incident.org_id,
         "CRITICAL",
         &format!(
             "Threat response complete: entity={} sessions_killed={} affected={} incident={}",

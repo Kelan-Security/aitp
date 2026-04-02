@@ -134,10 +134,11 @@ pub async fn get_all_baselines(
 
 pub async fn upsert_baseline(
     db: &DbPool,
+    org_id: &str,
     entity_id: &str,
     baseline: &crate::sentinel::EntityBaseline,
 ) -> anyhow::Result<()> {
-    db.upsert_baseline(entity_id, baseline)
+    db.upsert_baseline(org_id, entity_id, baseline)
         .await
         .map_err(Into::into)
 }

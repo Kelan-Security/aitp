@@ -94,7 +94,8 @@ async fn create_entity(
         )
         .await;
 
-    state.hub.log(
+    state.hub.log_org(
+        &org_id,
         "INFO",
         &format!("Entity '{}' registered ({})", req.name, &entity_id[..12]),
     );
@@ -169,8 +170,9 @@ async fn quarantine_entity(
         )
         .await;
 
-    state.hub.log(
+    state.hub.log_org(
         "WARN",
+        &org_id,
         &format!("Entity {} quarantined", &id[..12.min(id.len())]),
     );
 
@@ -202,7 +204,8 @@ async fn release_entity(
         )
         .await;
 
-    state.hub.log(
+    state.hub.log_org(
+        &org_id,
         "INFO",
         &format!(
             "Entity {} released from quarantine",
@@ -225,7 +228,8 @@ async fn delete_entity(
         return Err(AppError::NotFound);
     }
 
-    state.hub.log(
+    state.hub.log_org(
+        &org_id,
         "WARN",
         &format!("Entity {} deleted", &id[..12.min(id.len())]),
     );
@@ -297,13 +301,13 @@ async fn test_session(
     // 3b. Publish event to Sentinel (non-blocking)
     let baseline_score = state
         .sentinel
-        .get_baseline(&id)
+        .get_baseline(&org_id, &id)
         .await
         .map(|b| b.avg_trust_score)
         .unwrap_or(128.0);
     let is_new_peer = !state
         .sentinel
-        .get_baseline(&id)
+        .get_baseline(&org_id, &id)
         .await
         .map(|b| b.known_peers.contains(&req.dest_entity_id))
         .unwrap_or(false);
@@ -385,8 +389,8 @@ async fn test_session(
     };
     state.db.create_session(session).await?;
 
-    // 5. Broadcast event
-    state.hub.broadcast(WsEvent::SessionNew {
+    // 5. Broadcast event — org-scoped
+    state.hub.broadcast(&org_id, WsEvent::SessionNew {
         session_id: session_id.clone(),
         source_entity: source.name,
         dest_entity: dest.name,

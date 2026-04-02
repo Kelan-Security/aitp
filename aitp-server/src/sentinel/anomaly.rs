@@ -143,18 +143,19 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
     }
 
     // Only scan entities that are marked dirty (had activity)
-    let dirty_list: Vec<String> = sentinel
+    // dirty_entities is keyed by (org_id, entity_id)
+    let dirty_list: Vec<(String, String)> = sentinel
         .dirty_entities
         .iter()
         .filter(|e| e.value().elapsed() < std::time::Duration::from_secs(30))
         .map(|e| e.key().clone())
         .collect();
 
-    for entity_id in dirty_list {
-        let baseline = match sentinel.baselines.get(&entity_id) {
+    for (org_id, entity_id) in dirty_list {
+        let baseline = match sentinel.baselines.get(&(org_id.clone(), entity_id.clone())) {
             Some(b) => b,
             None => {
-                sentinel.dirty_entities.remove(&entity_id);
+                sentinel.dirty_entities.remove(&(org_id.clone(), entity_id.clone()));
                 continue;
             }
         };
@@ -359,8 +360,8 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
             let mut log = sentinel.anomalies.lock().await;
 
             for anomaly in anomalies_found {
-                // Broadcast via WebSocket
-                state.hub.broadcast(WsEvent::AnomalyDetected {
+                // Broadcast via WebSocket — scoped to org
+                state.hub.broadcast(&org_id, WsEvent::AnomalyDetected {
                     entity_id: anomaly.entity_id.clone(),
                     anomaly_type: anomaly.anomaly_type.as_str().to_string(),
                     severity: anomaly.severity.as_str().to_string(),
@@ -406,7 +407,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
         }
 
         // Remove from dirty list after scan
-        sentinel.dirty_entities.remove(&entity_id);
+        sentinel.dirty_entities.remove(&(org_id.clone(), entity_id.clone()));
     }
 }
 

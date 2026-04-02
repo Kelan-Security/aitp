@@ -1,12 +1,15 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use axum::{extract::Host, http::Uri, response::Redirect, routing::get, Router};
+use axum::{extract::Host, http::{Uri, HeaderValue, header}, response::Redirect, routing::get, Router};
+use chrono::Timelike as _;
 use dotenvy::dotenv;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::UdpSocket;
 use tokio::time::{interval, Duration, Instant};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 mod agent;
 mod ai;
@@ -16,19 +19,17 @@ mod budget;
 mod config;
 mod crypto;
 mod db;
-#[allow(dead_code)]
 mod enforcement;
 mod error;
 #[allow(dead_code)]
 mod identity;
 mod license;
 mod metrics;
-#[allow(dead_code)]
+mod persistence;
 mod protocol;
 mod sentinel;
 mod state;
 mod tls;
-#[allow(dead_code)]
 mod trust;
 mod ws;
 
@@ -229,6 +230,31 @@ async fn async_main() -> anyhow::Result<()> {
         });
     }
 
+    // b. UDP AITP listener — the actual protocol layer
+    {
+        let udp_port = app_config.udp_port;
+        let state_for_udp = app_state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = start_udp_listener(udp_port, state_for_udp).await {
+                tracing::error!("FATAL: UDP listener died: {}", e);
+            }
+        });
+    }
+
+    // c. eBPF session expiry cleanup every 60 seconds
+    {
+        let enforcer = app_state.enforcer.clone();
+        tokio::spawn(async move {
+            let mut tick = interval(Duration::from_secs(60));
+            loop {
+                tick.tick().await;
+                if let Err(e) = enforcer.cleanup_expired_sessions().await {
+                    tracing::warn!("eBPF session cleanup error: {}", e);
+                }
+            }
+        });
+    }
+
     // b. Stats broadcaster — push stats to WS every 5 seconds
     //    Also updates Prometheus gauges from the same stats payload.
     {
@@ -245,7 +271,7 @@ async fn async_main() -> anyhow::Result<()> {
                 let uptime = s.start_time.elapsed().as_secs();
 
                 // Update WS subscriber gauge
-                metrics::WS_SUBSCRIBERS.set(s.hub.tx.receiver_count() as f64);
+                metrics::WS_SUBSCRIBERS.set(s.hub.total_subscribers() as f64);
 
                 // ── eBPF stats ──────────────────────────────────────────────
                 if let Ok(ebpf_stats) = s.enforcer.stats().await {
@@ -285,7 +311,8 @@ async fn async_main() -> anyhow::Result<()> {
                     metrics::SESSION_RATE.set(delta / 5.0);
                     last_sessions = stats.active_sessions;
 
-                    s.hub.broadcast(db::models::WsEvent::Stats {
+                    // Broadcast stats to all connected org channels
+                    let stats_event = db::models::WsEvent::Stats {
                         active_sessions: stats.active_sessions,
                         blocked_today: stats.blocked_today,
                         ai_calls: stats.ai_calls,
@@ -293,7 +320,10 @@ async fn async_main() -> anyhow::Result<()> {
                         entities_online: stats.entities_online,
                         threats_detected_today: stats.threats_detected_today,
                         uptime_secs: stats.uptime_secs,
-                    });
+                    };
+                    // log() broadcasts to all active org channels
+                    // For stats we broadcast to every org since it's aggregate data
+                    s.hub.log("STATS", &serde_json::to_string(&stats_event).unwrap_or_default());
                 }
             }
         });
@@ -316,7 +346,19 @@ async fn async_main() -> anyhow::Result<()> {
         });
     }
 
-    // 8. Build Axum router
+    // d. WS hub empty-channel cleanup every 5 minutes
+    {
+        let hub = app_state.hub.clone();
+        tokio::spawn(async move {
+            let mut tick = interval(Duration::from_secs(300));
+            loop {
+                tick.tick().await;
+                hub.cleanup_empty_channels();
+            }
+        });
+    }
+
+    // 8. Build Axum router with security headers (FIX 4)
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -325,14 +367,29 @@ async fn async_main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(api::router())
         .route("/ws", get(ws::ws_handler))
-        // Prometheus metrics endpoint — no auth, dedicated route outside API router
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
         .fallback_service(
             tower_http::services::ServeDir::new("static")
                 .fallback(tower_http::services::ServeFile::new("static/index.html")),
         )
-        .layer(cors);
+        .layer(cors)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("default-src 'self'; connect-src 'self' wss:"),
+        ));
 
     // 9. Print startup banner
     print_banner(&app_config, &server_identity);
@@ -377,6 +434,177 @@ async fn async_main() -> anyhow::Result<()> {
                 .serve(app.into_make_service())
                 .await?;
         }
+    }
+
+    Ok(())
+}
+
+// ── FIX 1: UDP AITP Listener ──────────────────────────────────────────────────
+
+async fn start_udp_listener(
+    port: u16,
+    state: Arc<state::AppState>,
+) -> anyhow::Result<()> {
+    let socket = Arc::new(
+        UdpSocket::bind(format!("0.0.0.0:{}", port)).await?
+    );
+    tracing::info!("AITP UDP listener active on 0.0.0.0:{}", port);
+
+    let mut buf = vec![0u8; 65535];
+    loop {
+        let (len, peer_addr) = match socket.recv_from(&mut buf).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("UDP recv_from error: {}", e);
+                continue;
+            }
+        };
+
+        crate::metrics::UDP_PACKETS_RECEIVED.inc();
+
+        let packet_data = buf[..len].to_vec();
+        let sock = Arc::clone(&socket);
+        let st = state.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = process_aitp_packet(packet_data, peer_addr, sock, st).await {
+                tracing::warn!("[UDP] Packet error from {}: {}", peer_addr, e);
+                crate::metrics::UDP_HANDSHAKES_COMPLETED
+                    .with_label_values(&["failed"])
+                    .inc();
+            }
+        });
+    }
+}
+
+async fn process_aitp_packet(
+    bytes: Vec<u8>,
+    peer_addr: SocketAddr,
+    socket: Arc<UdpSocket>,
+    state: Arc<state::AppState>,
+) -> anyhow::Result<()> {
+    use crate::protocol::{AitpHeaderV4, FLAG_SYN, FLAG_ACK, FLAG_FIN};
+    use crate::trust::SessionContext;
+
+    let header = AitpHeaderV4::from_bytes(&bytes)
+        .map_err(|e| anyhow::anyhow!("AITP parse error: {}", e))?;
+
+    // Route on flags
+    if header.is_syn() {
+        // Phase 1 — new handshake initiated
+        let session_id = header.session_id;
+        let intent_code = crate::protocol::IntentCode::from_u16(header.intent);
+        let source_entity_id = hex::encode(header.source_id());
+
+        tracing::info!(
+            "[UDP] Phase 1 SYN from {} — session={} intent={}",
+            peer_addr, session_id, intent_code
+        );
+
+        // Build SYN-ACK response with server's public key material
+        let syn_ack = AitpHeaderV4 {
+            version: 4,
+            flags: FLAG_SYN | FLAG_ACK,
+            intent: header.intent,
+            session_id,
+            timestamp: chrono::Utc::now().timestamp_micros() as u64,
+            nonce: rand::random::<[u8; 12]>(),
+            algorithm: 2, // HybridPQ
+            source_pk: state.server_identity.public_key_bytes().to_vec(),
+            dest_id: header.source_id(),
+            signature: vec![],
+            payload_len: 0,
+        };
+
+        socket.send_to(&syn_ack.to_bytes(), peer_addr).await?;
+
+        // For sessions with valid intent (not Unknown), evaluate trust and register with eBPF
+        if intent_code != crate::protocol::IntentCode::Unknown {
+            // Build minimal context from handshake data
+            let ctx = SessionContext {
+                source_entity_id: source_entity_id.clone(),
+                org_id: "system".to_string(), // resolved via entity lookup in production
+                source_entity_type: "Agent".to_string(),
+                source_department: None,
+                source_clearance: 0,
+                dest_entity_id: hex::encode(header.dest_id),
+                dest_entity_type: "Server".to_string(),
+                intent: intent_code.as_str().to_string(),
+                entity_age_hours: 0.0,
+                session_count_24h: 0,
+                avg_trust_score: 128.0,
+                known_peer: false,
+                behavioral_flags: vec![],
+                time_of_day_hour: chrono::Utc::now().hour() as u8,
+            };
+
+            let result = state.trust_engine.evaluate(&ctx).await;
+            let trust_score = result.trust_score;
+            let verdict_str = result.verdict.as_str();
+
+            tracing::info!(
+                "[UDP] Trust eval for session={}: score={} verdict={}",
+                session_id, trust_score, verdict_str
+            );
+
+            // Register in eBPF kernel maps
+            let source_id_bytes: [u8; 32] = {
+                let decoded = hex::decode(&source_entity_id).unwrap_or_else(|_| vec![0; 32]);
+                let mut arr = [0u8; 32];
+                let len = decoded.len().min(32);
+                arr[..len].copy_from_slice(&decoded[..len]);
+                arr
+            };
+            let dest_id_bytes: [u8; 32] = header.dest_id;
+            let verdict_byte = match result.verdict {
+                crate::trust::TrustVerdict::Allow => 1u8,
+                crate::trust::TrustVerdict::Monitor => 2u8,
+                crate::trust::TrustVerdict::Deny => 0u8,
+            };
+
+            crate::enforcement::register_kernel_session(
+                &state.enforcer,
+                session_id,
+                &source_id_bytes,
+                &dest_id_bytes,
+                header.intent,
+                trust_score,
+                verdict_byte,
+                [0u8; crate::crypto::MLKEM768_SS_BYTES],
+            ).await;
+
+            crate::metrics::UDP_HANDSHAKES_COMPLETED
+                .with_label_values(&["completed"])
+                .inc();
+
+            // Send sentinel event
+            state.send_sentinel_event(crate::sentinel::SentinelEvent {
+                entity_id: source_entity_id,
+                org_id: "system".to_string(),
+                session_id: session_id.to_string(),
+                dest_entity_id: hex::encode(header.dest_id),
+                intent: intent_code.as_str().to_string(),
+                trust_score,
+                verdict: verdict_str.to_string(),
+                bytes_tx: bytes.len() as u64,
+                occurred_at: chrono::Utc::now().timestamp(),
+                signal: crate::sentinel::SentinelEvent::classify(
+                    intent_code.as_str(),
+                    trust_score,
+                    128.0,
+                    false,
+                    verdict_str,
+                ),
+            });
+        }
+
+    } else if header.has_flag(FLAG_FIN) {
+        tracing::info!("[UDP] FIN received for session={} from {}", header.session_id, peer_addr);
+        // Revoke eBPF permit on session teardown
+        let prefix: [u8; 8] = header.dest_id[..8].try_into().unwrap_or([0u8; 8]);
+        let _ = state.enforcer.revoke_entity(&prefix).await;
+    } else {
+        tracing::debug!("[UDP] Data packet session={} len={}", header.session_id, bytes.len());
     }
 
     Ok(())
