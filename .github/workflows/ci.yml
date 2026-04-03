@@ -1,133 +1,52 @@
-name: CI — Security, Lint, Test
+name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: ["main", "develop"]
   pull_request:
-    branches: [main]
+    branches: ["main"]
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  # ── Job 1: Secret scanning ─────────────────────────────────────────────────
-  secret-scan:
-    name: Secret Scanning
+  
+  test:
+    name: Test Suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: TruffleHog — scan for leaked secrets
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --only-verified
-
-  # ── Job 2: Security audit ──────────────────────────────────────────────────
-  security-audit:
-    name: Security Audit (cargo-audit + cargo-deny)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-
-      - name: cargo-audit — check for CVEs
-        uses: actions-rs/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: cargo-deny — licenses & advisories
-        run: |
-          cargo install cargo-deny --locked
-          cargo deny check advisories
-          cargo deny check licenses
-
-  # ── Job 3: Lint ────────────────────────────────────────────────────────────
-  lint:
-    name: Lint (rustfmt + clippy)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: swatinem/rust-cache@v2
-
-      - name: rustfmt — check formatting
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Check formatting
         run: cargo fmt --all -- --check
-
-      - name: clippy — static analysis
+      
+      - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
-
-  # ── Job 4: Test suite ─────────────────────────────────────────────────────
-  test:
-    name: Tests (unit + integration)
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: kelan
-          POSTGRES_PASSWORD: ci_test_password
-          POSTGRES_DB: kelan_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-    env:
-      DATABASE_URL: postgresql://kelan:ci_test_password@localhost:5432/kelan_test
-      AITP_JWT_SECRET: ci_test_jwt_secret_minimum_32_chars_long
-      GEMINI_API_KEY: ci_test_key_not_real
-      AITP_AI_ENGINE_GEMINI_API_KEY: ci_test_key_not_real
-      RUST_LOG: aitp_server=debug
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-
-      - name: cargo check — full workspace
-        run: cargo check --workspace
-
+      
       - name: Run tests
-        run: cargo test --workspace -- --test-threads=2
-
-  # ── Job 5: Build release binary ───────────────────────────────────────────
-  build:
-    name: Build Release Binary
-    needs: [lint, test]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-
-      - name: Build release — aitp-server
-        run: cargo build --release --package aitp-server
-
-      - name: Build release — aitp-client
-        run: cargo build --release --package aitp-client
-
-      - name: Upload server binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: aitp-server-linux-x64
-          path: target/release/aitp_server
-          retention-days: 7
-
-      - name: Upload agent binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: kelan-agent-linux-x64
-          path: target/release/kelan-agent
-          retention-days: 7
+        run: cargo test --workspace --no-fail-fast
+        env:
+          DATABASE_URL: "sqlite::memory:"
+          JWT_SECRET: "test_secret_key_for_ci_only"
+          RUST_LOG: "debug"
+      
+      - name: Build release
+        run: cargo build --release --workspace

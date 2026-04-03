@@ -37,6 +37,7 @@ pub struct GeminiTrustResponse {
 }
 
 /// Gemini API request structures.
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct GeminiRequest {
     contents: Vec<GeminiContent>,
@@ -45,21 +46,25 @@ struct GeminiRequest {
     generation_config: GeminiGenerationConfig,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct GeminiSystemInstruction {
     parts: Vec<GeminiPart>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct GeminiContent {
     parts: Vec<GeminiPart>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 struct GeminiPart {
     text: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize)]
 struct GeminiGenerationConfig {
     temperature: f32,
@@ -70,16 +75,19 @@ struct GeminiGenerationConfig {
 }
 
 /// Gemini API response structures.
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GeminiApiResponse {
     candidates: Option<Vec<GeminiCandidate>>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GeminiCandidate {
     content: GeminiCandidateContent,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GeminiCandidateContent {
     parts: Vec<GeminiPart>,

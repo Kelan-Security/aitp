@@ -23,7 +23,7 @@ pub struct CircuitBreaker {
     consecutive_timeouts: AtomicUsize,
 
     // Temporal bounded configurations
-    window_secs: u64,
+    _window_secs: u64,
     failure_rate_threshold: f64,
     max_consecutive_timeouts: usize,
     half_open_timeout: Duration,
@@ -38,7 +38,7 @@ impl Default for CircuitBreaker {
             failure_count: AtomicUsize::new(0),
             timeout_count: AtomicUsize::new(0),
             consecutive_timeouts: AtomicUsize::new(0),
-            window_secs: 60,
+            _window_secs: 60,
             failure_rate_threshold: 0.30, // 30%
             max_consecutive_timeouts: 3,
             half_open_timeout: Duration::from_secs(30),

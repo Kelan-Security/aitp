@@ -10,7 +10,7 @@ use crate::identity::EntityIdentity;
 use crate::ipc;
 use crate::session::SessionTable;
 
-pub async fn run(config: Arc<AgentConfig>, config_path: std::path::PathBuf) -> anyhow::Result<()> {
+pub async fn run(config: Arc<AgentConfig>, _config_path: std::path::PathBuf) -> anyhow::Result<()> {
     // 1. Load identity (use same dir as config for keys)
     let identity = Arc::new(EntityIdentity::load_or_generate()?);
     let sessions = SessionTable::new();

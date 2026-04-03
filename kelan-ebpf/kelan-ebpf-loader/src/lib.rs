@@ -1,6 +1,3 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
 #[cfg(not(target_os = "linux"))]
 pub mod userspace;
 #[cfg(not(target_os = "linux"))]
@@ -8,8 +5,44 @@ pub use userspace::BpfEnforcer;
 
 #[cfg(target_os = "linux")]
 mod linux;
+
 #[cfg(target_os = "linux")]
-pub use linux::BpfEnforcer;
+pub use linux::EbpfLoader;
+
+// Stub for non-Linux platforms
+#[cfg(not(target_os = "linux"))]
+pub struct EbpfLoader {
+    interface: String,
+}
+
+#[cfg(not(target_os = "linux"))]
+impl EbpfLoader {
+    pub fn load_and_attach(
+        interface: &str,
+        _bpf_object_path: &std::path::Path,
+    ) -> Result<Self, String> {
+        tracing::warn!(
+            "eBPF XDP not available on this platform. \
+             Software enforcement active."
+        );
+        Ok(Self { interface: interface.to_string() })
+    }
+    
+    pub fn is_kernel_enforcing(&self) -> bool { false }
+    pub fn interface(&self) -> &str { &self.interface }
+    
+    pub fn permit_session(
+        &self, _: u64, _: u32, _: u32, _: u64
+    ) -> Result<(), String> { Ok(()) }
+    
+    pub fn deny_ip(
+        &self, _: u32, _: u64
+    ) -> Result<(), String> { Ok(()) }
+    
+    pub fn cleanup_expired(
+        &self, _: u64
+    ) -> Result<u32, String> { Ok(0) }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]

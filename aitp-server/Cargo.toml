@@ -8,6 +8,10 @@ description = "AITP Intelligence Core Server — centralized agentic AI security
 name = "aitp_server"
 path = "src/main.rs"
 
+[lib]
+name = "aitp_server"
+path = "src/lib.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["ws", "macros"] }
@@ -58,4 +62,5 @@ futures-util  = { version = "0.3", default-features = false, features = ["sink",
 [dev-dependencies]
 tokio   = { version = "1", features = ["test-util", "full"] }
 reqwest = { version = "0.11", features = ["json"] }
+assert_cmd = "2"
 uuid    = { version = "1", features = ["v4"] }

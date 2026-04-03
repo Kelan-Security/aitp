@@ -100,6 +100,7 @@ impl From<&SessionContext> for TrustCacheKey {
 /// Hybrid trust engine combining deterministic rules and AI evaluation.
 pub struct HybridTrustEngine {
     pub rules: rules::RulesEngine,
+    pub fallback: fallback_rules::FallbackRulesEngine,
     pub gemini: Option<gemini::GeminiTrustEngine>,
     pub alpha: f64,   // weight for rules vs AI (alpha=rules weight)
     pub mode: String, // "hybrid" | "rules" | "ai_only"
@@ -124,6 +125,7 @@ impl HybridTrustEngine {
 
         Self {
             rules: rules::RulesEngine::new(),
+            fallback: fallback_rules::FallbackRulesEngine::new(),
             gemini,
             alpha,
             mode: mode.to_string(),
@@ -250,7 +252,7 @@ impl HybridTrustEngine {
                 if self.mode != "rules" {
                     tracing::warn!("Circuit Breaker OPEN. Falling back to rules fast-path.");
                 }
-                let mut result = self.rules.evaluate(ctx);
+                let mut result = self.fallback.evaluate(ctx);
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                 result.source = "rules_fastpath".to_string();
                 result

@@ -7,21 +7,37 @@
 //  Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn kelan_base_url() -> String {
-    std::env::var("KELAN_TEST_URL").unwrap_or_else(|_| "http://localhost:3000".to_string())
+use std::net::TcpListener;
+use tokio::task::JoinHandle;
+
+async fn spawn_test_server() -> (u16, JoinHandle<()>) {
+    std::env::set_var("KELAN_JWT_SECRET", "kelan-test-secret-for-ci");
+    std::env::set_var("AITP_JWT_SECRET", "kelan-test-secret-for-ci");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind failed");
+    let port = listener.local_addr().unwrap().port();
+    let handle = tokio::spawn(async move {
+        aitp_server::run_with_listener(listener).await.unwrap();
+    });
+    // Give the server a moment to be ready
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    (port, handle)
 }
 
-async fn http_get(path: &str) -> reqwest::Response {
+fn kelan_base_url(port: u16) -> String {
+    format!("http://127.0.0.1:{}", port)
+}
+
+async fn http_get(port: u16, path: &str) -> reqwest::Response {
     reqwest::Client::new()
-        .get(format!("{}{}", kelan_base_url(), path))
+        .get(format!("{}{}", kelan_base_url(port), path))
         .send()
         .await
         .expect("HTTP request failed")
 }
 
-async fn http_post_json(path: &str, body: serde_json::Value) -> reqwest::Response {
+async fn http_post_json(port: u16, path: &str, body: serde_json::Value) -> reqwest::Response {
     reqwest::Client::new()
-        .post(format!("{}{}", kelan_base_url(), path))
+        .post(format!("{}{}", kelan_base_url(port), path))
         .json(&body)
         .send()
         .await
@@ -29,9 +45,9 @@ async fn http_post_json(path: &str, body: serde_json::Value) -> reqwest::Respons
 }
 
 #[allow(dead_code)]
-async fn http_post_json_auth(path: &str, body: serde_json::Value, token: &str) -> reqwest::Response {
+async fn http_post_json_auth(port: u16, path: &str, body: serde_json::Value, token: &str) -> reqwest::Response {
     reqwest::Client::new()
-        .post(format!("{}{}", kelan_base_url(), path))
+        .post(format!("{}{}", kelan_base_url(port), path))
         .header("Authorization", format!("Bearer {}", token))
         .json(&body)
         .send()
@@ -39,14 +55,15 @@ async fn http_post_json_auth(path: &str, body: serde_json::Value, token: &str) -
         .expect("Authenticated HTTP POST failed")
 }
 
-async fn get_auth_token() -> Option<String> {
+async fn get_auth_token(port: u16) -> Option<String> {
     // Try signup first, then signin
     let signup = http_post_json(
+        port,
         "/api/auth/signup",
         serde_json::json!({
             "org_name": "Integration Test Org",
-            "email": "integration@test.kelan",
-            "password": "IntegrationTest123!"
+            "email": "test@kelan.dev",
+            "password": "KelanTest#2024!"
         }),
     )
     .await;
@@ -58,10 +75,11 @@ async fn get_auth_token() -> Option<String> {
 
     // Already exists — sign in
     let signin = http_post_json(
+        port,
         "/api/auth/signin",
         serde_json::json!({
-            "email": "integration@test.kelan",
-            "password": "IntegrationTest123!"
+            "email": "test@kelan.dev",
+            "password": "KelanTest#2024!"
         }),
     )
     .await;
@@ -84,8 +102,10 @@ mod auth_integration {
 
     #[tokio::test]
     async fn test_signup_creates_account() {
+        let (port, _svr) = spawn_test_server().await;
         let unique_email = format!("signup_test_{}@test.kelan", uuid::Uuid::new_v4());
         let res = http_post_json(
+            port,
             "/api/auth/signup",
             serde_json::json!({
                 "org_name": "Test Org",
@@ -104,7 +124,9 @@ mod auth_integration {
 
     #[tokio::test]
     async fn test_signin_invalid_credentials_returns_401() {
+        let (port, _svr) = spawn_test_server().await;
         let res = http_post_json(
+            port,
             "/api/auth/signin",
             serde_json::json!({
                 "email": "nonexistent@test.kelan",
@@ -122,8 +144,10 @@ mod auth_integration {
 
     #[tokio::test]
     async fn test_weak_password_rejected() {
+        let (port, _svr) = spawn_test_server().await;
         let unique_email = format!("weak_test_{}@test.kelan", uuid::Uuid::new_v4());
         let res = http_post_json(
+            port,
             "/api/auth/signup",
             serde_json::json!({
                 "org_name": "Test",
@@ -142,7 +166,8 @@ mod auth_integration {
 
     #[tokio::test]
     async fn test_token_returned_on_signin() {
-        let token = get_auth_token().await;
+        let (port, _svr) = spawn_test_server().await;
+        let token = get_auth_token(port).await;
         assert!(token.is_some(), "Failed to obtain auth token");
         let t = token.unwrap();
         assert!(t.len() > 20, "Token is suspiciously short: {}", t.len());
@@ -159,26 +184,30 @@ mod authorization {
 
     #[tokio::test]
     async fn test_entities_requires_auth() {
-        let res = http_get("/api/entities").await;
+        let (port, _svr) = spawn_test_server().await;
+        let res = http_get(port, "/api/entities").await;
         assert_eq!(res.status().as_u16(), 401, "Expected 401 without auth");
     }
 
     #[tokio::test]
     async fn test_sessions_requires_auth() {
-        let res = http_get("/api/sessions").await;
+        let (port, _svr) = spawn_test_server().await;
+        let res = http_get(port, "/api/sessions").await;
         assert_eq!(res.status().as_u16(), 401, "Expected 401 without auth");
     }
 
     #[tokio::test]
     async fn test_sentinel_requires_auth() {
-        let res = http_get("/api/sentinel/events").await;
+        let (port, _svr) = spawn_test_server().await;
+        let res = http_get(port, "/api/sentinel/events").await;
         assert_eq!(res.status().as_u16(), 401, "Expected 401 without auth");
     }
 
     #[tokio::test]
     async fn test_invalid_jwt_rejected() {
+        let (port, _svr) = spawn_test_server().await;
         let res = reqwest::Client::new()
-            .get(format!("{}/api/entities", kelan_base_url()))
+            .get(format!("{}/api/entities", kelan_base_url(port)))
             .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJoYWNrZXIifQ.tampered")
             .send()
             .await
@@ -188,9 +217,10 @@ mod authorization {
 
     #[tokio::test]
     async fn test_valid_token_allows_access() {
-        if let Some(token) = get_auth_token().await {
+        let (port, _svr) = spawn_test_server().await;
+        if let Some(token) = get_auth_token(port).await {
             let res = reqwest::Client::new()
-                .get(format!("{}/api/entities", kelan_base_url()))
+                .get(format!("{}/api/entities", kelan_base_url(port)))
                 .header("Authorization", format!("Bearer {}", token))
                 .send()
                 .await
@@ -214,7 +244,9 @@ mod security_injection {
 
     #[tokio::test]
     async fn test_sql_injection_in_email_blocked() {
+        let (port, _svr) = spawn_test_server().await;
         let res = http_post_json(
+            port,
             "/api/auth/signin",
             serde_json::json!({
                 "email": "admin' OR '1'='1",
@@ -232,7 +264,9 @@ mod security_injection {
 
     #[tokio::test]
     async fn test_sql_injection_in_password_blocked() {
+        let (port, _svr) = spawn_test_server().await;
         let res = http_post_json(
+            port,
             "/api/auth/signin",
             serde_json::json!({
                 "email": "valid@test.kelan",
@@ -246,7 +280,9 @@ mod security_injection {
 
     #[tokio::test]
     async fn test_xss_payload_in_org_name_rejected() {
+        let (port, _svr) = spawn_test_server().await;
         let res = http_post_json(
+            port,
             "/api/auth/signup",
             serde_json::json!({
                 "org_name": "<script>alert('XSS')</script>",
@@ -280,7 +316,7 @@ mod security_headers {
 
     async fn get_headers(path: &str) -> reqwest::header::HeaderMap {
         reqwest::Client::new()
-            .get(format!("{}{}", kelan_base_url(), path))
+            .get(format!("{}{}", kelan_base_url(port), path))
             .send()
             .await
             .expect("Request failed")
@@ -290,6 +326,7 @@ mod security_headers {
 
     #[tokio::test]
     async fn test_x_frame_options_present() {
+        let (port, _svr) = spawn_test_server().await;
         let headers = get_headers("/api/stats").await;
         let present = headers.contains_key("x-frame-options");
         assert!(present, "X-Frame-Options security header is missing");
@@ -297,6 +334,7 @@ mod security_headers {
 
     #[tokio::test]
     async fn test_x_content_type_options_present() {
+        let (port, _svr) = spawn_test_server().await;
         let headers = get_headers("/api/stats").await;
         let present = headers.contains_key("x-content-type-options");
         assert!(present, "X-Content-Type-Options security header is missing");
@@ -304,7 +342,8 @@ mod security_headers {
 
     #[tokio::test]
     async fn test_stats_endpoint_public() {
-        let res = http_get("/api/stats").await;
+        let (port, _svr) = spawn_test_server().await;
+        let res = http_get(port, "/api/stats").await;
         assert!(
             res.status().is_success(),
             "Stats endpoint should be public, got {}",
@@ -314,7 +353,8 @@ mod security_headers {
 
     #[tokio::test]
     async fn test_secrets_not_in_response_body() {
-        let body = http_get("/api/stats")
+        let (port, _svr) = spawn_test_server().await;
+        let body = http_get(port, "/api/stats")
             .await
             .text()
             .await
