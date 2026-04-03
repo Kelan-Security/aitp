@@ -22,6 +22,8 @@ pub struct AppState {
     pub enforcer: Arc<crate::enforcement::BpfEnforcer>,
     pub server_identity: Arc<crate::crypto::HybridEntityIdentity>,
     pub gemini_client: Arc<crate::ai::GeminiClient>,
+    pub sessions: tokio::sync::RwLock<crate::protocol::session::SessionManager>,
+    pub handshakes: tokio::sync::RwLock<crate::protocol::handshake::HandshakeManager>,
 }
 
 impl AppState {

@@ -95,6 +95,7 @@ impl HandshakeManager {
     }
 
     /// Process a received KEM ciphertext from an initiator to derive the session shared secret.
+    #[allow(dead_code)]
     pub fn decapsulate_session_key(
         &mut self,
         session_id: u64,

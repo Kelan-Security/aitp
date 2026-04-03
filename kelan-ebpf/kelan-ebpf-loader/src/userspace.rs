@@ -1,16 +1,12 @@
 use crate::{EnforcerMode, EnforcerStats, SessionPermit};
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{bounded, Sender};
 use dashmap::DashMap;
-use governor::{
-    clock::DefaultClock,
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
-};
-use pcap::{Active, Capture, Device};
+use governor::{Quota, RateLimiter};
+use pcap::{Capture, Device};
 use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+
 
 pub struct BpfEnforcer {
     permits: Arc<DashMap<u64, SessionPermit>>,

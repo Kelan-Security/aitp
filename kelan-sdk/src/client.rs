@@ -94,14 +94,60 @@ impl std::future::IntoFuture for KelanSessionBuilder {
                 .await
                 .map_err(|e| KelanError::Transport(e.to_string()))?;
 
-            // Send synthetic SYN packet equivalent to target just for SDK demonstration capability
-            let msg = format!("SYN {:?}", self.intent);
+            // Generate hybrid identity and prepare AITP v4 SYN packet
+            let identity = kelan_crypto::HybridEntityIdentity::load_or_generate()
+                .map_err(|e| KelanError::Crypto(e.to_string()))?;
+            
+            let version: u8 = 4;
+            let flags: u8 = 1; // FLAG_SYN
+            let intent_u16 = self.intent as u16;
+            let session_id: u64 = rand::random();
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_micros() as u64;
+            let mut nonce = [0u8; 12];
+            for i in 0..12 { nonce[i] = rand::random(); }
+            
+            let algorithm: u8 = 2; // HybridPQ
+            let source_pk = identity.public_key_bytes();
+            let dest_id = [0u8; 32];
+            
+            // Dummy signature generation just to get its exact length for framing
+            let dummy_sig = identity.sign(&[0u8; 32]).to_bytes();
+            let sig_len = dummy_sig.len() as u16;
+            let pk_len = source_pk.len() as u16;
+
+            // Build signing payload
+            let mut signing_payload = Vec::new();
+            signing_payload.push(version);
+            signing_payload.push(flags);
+            signing_payload.extend_from_slice(&intent_u16.to_be_bytes());
+            signing_payload.extend_from_slice(&session_id.to_be_bytes());
+            signing_payload.extend_from_slice(&timestamp.to_be_bytes());
+            signing_payload.extend_from_slice(&nonce);
+            signing_payload.push(algorithm);
+            signing_payload.extend_from_slice(&pk_len.to_be_bytes());
+            signing_payload.extend_from_slice(&sig_len.to_be_bytes());
+            signing_payload.extend_from_slice(&source_pk);
+            signing_payload.extend_from_slice(&dest_id);
+
+            // True signature
+            let real_sig = identity.sign(&signing_payload).to_bytes();
+            
+            // Fully build AITP v4 header
+            let payload_len: u32 = 0;
+            let mut packet = signing_payload; // already contains up to dest_id
+            packet.extend_from_slice(&real_sig);
+            packet.extend_from_slice(&payload_len.to_be_bytes());
+
+            // Send AITP SYN packet
             socket
-                .send_to(msg.as_bytes(), &self.addr)
+                .send_to(&packet, &self.addr)
                 .await
                 .map_err(|e| KelanError::Transport(e.to_string()))?;
 
-            // Generate synthetic trust score.
+            // Generate synthetic trust score for SDK demo (wait for real handshake response in a production system)
             let simulated_trust = TrustResult {
                 trust_score: 180,
                 verdict: TrustVerdict::Allow,
@@ -114,7 +160,7 @@ impl std::future::IntoFuture for KelanSessionBuilder {
             Ok(SessionHandle::new(
                 Arc::new(socket),
                 self.addr,
-                rand::random(),
+                session_id,
                 simulated_trust,
             ))
         })
