@@ -7,6 +7,12 @@ use crate::trust::{SessionContext, TrustResult, TrustVerdict};
 /// Falls back safely when generative interfaces disconnect or breach timeout limits.
 pub struct FallbackRulesEngine;
 
+impl Default for FallbackRulesEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FallbackRulesEngine {
     pub fn new() -> Self {
         Self

@@ -34,6 +34,7 @@ pub async fn init_enforcer(interface: &str) -> anyhow::Result<BpfEnforcer> {
 }
 
 /// Abstract conceptual mapping bridging userspace Post-Quantum state into eBPF maps
+#[allow(clippy::too_many_arguments)]
 pub async fn register_kernel_session(
     enforcer: &BpfEnforcer,
     session_id: u64,

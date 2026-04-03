@@ -161,10 +161,10 @@ fn main() -> anyhow::Result<()> {
             println!("╠══════════════════════════════════════════════════════════╣");
             println!("  Private key: {}", private_path);
             println!("  Public key:  {}", public_path);
-            println!("");
+            println!();
             println!("  PUBLIC KEY HEX (paste into src/license.rs):");
             println!("  {}", pubkey_hex);
-            println!("");
+            println!();
             println!("  ⚠ BACK UP {} IMMEDIATELY", private_path);
             println!("  ⚠ NEVER commit it to git");
             println!("  ⚠ If lost, you cannot issue new licenses");

@@ -46,14 +46,9 @@ impl KelanClient {
     }
 }
 
+#[derive(Default)]
 pub struct KelanClientBuilder {
     config_path: Option<String>,
-}
-
-impl Default for KelanClientBuilder {
-    fn default() -> Self {
-        Self { config_path: None }
-    }
 }
 
 impl KelanClientBuilder {
@@ -107,7 +102,7 @@ impl std::future::IntoFuture for KelanSessionBuilder {
                 .unwrap_or_default()
                 .as_micros() as u64;
             let mut nonce = [0u8; 12];
-            for i in 0..12 { nonce[i] = rand::random(); }
+            for item in &mut nonce { *item = rand::random(); }
             
             let algorithm: u8 = 2; // HybridPQ
             let source_pk = identity.public_key_bytes();

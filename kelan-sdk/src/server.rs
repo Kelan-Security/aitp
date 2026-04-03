@@ -33,18 +33,10 @@ pub struct KelanServer {
     handler: Option<SharedHandler>,
 }
 
+#[derive(Default)]
 pub struct KelanServerBuilder {
     _config_path: Option<String>,
     handler: Option<SharedHandler>,
-}
-
-impl Default for KelanServerBuilder {
-    fn default() -> Self {
-        Self {
-            _config_path: None,
-            handler: None,
-        }
-    }
 }
 
 impl KelanServerBuilder {

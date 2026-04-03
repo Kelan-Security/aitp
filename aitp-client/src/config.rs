@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct AgentConfig {
     #[serde(default)]
     pub server: ServerConfig,
@@ -230,16 +230,7 @@ impl AgentConfig {
     }
 }
 
-impl Default for AgentConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            agent: AgentIdentityConfig::default(),
-            interception: InterceptionConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

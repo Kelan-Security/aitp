@@ -3,6 +3,12 @@ use super::{SessionContext, TrustResult, TrustVerdict};
 /// Deterministic rules-based trust engine. Target latency: <0.5ms.
 pub struct RulesEngine;
 
+impl Default for RulesEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RulesEngine {
     pub fn new() -> Self {
         Self

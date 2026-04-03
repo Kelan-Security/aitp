@@ -515,7 +515,7 @@ async fn cleanup_expired_data(state: &Arc<AppState>) {
 
 fn parse_entity_prefix(entity_id: &str) -> anyhow::Result<[u8; 8]> {
     let bytes = hex::decode(&entity_id[..16.min(entity_id.len())])?;
-    Ok(bytes
+    bytes
         .try_into()
-        .map_err(|_| anyhow::anyhow!("bad prefix"))?)
+        .map_err(|_| anyhow::anyhow!("bad prefix"))
 }

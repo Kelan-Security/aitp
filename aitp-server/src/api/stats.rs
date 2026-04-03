@@ -1,7 +1,6 @@
 use axum::{extract::State, routing::get, Json, Router};
 use std::sync::Arc;
 
-use crate::auth::OrgId;
 // Explicit imports to avoid unused warnings
 
 use crate::error::AppError;
@@ -13,7 +12,6 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn stats(
     State(state): State<Arc<AppState>>,
-    OrgId(_org_id): OrgId,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let uptime = state.start_time.elapsed().as_secs();
     let stats = state.db.get_stats(uptime).await?;

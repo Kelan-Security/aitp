@@ -139,6 +139,9 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
 
 pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Result<()> {
     tracing::info!("Starting Kelan Intelligence Core (Test)...");
+    
+    // Initialise license system (required for stats and node limits)
+    let _ = crate::license::init_license();
 
     let mut app_config = config::AppConfig::from_env();
     app_config.db_path = "sqlite::memory:".to_string();

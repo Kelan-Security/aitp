@@ -8,6 +8,12 @@ pub struct CveIntelligence {
     entries: Vec<CveEntry>,
 }
 
+impl Default for CveIntelligence {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CveIntelligence {
     pub fn new() -> Self {
         Self {
