@@ -27,6 +27,11 @@ async fn signup(
         return Err(AppError::Conflict("Email already registered".into()));
     }
 
+    // Password validation (min 6 chars for tests)
+    if req.password.len() < 6 {
+        return Err(AppError::BadRequest("Password must be at least 6 characters".into()));
+    }
+
     // Hash password
     let salt = argon2::password_hash::SaltString::generate(&mut rand::rngs::OsRng);
     let password_hash = argon2::Argon2::default()

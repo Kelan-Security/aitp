@@ -37,7 +37,7 @@ impl HybridVerifyingKey {
 
     /// Deserialise from bytes. Returns None if format is invalid.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < 1 {
+        if bytes.is_empty() {
             return None;
         }
 

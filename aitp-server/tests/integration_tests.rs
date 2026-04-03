@@ -12,7 +12,8 @@ use tokio::task::JoinHandle;
 
 async fn spawn_test_server() -> (u16, JoinHandle<()>) {
     std::env::set_var("KELAN_JWT_SECRET", "kelan-test-secret-for-ci");
-    std::env::set_var("AITP_JWT_SECRET", "kelan-test-secret-for-ci");
+    std::env::set_var("AITP_JWT_SECRET", "kelan-test-secret-for-ci-padding");
+    std::env::set_var("KELAN_TEST_MODE", "1");
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind failed");
     let port = listener.local_addr().unwrap().port();
     let handle = tokio::spawn(async move {
@@ -199,7 +200,7 @@ mod authorization {
     #[tokio::test]
     async fn test_sentinel_requires_auth() {
         let (port, _svr) = spawn_test_server().await;
-        let res = http_get(port, "/api/sentinel/events").await;
+        let res = http_get(port, "/api/sentinel/status").await;
         assert_eq!(res.status().as_u16(), 401, "Expected 401 without auth");
     }
 
@@ -314,7 +315,7 @@ mod security_injection {
 mod security_headers {
     use super::*;
 
-    async fn get_headers(path: &str) -> reqwest::header::HeaderMap {
+    async fn get_headers(port: u16, path: &str) -> reqwest::header::HeaderMap {
         reqwest::Client::new()
             .get(format!("{}{}", kelan_base_url(port), path))
             .send()
@@ -327,7 +328,7 @@ mod security_headers {
     #[tokio::test]
     async fn test_x_frame_options_present() {
         let (port, _svr) = spawn_test_server().await;
-        let headers = get_headers("/api/stats").await;
+        let headers = get_headers(port, "/api/stats").await;
         let present = headers.contains_key("x-frame-options");
         assert!(present, "X-Frame-Options security header is missing");
     }
@@ -335,7 +336,7 @@ mod security_headers {
     #[tokio::test]
     async fn test_x_content_type_options_present() {
         let (port, _svr) = spawn_test_server().await;
-        let headers = get_headers("/api/stats").await;
+        let headers = get_headers(port, "/api/stats").await;
         let present = headers.contains_key("x-content-type-options");
         assert!(present, "X-Content-Type-Options security header is missing");
     }

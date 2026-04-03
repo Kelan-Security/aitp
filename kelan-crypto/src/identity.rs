@@ -28,6 +28,17 @@ impl HybridEntityIdentity {
     /// Load from OS keystore or generate a new hybrid keypair.
     /// If an old Ed25519-only key exists, migrates it automatically.
     pub fn load_or_generate() -> anyhow::Result<Self> {
+        if std::env::var("KELAN_TEST_MODE").is_ok() {
+            let signing_key = HybridSigningKey::generate();
+            let entity_id = signing_key.verifying_key.entity_id();
+            return Ok(Self {
+                entity_id,
+                verifying_key: signing_key.verifying_key.clone(),
+                algorithm: CryptoAlgorithm::HybridPQ,
+                signing_key,
+            });
+        }
+
         // Try to load new hybrid key first
         let entry_v2 = Entry::new(KEYRING_SERVICE, KEYRING_KEY_V2)?;
         if let Ok(hex_key) = entry_v2.get_password() {
@@ -60,7 +71,7 @@ impl HybridEntityIdentity {
             let entity_id = signing_key.verifying_key.entity_id();
             tracing::warn!(
                 "PQ migration: new EntityID = {}. Re-enrollment with Intelligence Core required.",
-                hex::encode(&entity_id)
+                hex::encode(entity_id)
             );
 
             return Ok(Self {

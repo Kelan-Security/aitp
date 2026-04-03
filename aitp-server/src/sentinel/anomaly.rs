@@ -209,7 +209,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
                 }
 
                 // ── Check 2: New peer ──
-                if !baseline.known_peers.contains(&dest_entity_id) {
+                if !baseline.known_peers.contains(dest_entity_id) {
                     new_peers_last_hour += 1;
                     anomalies_found.push(Anomaly {
                         entity_id: entity_id.clone(),
@@ -237,7 +237,7 @@ pub async fn scan_anomalies(state: &Arc<AppState>, sentinel: &Arc<SentinelState>
                 let baseline_count = baseline.intent_distribution.get(intent).unwrap_or(&0.0);
                 let baseline_total: f64 = baseline.intent_distribution.values().sum();
                 if baseline_total > 0.0 {
-                    let baseline_pct = *baseline_count as f64 / baseline_total as f64;
+                    let baseline_pct = *baseline_count / baseline_total;
                     let current_pct = *count as f64 / recent_list.len() as f64;
                     if current_pct > baseline_pct * 3.0 && baseline_pct < 0.1 && *count > 3 {
                         anomalies_found.push(Anomaly {

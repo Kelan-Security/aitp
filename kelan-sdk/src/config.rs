@@ -1,18 +1,13 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum EntityType {
     AIModel,
     Human,
+    #[default]
     Service,
     Device,
-}
-
-impl Default for EntityType {
-    fn default() -> Self {
-        EntityType::Service
-    }
 }
 
 /// Loaded from a TOML file. All fields have sensible defaults.

@@ -46,6 +46,12 @@ pub struct HandshakeManager {
     active: HashMap<u64, HandshakeContext>, // session_id → context
 }
 
+impl Default for HandshakeManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HandshakeManager {
     pub fn new() -> Self {
         Self {

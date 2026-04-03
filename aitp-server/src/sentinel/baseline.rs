@@ -61,6 +61,12 @@ pub struct SentinelState {
     pub dirty_entities: DashMap<(String, String), std::time::Instant>,
 }
 
+impl Default for SentinelState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SentinelState {
     pub fn new() -> Self {
         Self {

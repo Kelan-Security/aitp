@@ -304,7 +304,7 @@ fn parse_entity_id(hex_str: &str) -> anyhow::Result<[u8; 32]> {
 pub fn infer_intent(host: &str, port: u16) -> IntentCode {
     match port {
         // Common ML/AI inference endpoints
-        8080 | 8081 | 8082 => IntentCode::ModelInference,
+        8080..=8082 => IntentCode::ModelInference,
         // Database ports
         5432 | 3306 | 27017 | 6379 => IntentCode::DataSync,
         // Metrics/telemetry

@@ -8,6 +8,12 @@ pub struct MemoryBudget {
     pub ws_semaphore: Semaphore,
 }
 
+impl Default for MemoryBudget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryBudget {
     pub fn new() -> Self {
         Self {
