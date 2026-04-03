@@ -33,6 +33,7 @@ pqcrypto-mldsa = { workspace = true }
 pqcrypto-mlkem = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 toml = { workspace = true }
+kelan-crypto = { path = "../kelan-crypto" }
 
 aitp-identity = { path = "../aitp-identity" }
 aitp-ai-engine = { path = "../aitp-ai-engine" }
