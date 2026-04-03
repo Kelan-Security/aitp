@@ -160,6 +160,7 @@ dependencies = [
  "crossterm 0.28.1",
  "dashmap 6.1.0",
  "ed25519-dalek",
+ "kelan-crypto",
  "pqcrypto-mldsa",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
