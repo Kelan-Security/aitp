@@ -136,6 +136,13 @@ impl HybridTrustEngine {
 
     /// Evaluate trust for a session context.
     pub async fn evaluate(&self, ctx: &SessionContext) -> TrustResult {
+        // Rules-only mode: skip cache entirely — O(1) evaluation is faster than cache I/O
+        if self.mode == "rules" {
+            let mut result = self.rules.evaluate(ctx);
+            result.evaluation_ms = 0.0;
+            return result;
+        }
+
         let cache_key = TrustCacheKey::from(ctx);
 
         if let Some(cached) = self.cache.get(&cache_key).await {
@@ -168,14 +175,24 @@ impl HybridTrustEngine {
             }
             "ai_only" if is_ai_allowed => {
                 let result = if let Some(ref gemini) = self.gemini {
-                    match gemini.evaluate(ctx).await {
-                        Ok(mut r) => {
+                    // Hard cap: entire AI evaluation bounded at 2.5s to guarantee fallback speed
+                    let ai_future = gemini.evaluate(ctx);
+                    match tokio::time::timeout(Duration::from_millis(2500), ai_future).await {
+                        Ok(Ok(mut r)) => {
                             self.breaker.record_success();
                             r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                             r
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             tracing::warn!("AI Evaluation Error: {}", e);
+                            self.breaker.record_error();
+                            let mut r = self.rules.evaluate(ctx);
+                            r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
+                            r.source = "rules_fallback".to_string();
+                            r
+                        }
+                        Err(_timeout) => {
+                            tracing::warn!("AI evaluation timed out (2.5s), falling back to rules");
                             self.breaker.record_error();
                             let mut r = self.rules.evaluate(ctx);
                             r.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
@@ -194,13 +211,19 @@ impl HybridTrustEngine {
                 let rules_result = self.rules.evaluate(ctx);
 
                 let ai_result = if let Some(ref gemini) = self.gemini {
-                    match gemini.evaluate(ctx).await {
-                        Ok(res) => {
+                    let ai_future = gemini.evaluate(ctx);
+                    match tokio::time::timeout(Duration::from_millis(2500), ai_future).await {
+                        Ok(Ok(res)) => {
                             self.breaker.record_success();
                             Some(res)
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             tracing::warn!("AI Evaluation Error: {}", e);
+                            self.breaker.record_error();
+                            None
+                        }
+                        Err(_timeout) => {
+                            tracing::warn!("AI evaluation timed out (2.5s) in hybrid mode");
                             self.breaker.record_error();
                             None
                         }
