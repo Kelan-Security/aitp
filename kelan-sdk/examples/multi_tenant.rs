@@ -1,18 +1,16 @@
-use kelan_sdk::{IntentCode, KelanClient, KelanServer};
-use tokio::time::Duration;
+use kelan_sdk::{AitpClient, KelanServer, IntentCode};
+use kelan_crypto::HybridSigningKey;
 
 #[tokio::main]
-async fn main() -> Result<(), kelan_sdk::KelanError> {
-    // Start Server
+async fn main() -> Result<(), kelan_sdk::SdkError> {
     tokio::spawn(async {
         let _ = KelanServer::builder()
             .on_session(|session| async move {
                 println!(
                     "[Server] Handled session {}, verdict: {:?}",
-                    session.session_id(),
-                    session.trust_result().verdict
+                    session.session_id,
+                    session.verdict
                 );
-                session.send(b"tenant approved").await?;
                 Ok(())
             })
             .build()
@@ -22,27 +20,23 @@ async fn main() -> Result<(), kelan_sdk::KelanError> {
             .await;
     });
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    // Tenant A (Inference)
-    let client_a = KelanClient::builder()
-        .config("tenant_a.toml")
-        .build()
-        .await?;
-    let _session_a = client_a
-        .connect("127.0.0.1:9999")
+    let identity_a = HybridSigningKey::generate();
+    let _session_a = AitpClient::builder()
+        .server("127.0.0.1:9999")
         .intent(IntentCode::ModelInference)
+        .identity(identity_a)
+        .connect()
         .await?;
     println!("[Tenant A] Inference session established.");
 
-    // Tenant B (Telemetry)
-    let client_b = KelanClient::builder()
-        .config("tenant_b.toml")
-        .build()
-        .await?;
-    let _session_b = client_b
-        .connect("127.0.0.1:9999")
+    let identity_b = HybridSigningKey::generate();
+    let _session_b = AitpClient::builder()
+        .server("127.0.0.1:9999")
         .intent(IntentCode::Telemetry)
+        .identity(identity_b)
+        .connect()
         .await?;
     println!("[Tenant B] Telemetry session established.");
 

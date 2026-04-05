@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kelan Security — Live Logs</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #000; 
+            font-family: monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #0a0a0a;
+            border-bottom: 1px solid #1a1a1a;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            color: #00ff41;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .status {
+            display: flex;
+            gap: 20px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #888;
+            font-size: 12px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff41;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .tabs {
+            background: #0d0d0d;
+            padding: 0 20px;
+            display: flex;
+            gap: 4px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .tab {
+            padding: 8px 16px;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            color: #00ff41;
+            border-bottom-color: #00ff41;
+        }
+        .terminal-frame {
+            flex: 1;
+            border: none;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⬡ KELAN SECURITY v0.3.0</div>
+        <div class="status">
+            <div class="status-item">
+                <div class="dot"></div>
+                <span>Server Running</span>
+            </div>
+            <div class="status-item">
+                <span id="time"></span>
+            </div>
+        </div>
+    </div>
+    <div class="tabs">
+        <div class="tab active" 
+             onclick="showTab('server', event)">
+            Server Logs
+        </div>
+        <div class="tab" 
+             onclick="showTab('attack', event)">
+            Attack Sim
+        </div>
+        <div class="tab" 
+             onclick="showTab('client', event)">
+            Client Connect
+        </div>
+        <div class="tab" 
+             onclick="window.open('http://localhost:3003')">
+            Grafana ↗
+        </div>
+        <div class="tab" 
+             onclick="window.open('http://localhost:9090')">
+            Prometheus ↗
+        </div>
+    </div>
+    <iframe 
+        id="terminal"
+        class="terminal-frame"
+        src="http://localhost:7681">
+    </iframe>
+
+    <script>
+        // Update clock
+        setInterval(() => {
+            document.getElementById('time').textContent = 
+                new Date().toLocaleTimeString()
+        }, 1000)
+
+        // Tab switching — each tab shows different 
+        // ttyd session with different command
+        const tabs = {
+            server: 'http://localhost:7681',
+            attack: 'http://localhost:7682',
+            client: 'http://localhost:7683',
+        }
+
+        function showTab(name, event) {
+            document.querySelectorAll('.tab')
+                .forEach(t => t.classList.remove('active'))
+            if (event && event.target) {
+                event.target.classList.add('active')
+            }
+            document.getElementById('terminal').src = 
+                tabs[name] || tabs.server
+        }
+    </script>
+</body>
+</html>

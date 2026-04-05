@@ -214,6 +214,7 @@ pub fn build_app(state: Arc<state::AppState>, _config: &config::AppConfig) -> Ro
         .merge(api::router())
         .route("/ws", get(ws::ws_handler))
         .route("/metrics", get(metrics::metrics_handler))
+        .route("/health", get(|| async { axum::Json(serde_json::json!({"status":"ok","version":"0.3.0"})) }))
         .with_state(state)
         .fallback_service(
             tower_http::services::ServeDir::new("static")

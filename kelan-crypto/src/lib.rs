@@ -7,6 +7,8 @@ pub use algorithm::CryptoAlgorithm;
 pub use hybrid_sig::{CryptoError, HybridSignature, HybridSigningKey, HybridVerifyingKey};
 pub use identity::HybridEntityIdentity;
 pub use kem::{HybridKem, KemPublicKey, SharedSecret};
+pub mod session;
+pub use session::SessionKey;
 
 // ── Key size constants
 /// Ed25519 public key size in bytes
