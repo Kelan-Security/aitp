@@ -114,12 +114,35 @@ impl SentinelState {
         dirty
     }
 
-    /// Update the entity's baseline after a session (lightweight touch)
+    /// Update the entity's baseline after a session (lightweight touch).
+    /// Performs incremental rolling average updates for all stats.
     pub async fn touch_baseline(&self, org_id: &str, entity_id: &str, event: &SentinelEvent) {
-        let _entry = self
+        let mut entry = self
             .baselines
             .entry((org_id.to_string(), entity_id.to_string()))
             .or_insert_with(|| EntityBaseline::new(entity_id));
+
+        // Rolling average update
+        let n = entry.sample_count as f64;
+        entry.avg_trust_score =
+            (entry.avg_trust_score * n + event.trust_score as f64) / (n + 1.0);
+        entry.avg_payload_bytes =
+            (entry.avg_payload_bytes * n + event.bytes_tx as f64) / (n + 1.0);
+
+        // Intent distribution (running fraction)
+        *entry
+            .intent_distribution
+            .entry(event.intent.clone())
+            .or_insert(0.0) += 1.0 / (n + 1.0);
+
+        // Track known peers
+        if !entry.known_peers.contains(&event.dest_entity_id) {
+            entry.known_peers.push(event.dest_entity_id.clone());
+        }
+
+        entry.sample_count += 1;
+        entry.last_updated = event.occurred_at;
+        drop(entry); // release DashMap lock before more work
 
         // Track denial for spike detection
         if event.verdict == "Deny" {
@@ -134,6 +157,8 @@ impl SentinelState {
                 denials.pop_front();
             }
         }
+
+        self.mark_baseline_dirty(org_id, entity_id).await;
     }
 
     /// Count recent denials in the last `window_secs` for spike detection

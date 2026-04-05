@@ -80,9 +80,19 @@ impl HybridVerifyingKey {
         hasher.update(&pk_bytes);
         hasher.finalize().into()
     }
+
+    /// Verify a hybrid signature.
+    pub fn verify(
+        &self,
+        message: &[u8],
+        signature: &HybridSignature,
+    ) -> Result<(), CryptoError> {
+        verify_hybrid(self, message, signature)
+    }
 }
 
 /// A hybrid signature: both Ed25519 and ML-DSA-65 signatures on the same message.
+#[derive(Clone)]
 pub struct HybridSignature {
     pub classical: [u8; 64],   // Ed25519 signature
     pub post_quantum: Vec<u8>, // ML-DSA-65 signature (3309 bytes)

@@ -70,6 +70,7 @@ struct GeminiApiError {
 /// Centralized, production-grade Gemini client.
 pub struct GeminiClient {
     api_key: String,
+    base_url: String,
     client: reqwest::Client,
     max_retries: u32,
     timeout: Duration,
@@ -78,8 +79,14 @@ pub struct GeminiClient {
 impl GeminiClient {
     /// Create a new Gemini client.
     pub fn new(api_key: &str) -> Self {
+        Self::new_with_url(api_key, "https://generativelanguage.googleapis.com")
+    }
+
+    /// Create a new Gemini client with a custom base URL.
+    pub fn new_with_url(api_key: &str, base_url: &str) -> Self {
         Self {
             api_key: api_key.to_string(),
+            base_url: base_url.to_string(),
             client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30)) // overall timeout
                 .build()
@@ -171,8 +178,8 @@ impl GeminiClient {
         request: GeminiRequest,
     ) -> Result<String, String> {
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            model, self.api_key
+            "{}/v1beta/models/{}:generateContent?key={}",
+            self.base_url, model, self.api_key
         );
 
         let mut attempts = 0;
@@ -249,6 +256,12 @@ impl GeminiClient {
                         crate::metrics::record_gemini_call(model, "auth", latency_ms);
                         error!("Gemini 403: Forbidden. Check API Key. Body: {}", body);
                         return Err("Gemini API key is invalid or lacks necessary permissions (403).".to_string());
+                    } else if status.is_server_error() {
+                        // 5xx — server fault, not transient; fast-fail to let circuit breaker respond quickly
+                        let code = status.as_u16();
+                        crate::metrics::record_gemini_call(model, "server_error", latency_ms);
+                        warn!("Gemini {} server error — fast-fail (no retry)", code);
+                        return Err(format!("Gemini server error {} — upstream fault", code));
                     } else {
                         last_error = format!("API returned error status {}", status);
                         crate::metrics::record_gemini_call(model, "error", latency_ms);

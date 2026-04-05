@@ -107,51 +107,20 @@ impl GeminiTrustEngine {
         }
     }
 
-    /// Evaluate trust via Gemini AI.
+    /// Evaluate trust via Gemini AI (single attempt — caller owns retry/timeout policy).
     pub async fn evaluate(&self, ctx: &SessionContext) -> Result<TrustResult, String> {
         let ctx_json = serde_json::to_string(ctx)
             .map_err(|e| format!("Failed to serialize context: {}", e))?;
 
         let prompt = format!("Evaluate this session:\n{}", ctx_json);
         let gemini_start = std::time::Instant::now();
-        let mut text = String::new();
-        let mut success = false;
-        let mut retries = 0;
 
-        while retries < 3 {
-            // Layer 2: Global response timeout (2000ms max for an attempt)
-            let attempt_future = tokio::time::timeout(
-                std::time::Duration::from_millis(2000), 
-                self.client.generate_content(&self.model, Some(TRUST_SYSTEM_PROMPT), &prompt, 0.1, true)
-            );
-
-            match attempt_future.await {
-                Ok(Ok(response)) => {
-                    text = response;
-                    success = true;
-                    break;
-                }
-                Ok(Err(api_err)) => {
-                    // API request finished within timeout but yielded internal error (ex: 429)
-                    tracing::warn!("Gemini API Error on attempt {}: {}", retries + 1, api_err);
-                    retries += 1;
-                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                    continue;
-                }
-                Err(_) => {
-                    // Layer 2 Drop: Full 2000ms boundary breached, abort attempt
-                    tracing::warn!("Gemini API Timeout (2000ms) on attempt {}", retries + 1);
-                    crate::metrics::GEMINI_TIMEOUT_TOTAL.inc();
-                    retries += 1;
-                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                    continue;
-                }
-            }
-        }
-
-        if !success {
-            return Err("GeminiTimeout: Exhausted all retries or breached temporal deadlines".to_string());
-        }
+        // Single attempt with a per-call timeout applied by the caller (HybridTrustEngine)
+        let text = self
+            .client
+            .generate_content(&self.model, Some(TRUST_SYSTEM_PROMPT), &prompt, 0.1, true)
+            .await
+            .map_err(|e| format!("GeminiError: {}", e))?;
 
         let latency_ms = gemini_start.elapsed().as_secs_f64() * 1000.0;
         crate::metrics::GEMINI_REQUEST_DURATION.observe(latency_ms / 1000.0);
