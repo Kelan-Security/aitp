@@ -17,9 +17,30 @@ volumes:
   aitp-keys:
   prometheus-data:
   grafana-data:
+  postgres_data:
 
 
 services:
+  # ────────────────────── PostgreSQL ──────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: kelan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kelan
+      POSTGRES_USER: kelan
+      POSTGRES_PASSWORD: kelan_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aitp-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kelan"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # ────────────────────── Control Plane ──────────────────────
   aitp-control-plane:

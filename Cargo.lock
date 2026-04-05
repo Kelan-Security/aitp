@@ -3027,10 +3027,13 @@ name = "kelan-sdk"
 version = "0.3.0"
 dependencies = [
  "aes-gcm",
+ "aitp-core",
  "anyhow",
+ "bytes",
  "chrono",
  "ed25519-dalek",
  "kelan-crypto",
+ "pqcrypto-mlkem",
  "rand 0.8.5",
  "reqwest 0.11.27",
  "serde",
@@ -3042,6 +3045,7 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
+ "x25519-dalek",
 ]
 
 [[package]]

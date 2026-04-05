@@ -1,129 +1,269 @@
-#!/usr/bin/env bash
-# Kelan Security — One command startup
-set -euo pipefail
+#!/bin/bash
+set -e
 
-GREEN='\033[0;32m'; AMBER='\033[0;33m'; RED='\033[0;31m'
-BOLD='\033[1m'; NC='\033[0m'
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-ACTION="${1:-start}"
+echo -e "${BLUE}"
+echo "╔═══════════════════════════════════════╗"
+echo "║     KELAN SECURITY v0.3.0             ║"
+echo "║     Kernel-Level Agentic Network      ║"
+echo "║     Security System                   ║"
+echo "╚═══════════════════════════════════════╝"
+echo -e "${NC}"
 
-free_port() {
-  local PORT=$1
-  # Kill anything using this port (handles Docker leftover, old server, etc.)
-  if lsof -ti:$PORT >/dev/null 2>&1; then
-    echo -e "${AMBER}Freeing port $PORT...${NC}"
-    lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
-    sleep 1
-  fi
+# ── Prerequisites Check ──────────────────────
+echo -e "${YELLOW}[1/6] Checking prerequisites...${NC}"
+
+check_cmd() {
+    if ! command -v $1 &> /dev/null; then
+        echo -e "${RED}✗ $1 not found. Install it first.${NC}"
+        exit 1
+    else
+        echo -e "${GREEN}✓ $1 found${NC}"
+    fi
 }
 
-case "$ACTION" in
-  start)
-    echo -e "\n${BOLD}Kelan Security — Starting...${NC}\n"
+check_cmd cargo
+check_cmd docker
+check_cmd curl
+check_cmd node   # for web terminal
 
-    # Free ports before starting
-    free_port 3000
-    free_port 9999
-    free_port 5173
+# Check .env exists
+if [ ! -f .env ]; then
+    echo -e "${YELLOW}No .env found. Creating from template...${NC}"
+    cp .env.example .env
+    echo -e "${RED}IMPORTANT: Edit .env and add your GEMINI_API_KEY${NC}"
+    echo "Then re-run this script."
+    exit 1
+fi
 
-    # Kill any lingering server processes
-    pkill -f aitp_server 2>/dev/null || true
-    sleep 1
+source .env
 
-    # Build and start server
-    echo -e "${AMBER}Building aitp-server...${NC}"
-    cargo build -p aitp-server --quiet
+# ── Build ────────────────────────────────────
+echo -e "${YELLOW}[2/6] Building workspace...${NC}"
 
-    export AITP_JWT_SECRET="${AITP_JWT_SECRET:-$(openssl rand -base64 48)}"
+cargo build --release --workspace 2>&1 | \
+    grep -E "Compiling|Finished|error" || true
 
-    echo -e "${AMBER}Starting Intelligence Core...${NC}"
-    RUST_LOG=aitp_server=info cargo run -p aitp-server &
-    SERVER_PID=$!
-    echo $SERVER_PID > /tmp/kelan_server.pid
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo -e "${RED}✗ Build failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Build complete${NC}"
 
-    # Wait for server to be ready
-    echo -ne "${AMBER}Waiting for server${NC}"
-    for i in $(seq 1 30); do
-      if curl -s http://localhost:3000/api/stats > /dev/null 2>&1; then
-        echo -e " ${GREEN}ready!${NC}"
+# ── Start Infrastructure ─────────────────────
+echo -e "${YELLOW}[3/6] Starting infrastructure...${NC}"
+
+# Clean up any orphans first
+docker compose down --remove-orphans 2>/dev/null \
+    || true
+
+# Start all infrastructure including postgres
+docker compose up -d postgres prometheus grafana
+
+# Wait for postgres specifically
+echo "Waiting for PostgreSQL to be ready..."
+POSTGRES_READY=false
+for i in {1..30}; do
+    if docker compose exec -T postgres \
+        pg_isready -U kelan 2>/dev/null; then
+        POSTGRES_READY=true
         break
-      fi
-      echo -n "."
-      sleep 1
-    done
-
-    # Start frontend if it exists
-    if [ -d "aitp-dashboard" ] && command -v node >/dev/null 2>&1; then
-      echo -e "${AMBER}Starting frontend...${NC}"
-      cd aitp-dashboard
-      npm install --silent 2>/dev/null || true
-      npm run dev &
-      cd ..
-      echo -e "${GREEN}Frontend starting at http://localhost:5173${NC}"
     fi
+    echo "  Postgres starting... ($i/30)"
+    sleep 2
+done
 
-    # Get or create a token
-    SIGNUP=$(curl -s -X POST http://localhost:3000/api/auth/signup \
-      -H 'Content-Type: application/json' \
-      -d '{"org_name":"Kelan Dev","email":"dev@kelan.io","password":"DevPass123!"}' 2>/dev/null)
-    TOKEN=$(echo $SIGNUP | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || echo "")
+if [ "$POSTGRES_READY" = false ]; then
+    echo -e "${RED}✗ PostgreSQL failed to start${NC}"
+    docker compose logs postgres | tail -20
+    exit 1
+fi
 
-    if [ -z "$TOKEN" ]; then
-      TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/signin \
-        -H 'Content-Type: application/json' \
-        -d '{"email":"dev@kelan.io","password":"DevPass123!"}' \
-        | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
+echo -e "${GREEN}✓ PostgreSQL ready${NC}"
+sleep 2
+echo -e "${GREEN}✓ Infrastructure ready${NC}"
+
+# ── Start Kelan Server ───────────────────────
+echo -e "${YELLOW}[4/6] Starting Kelan AITP server...${NC}"
+
+mkdir -p logs
+
+# Find correct binary (underscore or hyphen)
+if [ -f "./target/release/aitp_server" ]; then
+    SERVER_BIN="./target/release/aitp_server"
+elif [ -f "./target/release/aitp-server" ]; then
+    SERVER_BIN="./target/release/aitp-server"
+else
+    echo -e "${RED}✗ Server binary not found${NC}"
+    echo "Run: cargo build --release"
+    exit 1
+fi
+
+echo "Binary: $SERVER_BIN"
+
+# Start server
+RUST_LOG=info,aitp_server=debug,kelan=debug \
+    $SERVER_BIN \
+    > logs/kelan-server.log 2>&1 &
+
+SERVER_PID=$!
+echo $SERVER_PID > .kelan.pid
+
+# Show initial logs immediately
+sleep 2
+echo "Server startup log:"
+cat logs/kelan-server.log
+
+# Show bound ports
+echo "Bound ports:"
+lsof -i :3000 2>/dev/null | head -3
+lsof -i :9999 2>/dev/null | head -3
+lsof -p $SERVER_PID 2>/dev/null | \
+    grep -E "TCP|UDP" | head -5
+
+# Wait for HTTP health check
+echo "Waiting for server to be ready..."
+HTTP_PORT=${HTTP_PORT:-3000}
+
+for i in {1..60}; do
+    if curl -s \
+        http://localhost:$HTTP_PORT/health \
+        > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Server ready (PID: $SERVER_PID)${NC}"
+        break
     fi
-
-    echo ""
-    echo -e "${GREEN}${BOLD}Kelan Security is running${NC}"
-    echo ""
-    echo -e "  API:       http://localhost:3000"
-    echo -e "  Dashboard: http://localhost:3000"
-    if [ -d "aitp-dashboard" ]; then
-      echo -e "  Frontend:  http://localhost:5173"
+    
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "  Still waiting... ($i/60)"
+        echo "  Last log: $(tail -1 logs/kelan-server.log)"
     fi
-    echo ""
-    if [ -n "$TOKEN" ]; then
-      echo -e "  ${BOLD}Token:${NC} ${TOKEN:0:40}..."
-      echo ""
-      echo -e "  ${AMBER}Test commands:${NC}"
-      echo "  TOKEN=\"$TOKEN\""
-      echo "  curl -s http://localhost:3000/api/auth/me -H \"Authorization: Bearer \$TOKEN\" | python3 -m json.tool"
-      echo "  curl -s http://localhost:3000/api/stats   -H \"Authorization: Bearer \$TOKEN\" | python3 -m json.tool"
+    
+    # Check if process died
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        echo -e "${RED}✗ Server process died${NC}"
+        echo "Full log:"
+        cat logs/kelan-server.log
+        exit 1
     fi
-    echo ""
-    echo -e "  ${AMBER}Stop:${NC}  ./start.sh stop  OR  make stop"
-    ;;
-
-  stop)
-    echo "Stopping Kelan Security..."
-    pkill -f aitp_server 2>/dev/null || true
-    pkill -f "npm run dev" 2>/dev/null || true
-    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
-    rm -f /tmp/kelan_server.pid
-    echo "Stopped."
-    ;;
-
-  fresh)
-    echo "Fresh start — wiping database..."
-    pkill -f aitp_server 2>/dev/null || true
-    lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-    rm -f aitp-server/data/*.db aitp-server/data/*.db-shm aitp-server/data/*.db-wal
+    
     sleep 1
-    exec "$0" start
-    ;;
+done
 
-  token)
-    TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/signin \
-      -H 'Content-Type: application/json' \
-      -d '{"email":"dev@kelan.io","password":"DevPass123!"}' \
-      | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
-    echo "TOKEN=\"$TOKEN\""
-    ;;
+# ── Start Web Terminal ───────────────────────
+echo -e "${YELLOW}[5/6] Starting web terminal...${NC}"
 
-  *)
-    echo "Usage: ./start.sh [start|stop|fresh|token]"
-    ;;
-esac
+# Install ttyd if not present (web terminal)
+if ! command -v ttyd &> /dev/null; then
+    echo "Installing ttyd (web terminal)..."
+    
+    # Linux
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        wget -q https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -O /usr/local/bin/ttyd
+        chmod +x /usr/local/bin/ttyd
+    fi
+    
+    # macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        brew install ttyd 2>/dev/null || \
+        echo "Install ttyd: brew install ttyd"
+    fi
+fi
+
+# Tab 1: Server logs (port 7681)
+ttyd --port 7681 \
+    bash -c "tail -f logs/kelan-server.log" &
+TTYD_PID1=$!
+echo $TTYD_PID1 >> .kelan.pid
+
+# Tab 2: Attack simulator (port 7682)
+ttyd --port 7682 --writable \
+    bash -c "
+    echo 'KELAN ATTACK SIMULATOR';
+    echo 'Commands:';
+    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode ddos';
+    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode replay';
+    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode lateral-movement';
+    echo '';
+    bash
+    " &
+TTYD_PID2=$!
+echo $TTYD_PID2 >> .kelan.pid
+
+# Tab 3: Client connector (port 7683)
+ttyd --port 7683 --writable \
+    bash -c "
+    echo 'KELAN CLIENT TERMINAL';
+    echo 'Connect to server:';
+    echo '  cargo run --example basic_connect -- --server localhost:9999 --intent ModelInference';
+    echo '';
+    bash
+    " &
+TTYD_PID3=$!
+echo $TTYD_PID3 >> .kelan.pid
+
+echo -e "${GREEN}✓ Web terminal at http://localhost:7681${NC}"
+
+# ── Start Dashboard ──────────────────────────
+if [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "aitp-dashboard" ]; then
+    echo -e "${YELLOW}Starting dashboard...${NC}"
+    
+    DASH_DIR=$([ -d "aitp-dashboard" ] && echo "aitp-dashboard" || ([ -d "dashboard" ] && echo "dashboard" || echo "frontend"))
+    
+    cd $DASH_DIR
+    npm install --silent
+    npm run dev > ../logs/dashboard.log 2>&1 &
+    DASH_PID=$!
+    echo $DASH_PID >> ../.kelan.pid
+    cd ..
+    
+    sleep 3
+    echo -e "${GREEN}✓ Dashboard starting...${NC}"
+fi
+
+# ── Run Verification Tests ───────────────────
+echo -e "${YELLOW}[6/6] Running live verification...${NC}"
+echo ""
+
+# Small delay to ensure everything is up
+sleep 2
+
+./scripts/verify.sh
+
+echo ""
+echo -e "${GREEN}═══════════════════════════════════${NC}"
+echo -e "${GREEN}  KELAN SECURITY IS RUNNING        ${NC}"
+echo -e "${GREEN}═══════════════════════════════════${NC}"
+echo ""
+echo "  🌐 Dashboard:     http://localhost:3000"
+echo "  📺 Live Logs:     http://localhost:7681"
+echo "  📊 Grafana:       http://localhost:3003"
+echo "  📈 Prometheus:    http://localhost:9090"
+echo ""
+echo "  To stop everything: ./stop.sh"
+echo ""
+
+# Open browser automatically
+sleep 2
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    open http://localhost:7681 &
+    open http://localhost:3000 &
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    xdg-open http://localhost:7681 &
+    xdg-open http://localhost:3000 &
+fi
+
+# Also open the terminal HTML page
+if [ -f "logs/terminal.html" ]; then
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open logs/terminal.html
+    else
+        xdg-open logs/terminal.html
+    fi
+fi

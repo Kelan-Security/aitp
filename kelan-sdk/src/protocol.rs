@@ -1,19 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// The declared purpose of a network session.
-/// Signed and irrevocably logged for every connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum IntentCode {
-    ModelInference,
-    DataSync,
-    ControlSignal,
-    Telemetry,
-    AgentCoordinate,
-    FileTransfer,
-    Heartbeat,
-    Unknown,
-}
+
 
 /// Result of the AI trust evaluation for a session.
 #[derive(Debug, Clone, Serialize, Deserialize)]

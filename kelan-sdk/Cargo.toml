@@ -25,6 +25,10 @@ anyhow       = "1"
 thiserror    = "1"
 uuid         = { version = "1", features = ["v4"] }
 kelan-crypto = { path = "../kelan-crypto" }
+aitp-core    = { path = "../aitp-core" }
+bytes        = "1"
+x25519-dalek   = { workspace = true }
+pqcrypto-mlkem = { workspace = true }
 chrono       = { version = "0.4", features = ["serde"] }
 tracing      = "0.1"
 toml         = "0.8"
