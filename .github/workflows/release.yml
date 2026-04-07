@@ -319,6 +319,16 @@ jobs:
           body: |
             ## Kelan Security ${{ github.ref_name }}
 
+            **One-command install:**
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/kelan-security/kelan-core/main/install.sh | bash
+            ```
+
+            **Docker:**
+            ```bash
+            docker pull ghcr.io/kelan-security/kelan-core:${{ github.ref_name }}
+            ```
+
             ## Binaries
 
             | Platform | Architecture | Archive |

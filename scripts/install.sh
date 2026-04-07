@@ -1,167 +1,175 @@
-#!/usr/bin/env bash
-# Kelan Security — One-line installer for Linux and macOS
-#
-# Usage:
-#   curl -fsSL https://install.kelan.io | bash
-#   curl -fsSL https://install.kelan.io | bash -s -- --version v0.3.0
-#   KELAN_INSTALL_DIR=~/.local/bin curl -fsSL https://install.kelan.io | bash
-#
+#!/bin/bash
+# Kelan Security — Installation Script
+# Usage: sudo bash scripts/install.sh
+# Supports: Ubuntu 22.04+, Debian 12+, ARM64 Linux
+
 set -euo pipefail
 
-REPO="kelan-security/kelan-core"
-INSTALL_DIR="${KELAN_INSTALL_DIR:-/usr/local/bin}"
-VERSION="${KELAN_VERSION:-latest}"
-
-# ── Colours
 RED='\033[0;31m'
-GREEN='\033[0;32m'
-AMBER='\033[0;33m'
-BOLD='\033[1m'
-NC='\033[0m'   # no colour
+GRN='\033[0;32m'
+YLW='\033[1;33m'
+NC='\033[0m'  # No Color
 
-banner() {
-  echo -e "${BOLD}"
-  echo "  ╔══════════════════════════════════════════╗"
-  echo "  ║    Kelan Security Installer              ║"
-  echo "  ╚══════════════════════════════════════════╝"
-  echo -e "${NC}"
-}
-
-die() { echo -e "${RED}ERROR: $1${NC}" >&2; exit 1; }
-info() { echo -e "  $1"; }
-
-# ── Parse optional --version flag
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --version|-v) VERSION="$2"; shift 2 ;;
-    *) shift ;;
-  esac
-done
-
-# ── Detect platform
-detect_platform() {
-  local OS ARCH
-  OS=$(uname -s)
-  ARCH=$(uname -m)
-
-  case "$OS" in
-    Linux)
-      case "$ARCH" in
-        x86_64)        echo "linux-x86_64" ;;
-        aarch64|arm64) echo "linux-arm64"  ;;
-        *) die "Unsupported Linux architecture: ${ARCH}" ;;
-      esac ;;
-    Darwin)
-      case "$ARCH" in
-        x86_64) echo "macos-x86_64" ;;
-        arm64)  echo "macos-arm64"  ;;
-        *) die "Unsupported macOS architecture: ${ARCH}" ;;
-      esac ;;
-    *)
-      die "Unsupported OS: ${OS}. For Windows, visit github.com/${REPO}/releases" ;;
-  esac
-}
-
-# ── Resolve 'latest' to a concrete tag via GitHub API
-resolve_version() {
-  local v
-  v=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-      | grep '"tag_name"' \
-      | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
-  [ -n "$v" ] || die "Could not determine latest version from GitHub API."
-  echo "$v"
-}
-
-# ── Require commands
-require() { command -v "$1" &>/dev/null || die "'$1' is required but not found."; }
-require curl
-require tar
-require sha256sum 2>/dev/null || require shasum   # macOS uses shasum
-
-# ── sha256 wrapper (sha256sum on Linux, shasum -a 256 on macOS)
-verify_sha256() {
-  local file="$1" expected="$2"
-  local actual
-  if command -v sha256sum &>/dev/null; then
-    actual=$(sha256sum "$file" | awk '{print $1}')
-  else
-    actual=$(shasum -a 256 "$file" | awk '{print $1}')
-  fi
-  [ "$actual" = "$expected" ] || die "Checksum mismatch!\n  Expected: ${expected}\n  Got:      ${actual}"
-}
-
-# ────────────────────────────────────────
-banner
-
-PLATFORM=$(detect_platform)
-info "Platform:  ${GREEN}${PLATFORM}${NC}"
-
-[ "$VERSION" = "latest" ] && VERSION=$(resolve_version)
-info "Version:   ${GREEN}${VERSION}${NC}"
-info "Install:   ${GREEN}${INSTALL_DIR}${NC}"
-
-VERSION_NUM="${VERSION#v}"
-ARCHIVE="kelan-${VERSION}-${PLATFORM}.tar.gz"
-BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
-DOWNLOAD_URL="${BASE_URL}/${ARCHIVE}"
-CHECKSUM_URL="${BASE_URL}/${ARCHIVE}.sha256"
+info()  { echo -e "${GRN}[kelan]${NC}  $*"; }
+warn()  { echo -e "${YLW}[warn] ${NC}  $*"; }
+error() { echo -e "${RED}[error]${NC}  $*"; }
 
 echo ""
-info "Downloading ${BOLD}${ARCHIVE}${NC} ..."
+echo "╔══════════════════════════════════════════╗"
+echo "║    Kelan Security — Installation v0.3    ║"
+echo "╚══════════════════════════════════════════╝"
+echo ""
 
-# ── Temp directory (cleaned up on exit)
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "${TMP_DIR}"' EXIT
-
-# ── Download
-curl -fsSL --progress-bar -o "${TMP_DIR}/${ARCHIVE}"         "${DOWNLOAD_URL}"
-curl -fsSL                 -o "${TMP_DIR}/${ARCHIVE}.sha256" "${CHECKSUM_URL}"
-
-# ── Verify checksum
-info "Verifying checksum..."
-EXPECTED_HASH=$(awk '{print $1}' "${TMP_DIR}/${ARCHIVE}.sha256")
-verify_sha256 "${TMP_DIR}/${ARCHIVE}" "${EXPECTED_HASH}"
-info "${GREEN}✓ Checksum verified${NC}"
-
-# ── Extract
-tar -xzf "${TMP_DIR}/${ARCHIVE}" -C "${TMP_DIR}"
-EXTRACTED_DIR="${TMP_DIR}/kelan-${VERSION_NUM}-${PLATFORM}"
-
-# ── Determine sudo need
-SUDO=""
-if [ ! -w "$INSTALL_DIR" ]; then
-  SUDO="sudo"
-  info "(sudo required for ${INSTALL_DIR})"
+# ── 1. Root check ─────────────────────────────────────────────────────────────
+if [ "$EUID" -ne 0 ]; then
+  error "Run as root: sudo bash scripts/install.sh"
+  exit 1
 fi
 
-# ── Create install dir if it doesn't exist
-$SUDO mkdir -p "${INSTALL_DIR}"
+# ── 2. Detect OS ──────────────────────────────────────────────────────────────
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  OS_ID="$ID"
+  OS_VERSION="$VERSION_ID"
+  info "Detected OS: $PRETTY_NAME"
+else
+  warn "Cannot detect OS — assuming Debian-compatible"
+  OS_ID="debian"
+fi
 
-# ── Install
-info "Installing to ${BOLD}${INSTALL_DIR}${NC} ..."
-$SUDO cp  "${EXTRACTED_DIR}/kelan-server" "${INSTALL_DIR}/kelan-server"
-$SUDO cp  "${EXTRACTED_DIR}/kelan-agent"  "${INSTALL_DIR}/kelan-agent"
-$SUDO chmod +x "${INSTALL_DIR}/kelan-server" "${INSTALL_DIR}/kelan-agent"
+# ── 3. Run kelan doctor ───────────────────────────────────────────────────────
+info "Running pre-flight checks..."
 
-# ── Verify
-INSTALLED_VERSION=$("${INSTALL_DIR}/kelan-server" --version 2>/dev/null || echo "unknown")
+DOCTOR_EXIT=0
+if [ -f ./target/release/kelan-doctor ]; then
+  ./target/release/kelan-doctor || DOCTOR_EXIT=$?
+elif [ -f ./target/release/aitp_server ]; then
+  ./target/release/aitp_server --doctor || DOCTOR_EXIT=$?
+else
+  warn "Kelan binaries not yet built — skipping doctor check (will run after build)"
+fi
+
+if [ "$DOCTOR_EXIT" -eq 1 ]; then
+  error "Doctor reported critical failures. Please fix them before retrying."
+  error "Run './target/release/kelan-doctor' for details."
+  exit 1
+elif [ "$DOCTOR_EXIT" -eq 2 ]; then
+  warn "Doctor warnings detected — will continue in software enforcement mode"
+fi
+
+# ── 4. Install system dependencies ───────────────────────────────────────────
+info "Installing system dependencies..."
+
+if command -v apt-get &>/dev/null; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq 2>&1 | tail -1
+  apt-get install -y --no-install-recommends \
+    clang llvm libelf-dev \
+    iproute2 iptables \
+    curl wget git \
+    ca-certificates \
+    build-essential pkg-config libssl-dev \
+    linux-tools-common linux-tools-generic \
+    hping3 \
+    2>&1 | grep -E "^(Get|Unpacking|Setting up|Processing)" || true
+elif command -v dnf &>/dev/null; then
+  dnf install -y clang llvm elfutils-libelf-devel iproute iptables curl hping3 2>/dev/null || true
+else
+  warn "Unknown package manager — you may need to install clang, llvm, libelf-dev manually"
+fi
+
+# ── 5. Install Rust (if not present) ─────────────────────────────────────────
+if ! command -v cargo &>/dev/null; then
+  info "Installing Rust toolchain..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --no-modify-path --default-toolchain stable
+  source "$HOME/.cargo/env"
+fi
+
+info "Rust: $(rustc --version)"
+
+# ── 6. Configure kernel for eBPF ──────────────────────────────────────────────
+info "Enabling eBPF JIT..."
+sysctl -w net.core.bpf_jit_enable=1 2>/dev/null || warn "Could not enable bpf_jit (may already be enabled)"
+sysctl -w net.core.bpf_jit_harden=0 2>/dev/null || true
+
+# Make persistent
+echo "net.core.bpf_jit_enable = 1" >> /etc/sysctl.d/99-kelan.conf 2>/dev/null || true
+
+# Mount BPF FS if not mounted
+if ! mount | grep -q "bpf on /sys/fs/bpf"; then
+  info "Mounting BPF filesystem..."
+  mount -t bpf none /sys/fs/bpf 2>/dev/null || warn "Could not mount BPF FS"
+fi
+
+# ── 7. Build ──────────────────────────────────────────────────────────────────
+info "Building Kelan (release, may take 2-5 min on first build)..."
+
+cargo build --release -p aitp-server -p kelan-ebpf-loader 2>&1 | \
+  grep -E "(Compiling|Finished|error)" || true
+
+if [ ! -f ./target/release/aitp_server ]; then
+  error "Build failed. Check output above."
+  exit 1
+fi
+
+info "Build complete."
+
+# ── 8. Run doctor again with proper binaries ──────────────────────────────────
+info "Running post-build diagnostics..."
+./target/release/kelan-doctor || true  # doctor exit codes are informational
+
+# ── 9. Try to load eBPF XDP ──────────────────────────────────────────────────
+EBPF_IFACE="${NETWORK_INTERFACE:-eth0}"
+
+if [ -f ./target/bpfel-unknown-none/release/kelan_xdp ]; then
+  info "Loading eBPF XDP onto $EBPF_IFACE..."
+  # Attempt eBPF load — requires bpf-linker feature and root
+  if ./target/release/kelan-ebpf-loader --load --iface "$EBPF_IFACE" 2>/dev/null; then
+    info "✅ eBPF mode ACTIVE on $EBPF_IFACE"
+  else
+    warn "eBPF load failed — software enforcement active (XDP rate limiting will run in userspace)"
+  fi
+else
+  warn "eBPF object not built (requires bpf-linker + nightly). Software enforcement active."
+  warn "To enable native eBPF: cargo install bpf-linker && cargo xtask build-ebpf"
+fi
+
+# ── 10. Create systemd service ────────────────────────────────────────────────
+info "Installing systemd service..."
+
+INSTALL_DIR="$(pwd)"
+cat > /etc/systemd/system/kelan.service << EOF
+[Unit]
+Description=Kelan Security Intelligence Core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${INSTALL_DIR}
+ExecStartPre=${INSTALL_DIR}/target/release/kelan-doctor
+ExecStart=${INSTALL_DIR}/target/release/aitp_server
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+AmbientCapabilities=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_BPF CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_BPF CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable kelan
 
 echo ""
-echo -e "  ${GREEN}${BOLD}✓ Kelan Security installed successfully${NC}"
+echo "────────────────────────────────────────────"
+info "✅ Installation complete!"
 echo ""
-echo -e "  Server:  ${BOLD}${INSTALL_DIR}/kelan-server${NC}  (${INSTALLED_VERSION})"
-echo -e "  Agent:   ${BOLD}${INSTALL_DIR}/kelan-agent${NC}"
-echo ""
-echo -e "  ${AMBER}Next steps:${NC}"
-echo "  1. Set your Gemini API key:"
-echo "       export GEMINI_API_KEY=your_key_here"
-echo ""
-echo "  2. Start the Intelligence Core:"
-echo "       kelan-server"
-echo ""
-echo "  3. Enroll this device as a client agent:"
-echo "       kelan-agent enroll --server localhost --token <admin_token>"
-echo ""
-echo "  Docs:  https://docs.kelan.io"
-echo "  Repo:  https://github.com/${REPO}"
-echo ""
+echo "  Start server:  systemctl start kelan"
+echo "  View logs:     journalctl -fu kelan"
+echo "  Diagnostics:   ./target/release/kelan-doctor"
+echo "  API:           http://localhost:3000/health"
+echo "────────────────────────────────────────────"

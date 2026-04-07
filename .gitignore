@@ -29,3 +29,10 @@ config/.env.production
 certs/server.crt
 secrets/
 agent-identity.key
+
+# Terraform — never commit real credentials
+deploy/oracle-cloud/terraform/terraform.tfvars
+deploy/oracle-cloud/terraform/.terraform/
+deploy/oracle-cloud/terraform/*.tfstate
+deploy/oracle-cloud/terraform/*.tfstate.backup
+deploy/oracle-cloud/terraform/.terraform.lock.hcl

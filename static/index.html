@@ -961,6 +961,118 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* ── Live Demo & Install Box ── */
+    .install-section {
+      background: var(--ink);
+      color: #fff;
+      padding: 80px 5%;
+      text-align: center;
+    }
+
+    .install-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #1a1b1e;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px 24px;
+      margin: 32px auto 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.95rem;
+      color: #34d399;
+      max-width: 720px;
+      position: relative;
+    }
+
+    .copy-btn {
+      background: #2d2e33;
+      border: 1px solid #444;
+      color: #ccc;
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .copy-btn:hover { background: #3f4147; color: #fff; }
+    .copy-btn.copied { background: #166534; color: #dcfce7; border-color: #166534; }
+
+    .btn-demo {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.35);
+      color: #fff;
+    }
+
+    .btn-demo:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.65);
+    }
+
+    /* ── Calendly embed ── */
+    .calendly-section {
+      padding: 80px 5%;
+      text-align: center;
+      background: #fff;
+      border-top: 1px solid var(--divider);
+    }
+
+    .calendly-inline-widget {
+      min-width: 320px;
+      height: 700px;
+      margin: 0 auto;
+      max-width: 900px;
+    }
+
+    /* ── Newsletter / Email capture ── */
+    .email-capture {
+      background: var(--navy);
+      color: #fff;
+      padding: 60px 5%;
+      text-align: center;
+    }
+
+    .email-capture h2 { color: #fff; font-size: 1.8rem; margin-bottom: 8px; }
+    .email-capture p  { color: rgba(255,255,255,0.7); margin-bottom: 28px; }
+
+    .email-form {
+      display: flex;
+      gap: 12px;
+      max-width: 480px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .email-form input[type="email"] {
+      flex: 1 1 240px;
+      padding: 13px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-family: 'Figtree', sans-serif;
+    }
+
+    .email-form button {
+      background: #fff;
+      color: var(--navy);
+      padding: 13px 24px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .email-form button:hover { opacity: 0.9; }
+
+    .email-success { display: none; color: #dcfce7; font-size: 1.05rem; margin-top: 12px; }
+
   </style>
 </head>
 
@@ -984,13 +1096,16 @@
     <!-- HOME PAGE -->
     <div id="home" class="page active">
       <section class="hero">
-        <span class="tag">AITP v0.2 — Now Available</span>
+        <span class="tag">AITP v0.3.0 — Now Available · Open Source · One-Command Install</span>
         <h1>The network layer <em>built for the AI era.</em></h1>
-        <p>TCP/IP was 1981. AITP fixes the identity, intent, and trust gap at the protocol layer, not with middleware.
+        <p>TCP/IP was 1981. AITP fixes the identity, intent, and trust gap at the protocol layer — with eBPF, Post-Quantum crypto, and Gemini AI.
         </p>
         <div class="cta-group">
           <a href="#terminal" class="btn btn-primary">Try the Demo Terminal</a>
-          <a href="#how" class="btn btn-outline">Read the Protocol</a>
+          <a href="https://demo.kelan.dev/api/stats" target="_blank" rel="noopener" class="btn btn-outline btn-demo" id="hero-live-demo-btn">
+            🟢 Live Demo
+          </a>
+          <a href="#install" class="btn btn-outline">Read the Protocol</a>
         </div>
         <div class="stats-grid">
           <div class="stat-item">
@@ -1146,6 +1261,20 @@
         </div>
       </section>
 
+      <!-- ── INSTALL SECTION ── -->
+      <div class="install-section" id="install">
+        <div class="container">
+          <span class="tag" style="color: rgba(255,255,255,0.5);">One-Command Install</span>
+          <h2 style="font-size:2rem; margin-bottom:8px;">Running in under 5 minutes.</h2>
+          <p style="color:rgba(255,255,255,0.65); margin-bottom:0;">Works on Ubuntu 22.04+, Debian 12+, and any ARM64 Linux server.</p>
+          <div class="install-box">
+            <span id="install-cmd">curl -sSL https://raw.githubusercontent.com/kelan-security/kelan-core/main/install.sh | bash</span>
+            <button class="copy-btn" id="copy-btn" onclick="copyInstall()">Copy</button>
+          </div>
+          <p style="font-size:0.8rem; color:rgba(255,255,255,0.35); margin-top:16px;">or: <code style="color:rgba(255,255,255,0.5)">docker pull ghcr.io/kelan-security/kelan-core:latest</code></p>
+        </div>
+      </div>
+
       <div class="dark-cta">
         <div class="container">
           <h2>AITP is in active development.<br>We are looking for early adopters.</h2>
@@ -1260,68 +1389,78 @@
             <section>
               <div style="text-align: center; margin-bottom: 60px;">
                 <span class="tag">Transparency</span>
-                <h2>Simple, usage-based pricing.</h2>
+                <h2>Simple, honest pricing.</h2>
+                <p style="color:var(--muted); margin-top:12px;">Self-host for free. Pay for convenience and support.</p>
               </div>
 
               <div class="pricing-grid">
+                <!-- FREE TIER -->
                 <div class="price-card">
-                  <div class="p-name">Starter</div>
+                  <div class="p-name">Free</div>
                   <div class="p-amount">$0<span>/mo</span></div>
-                  <div class="p-desc">For researchers and hackers building the first AI agents.</div>
+                  <div class="p-desc">Self-hosted. Up to 5 entities. Community support. Always open-source.</div>
                   <ul class="feature-list">
-                    <li>✓ 1 Server Node</li>
-                    <li>✓ 3 Client Identities</li>
-                    <li>✓ 1,000 Sessions /mo</li>
-                    <li class="dim">— Static Rules Only</li>
+                    <li>✓ Self-hosted on your infra</li>
+                    <li>✓ Up to 5 entity identities</li>
+                    <li>✓ eBPF enforcement</li>
+                    <li>✓ Rules-based trust engine</li>
+                    <li>✓ SQLite persistence</li>
+                    <li class="dim">— No Gemini AI eval</li>
+                    <li class="dim">— Community support only</li>
                   </ul>
-                  <a href="#signup" class="btn btn-outline" style="width:100%; justify-content:center;">Get Started</a>
+                  <a href="#install" class="btn btn-outline" style="width:100%; justify-content:center;">Install Free →</a>
                 </div>
 
+                <!-- PRO TIER -->
                 <div class="price-card featured">
                   <div class="featured-badge">MOST POPULAR</div>
                   <div class="p-name">Pro</div>
-                  <div class="p-amount">$299<span>/mo</span></div>
-                  <div class="p-desc">Production-grade security for AI-first startups.</div>
+                  <div class="p-amount">$49<span>/mo</span></div>
+                  <div class="p-desc">Hosted by us. Unlimited entities. Email support. Zero maintenance.</div>
                   <ul class="feature-list">
-                    <li>✓ 10 Server Nodes</li>
-                    <li>✓ 50,000 Sessions /mo</li>
-                    <li>✓ Gemini 2.5 Pro Eval</li>
-                    <li>✓ Sentinel Basic Defense</li>
+                    <li>✓ Fully hosted — we manage it</li>
+                    <li>✓ Unlimited entity identities</li>
+                    <li>✓ Gemini 2.5 Flash AI eval</li>
+                    <li>✓ Sentinel anomaly detection</li>
+                    <li>✓ Grafana dashboard included</li>
+                    <li>✓ Email support (24h SLA)</li>
                   </ul>
-                  <a href="#signup" class="btn btn-primary" style="width:100%; justify-content:center;">Start Trial</a>
+                  <a href="#calendly" class="btn btn-primary" style="width:100%; justify-content:center;">Book a Demo →</a>
                 </div>
 
-                <div class="price-card">
-                  <div class="p-name">Enterprise</div>
-                  <div class="p-amount">$1,500<span>/mo</span></div>
-                  <div class="p-desc">High-compliance networks and scaled AI clouds.</div>
-                  <ul class="feature-list">
-                    <li>✓ Unlimited Nodes</li>
-                    <li>✓ Unlimited Sessions</li>
-                    <li>✓ Full AI Behavioral Eval</li>
-                    <li>✓ 24/7 On-premise Support</li>
-                  </ul>
-                  <a href="#contact" class="btn btn-outline" style="width:100%; justify-content:center;">Contact
-                    Sales</a>
-                </div>
-
+                <!-- ENTERPRISE TIER -->
                 <div class="price-card dark">
-                  <div class="p-name">Defense / Gov</div>
+                  <div class="p-name">Enterprise</div>
                   <div class="p-amount">Custom</div>
-                  <div class="p-desc">Air-gapped, FIPS 140-3, and mission-critical reliability.</div>
+                  <div class="p-desc">On-prem license. Custom integrations. SLA. Dedicated support.</div>
                   <ul class="feature-list">
-                    <li>✓ Air-gap Deployment</li>
-                    <li>✓ FIPS 140-3 Validated</li>
-                    <li>✓ DISA STIG Compliance</li>
-                    <li>✓ Clearance-gated Sessions</li>
+                    <li>✓ On-premises deployment</li>
+                    <li>✓ Commercial license + source</li>
+                    <li>✓ Custom AI provider (Claude, GPT-4o, Ollama)</li>
+                    <li>✓ Multi-node clustering (v0.4.0)</li>
+                    <li>✓ SLA + dedicated support</li>
+                    <li>✓ Compliance reports (SOC2, HIPAA)</li>
                   </ul>
-                  <a href="#contact" class="btn btn-primary" style="width:100%; justify-content:center;">Briefing
-                    Request</a>
+                  <a href="#contact" class="btn btn-primary" style="width:100%; justify-content:center;">Contact Sales →</a>
                 </div>
               </div>
               <p style="text-align: center; margin-top: 40px; font-size: 0.85rem; color: var(--muted);">
-                AI Eval Fees: $0.003/eval (Gemini Flash), $0.008 (Gemini Pro). Ollama local models are free.
+                v0.3.0 · Open-source core · Apache 2.0 · AI eval costs pass-through at cost
               </p>
+
+              <!-- Book a demo / Calendly -->
+              <div class="calendly-section" id="calendly">
+                <span class="tag">15-Minute Demo Call</span>
+                <h2 style="margin-bottom: 8px;">See it live. No slides.</h2>
+                <p style="color:var(--muted); margin-bottom: 32px;">We'll run a live attack simulation and show the eBPF drop in real time.</p>
+                <!-- Replace data-url with your Calendly link -->
+                <div
+                  class="calendly-inline-widget"
+                  data-url="https://calendly.com/REPLACE_WITH_YOUR_CALENDLY_LINK/15min"
+                  style="min-width:320px;height:700px;"
+                ></div>
+                <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+              </div>
             </section>
           </div>
 
@@ -1515,6 +1654,36 @@
           </div>
         </div>
 
+        <!-- EMAIL CAPTURE (Formspree) -->
+        <div class="email-capture" id="signup">
+          <div class="container">
+            <h2>Stay in the loop.</h2>
+            <p>Early access updates, security advisories, and version announcements. No spam, ever.</p>
+            <!-- Replace REPLACE_WITH_ID with your Formspree form ID -->
+            <form
+              id="email-capture-form"
+              action="https://formspree.io/f/REPLACE_WITH_FORMSPREE_ID"
+              method="POST"
+              onsubmit="handleEmailCapture(event)"
+            >
+              <div class="email-form">
+                <input
+                  type="email"
+                  name="email"
+                  id="signup-email"
+                  placeholder="you@company.com"
+                  required
+                  autocomplete="email"
+                />
+                <button type="submit">Get Early Access</button>
+              </div>
+              <input type="hidden" name="_subject" value="Kelan Security — Early Access Request" />
+              <input type="text" name="_gotcha" style="display:none" />
+            </form>
+            <div class="email-success" id="email-success">✅ You're on the list — we'll be in touch soon.</div>
+          </div>
+        </div>
+
         <footer>
           <div class="footer-grid">
             <div class="footer-brand">
@@ -1660,6 +1829,52 @@
             if (!email.includes('@')) return alert('Valid email required.');
             document.getElementById('nl-form').style.display = 'none';
             document.getElementById('nl-success').style.display = 'block';
+          }
+
+          // ── Copy installer to clipboard ──
+          function copyInstall() {
+            const cmd = document.getElementById('install-cmd').textContent;
+            const btn = document.getElementById('copy-btn');
+            navigator.clipboard.writeText(cmd).then(() => {
+              btn.textContent = 'Copied!';
+              btn.classList.add('copied');
+              setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+              }, 2500);
+            }).catch(() => {
+              // Fallback for http:// context
+              const ta = document.createElement('textarea');
+              ta.value = cmd;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              btn.textContent = 'Copied!';
+              setTimeout(() => { btn.textContent = 'Copy'; }, 2500);
+            });
+          }
+
+          // ── Email capture (Formspree AJAX) ──
+          async function handleEmailCapture(e) {
+            e.preventDefault();
+            const form = document.getElementById('email-capture-form');
+            const data = new FormData(form);
+            try {
+              const resp = await fetch(form.action, {
+                method: 'POST',
+                body: data,
+                headers: { 'Accept': 'application/json' },
+              });
+              if (resp.ok) {
+                form.style.display = 'none';
+                document.getElementById('email-success').style.display = 'block';
+              } else {
+                alert('Something went wrong — please email hello@aitp.dev directly.');
+              }
+            } catch {
+              alert('Network error — please email hello@aitp.dev directly.');
+            }
           }
         </script>
 </body>
