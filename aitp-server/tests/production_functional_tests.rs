@@ -1,8 +1,3 @@
-//! Production-grade functional tests for AITP v0.3.0.
-//!
-//! This suite performs end-to-end verification of all critical layers.
-//! Each test corresponds to a requirement from the health check/deployment audit.
-
 use aitp_server::trust::{HybridTrustEngine, SessionContext};
 use aitp_server::sentinel::{SentinelEvent, SentinelSignal};
 use aitp_server::db::{DbPool, models::WsEvent};

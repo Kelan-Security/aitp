@@ -8,6 +8,10 @@ description = "AITP Intelligence Core Server — centralized agentic AI security
 name = "aitp_server"
 path = "src/main.rs"
 
+[[bin]]
+name = "kelan-doctor"
+path = "src/bin/kelan-doctor.rs"
+
 [lib]
 name = "aitp_server"
 path = "src/lib.rs"
@@ -53,6 +57,7 @@ moka = { version = "0.12.14", features = ["future"] }
 zerocopy = { version = "0.7", features = ["derive"] }
 mimalloc = { version = "0.1", default-features = false }
 http = "1"
+libc = "0.2"
 kelan-ebpf-loader = { path = "../kelan-ebpf/kelan-ebpf-loader" }
 kelan-crypto  = { path = "../kelan-crypto" }
 prometheus    = { version = "0.13", default-features = false, features = ["process"] }

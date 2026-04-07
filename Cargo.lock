@@ -234,6 +234,7 @@ dependencies = [
  "kelan-ebpf-loader",
  "keyring 3.6.3",
  "lazy_static",
+ "libc",
  "mimalloc",
  "moka",
  "num_cpus",

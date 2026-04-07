@@ -94,6 +94,21 @@ lazy_static! {
         "Number of session permits currently in the eBPF map"
     ).unwrap();
 
+    /// Packets dropped by kernel-level rate limiting (before userspace)
+    /// Labels: reason = "syn_flood" | "udp_flood"
+    pub static ref XDP_RATE_LIMIT_DROPS: CounterVec = register_counter_vec!(
+        "kelan_xdp_rate_limit_drops_total",
+        "Packets dropped by XDP PerCpuArray rate limiter before reaching userspace",
+        &["reason"]   // syn_flood | udp_flood
+    ).unwrap();
+
+    /// Total XDP packets by action and reason
+    pub static ref XDP_PACKETS: CounterVec = register_counter_vec!(
+        "kelan_xdp_packets_total",
+        "XDP packet disposition (mirrors STATS_MAP indices)",
+        &["action", "reason"]  // action: pass|drop|bypass  reason: permit|rate_limit_syn|rate_limit_udp|no_permit|version|non_target
+    ).unwrap();
+
     // ── Sentinel ──────────────────────────────────────────────────────────
 
     /// Anomalies detected by type and severity
@@ -302,4 +317,16 @@ pub fn record_gemini_call(model: &str, outcome: &str, latency_ms: f64) {
     if outcome != "success" {
         GEMINI_ERRORS.with_label_values(&[outcome]).inc();
     }
+}
+
+/// Helper: increment XDP rate-limit drop counters
+/// Called when the userspace STATS_MAP poll detects non-zero values in
+/// stat indices 4 (UDP rate limit) and 5 (SYN rate limit).
+pub fn record_xdp_rate_drop(reason: &str, count: f64) {
+    XDP_RATE_LIMIT_DROPS
+        .with_label_values(&[reason])
+        .inc_by(count);
+    XDP_PACKETS
+        .with_label_values(&["drop", reason])
+        .inc_by(count);
 }
