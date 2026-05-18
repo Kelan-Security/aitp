@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM rustlang/rust:nightly-bookworm AS builder
+FROM rust:1.78-slim-bookworm AS builder
 
 WORKDIR /build
 
@@ -7,7 +7,10 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+RUN rustc --version && cargo --version
 
 # The eBPF crate uses software fallback when bpf-linker is absent
 ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=3

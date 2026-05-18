@@ -52,10 +52,14 @@ jobs:
           RUST_LOG: "debug"
           AITP_AI_ENGINE_GEMINI_API_KEY: "test_key_no_real_calls"
 
-      - name: Cargo audit (advisory only — non-blocking)
-        run: |
-          cargo install cargo-audit --quiet 2>/dev/null || true
-          cargo audit --deny unsound || echo "::warning::cargo audit found advisories — review before release"
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Cargo audit (advisory only)
+        continue-on-error: true
+        run: cargo audit --deny warnings
 
   # ──────────────────────────────────────────────────────────────────────────────
   # Job 2: Build and push Docker image to GHCR
@@ -119,7 +123,6 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: demo
-      url: http://${{ secrets.ORACLE_DEMO_IP }}:3000
 
     steps:
       - name: Deploy via SSH
@@ -162,8 +165,7 @@ jobs:
         run: |
           echo "### ✅ Demo Deployed" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **API:** http://${{ secrets.ORACLE_DEMO_IP }}:3000" >> $GITHUB_STEP_SUMMARY
-          echo "- **Grafana:** http://${{ secrets.ORACLE_DEMO_IP }}:3003" >> $GITHUB_STEP_SUMMARY
+          echo "- *(Deployment URLs are masked for security)*" >> $GITHUB_STEP_SUMMARY
 
       - name: Rollback on failure
         if: failure()
