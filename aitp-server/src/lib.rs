@@ -308,6 +308,16 @@ async fn process_aitp_packet(
                 crate::trust::TrustVerdict::Deny => 0u8,
             };
 
+            // Wire HandshakeManager dead code logic during handshake completion
+            let mut hs_mgr = state.handshakes.write().await;
+            let _ = hs_mgr.begin(&header);
+            
+            let current_phase = if let Ok(ctx) = hs_mgr.complete_trust_eval(session_id, result.trust_score, result.verdict.as_str()) {
+                ctx.phase
+            } else {
+                crate::protocol::handshake::HandshakePhase::AwaitingSynAck
+            };
+
             crate::enforcement::register_kernel_session(
                 &state.enforcer,
                 session_id,
@@ -317,12 +327,9 @@ async fn process_aitp_packet(
                 result.trust_score,
                 verdict_byte,
                 [0u8; 32],
+                current_phase,
             ).await;
-            
-            // Wire HandshakeManager dead code logic during handshake completion
-            let mut hs_mgr = state.handshakes.write().await;
-            let _ = hs_mgr.begin(&header);
-            let _ = hs_mgr.complete_trust_eval(session_id, result.trust_score, result.verdict.as_str());
+
             let _ = hs_mgr.get(session_id);
             let _ = hs_mgr.remove(session_id);
 

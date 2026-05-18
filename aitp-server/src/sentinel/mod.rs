@@ -378,7 +378,7 @@ async fn handle_anomaly(state: &Arc<AppState>, anomaly: Anomaly, _event: &Sentin
         );
 
         if let Ok(prefix) = parse_entity_prefix(&anomaly.entity_id) {
-            let revoked = state.enforcer.revoke_entity(&prefix).await.unwrap_or(0);
+            let revoked: u32 = state.enforcer.revoke_entity(&prefix).await.unwrap_or(0);
             tracing::warn!(sessions_revoked = revoked, "XDP permits revoked");
         }
 

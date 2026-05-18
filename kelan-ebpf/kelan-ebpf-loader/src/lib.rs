@@ -1,6 +1,7 @@
-#[cfg(not(target_os = "linux"))]
+// Userspace (software) enforcement is available on all platforms.
+// On Linux without bpf-linker, this is the active enforcement mode.
+// On non-Linux (macOS, Windows), it is always the enforcement mode.
 pub mod userspace;
-#[cfg(not(target_os = "linux"))]
 pub use userspace::BpfEnforcer;
 
 #[cfg(target_os = "linux")]
