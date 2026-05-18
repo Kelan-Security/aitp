@@ -4,11 +4,11 @@ version = "0.3.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-tracing = "0.1"
-anyhow    = "1"
-thiserror = "1"
-async-trait = "0.1"
+tokio             = { version = "1", features = ["full"] }
+tracing           = "0.1"
+anyhow            = "1"
+thiserror         = "1"
+async-trait       = "0.1"
 pqcrypto-mldsa   = { workspace = true }
 pqcrypto-mlkem   = { workspace = true }
 pqcrypto-traits  = { workspace = true }
@@ -18,12 +18,11 @@ sha2             = { workspace = true }
 sha3             = { workspace = true }
 rand             = { workspace = true }
 zeroize          = { workspace = true }
-
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-pcap = "1.1"
+# Userspace software-enforcement deps — compiled on ALL platforms
 crossbeam-channel = "0.5"
-dashmap = "5.5"
-governor = "0.6"
+dashmap           = "5.5"
+governor          = "0.8"
+pcap              = "1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aya         = { version = "0.11", features = ["async_tokio"] }

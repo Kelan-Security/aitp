@@ -72,7 +72,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "dashmap 6.2.1",
- "governor 0.8.1",
+ "governor",
  "hex",
  "moka",
  "reqwest 0.12.28",
@@ -106,7 +106,7 @@ dependencies = [
  "pqcrypto-mlkem",
  "pqcrypto-traits",
  "prometheus",
- "rand 0.9.4",
+ "rand 0.8.6",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
@@ -165,7 +165,7 @@ dependencies = [
  "pqcrypto-mlkem",
  "pqcrypto-traits",
  "proptest",
- "rand 0.9.4",
+ "rand 0.8.6",
  "ratatui",
  "rustyline",
  "serde",
@@ -188,7 +188,7 @@ dependencies = [
  "pqcrypto-mldsa",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
- "rand 0.9.4",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "sha2",
@@ -242,7 +242,7 @@ dependencies = [
  "pqcrypto-mlkem",
  "pqcrypto-traits",
  "prometheus",
- "rand 0.9.4",
+ "rand 0.8.6",
  "reqwest 0.11.27",
  "reqwest 0.12.28",
  "rustls-pemfile 2.2.0",
@@ -2240,26 +2240,6 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "governor"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68a7f542ee6b35af73b06abc0dad1c1bae89964e4e253bc4b587b91c9637867b"
-dependencies = [
- "cfg-if",
- "dashmap 5.5.3",
- "futures",
- "futures-timer",
- "no-std-compat",
- "nonzero_ext",
- "parking_lot",
- "portable-atomic",
- "quanta",
- "rand 0.8.6",
- "smallvec",
- "spinning_top",
-]
-
-[[package]]
-name = "governor"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be93b4ec2e4710b04d9264c0c7350cdd62a8c20e5e4ac732552ebb8f0debe8eb"
@@ -2985,7 +2965,8 @@ dependencies = [
  "pqcrypto-mldsa",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
- "rand 0.9.4",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
  "serde",
  "sha2",
  "sha3",
@@ -3007,12 +2988,12 @@ dependencies = [
  "crossbeam-channel",
  "dashmap 5.5.3",
  "ed25519-dalek",
- "governor 0.6.3",
+ "governor",
  "pcap",
  "pqcrypto-mldsa",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
- "rand 0.9.4",
+ "rand 0.8.6",
  "sha2",
  "sha3",
  "thiserror 1.0.69",
