@@ -43,7 +43,7 @@ pub async fn evaluate_trust(
     anomalies: &str,
 ) -> Result<TrustVerdict> {
     let model = std::env::var("OLLAMA_MODEL")
-        .unwrap_or_else(|_| "gemma3:9b".to_string());
+        .unwrap_or_else(|_| "gemma4:latest".to_string());
     let endpoint = std::env::var("OLLAMA_ENDPOINT")
         .unwrap_or_else(|_| "http://localhost:11434".to_string());
 
