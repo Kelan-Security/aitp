@@ -71,6 +71,76 @@ Verify the AI engine's ability to detect and block real attacks:
 
 ---
 
+## 🦙 Dedicated Ollama Inference Server Setup (macOS M4)
+
+AITP can offload trust engine computations to a dedicated local Ollama inference server (e.g., a MacBook M4 running `gemma4:latest`). This server can be accessed remotely by AITP daemons or verification clients (such as a Kali Linux machine on the same LAN).
+
+### 1. Host (macOS) Setup & Startup
+
+To set up and run the Ollama server locally using the configuration files in this repository:
+
+1. **Deploy and Load the launchd Agent**:
+   Register the launchd plist to ensure Ollama starts automatically on boot/login, configured to listen on all interfaces (`0.0.0.0`) and allowing cross-origin requests:
+   ```bash
+   # Copy launchd configuration to user directory
+   cp scripts/com.ollama.serve.plist ~/Library/LaunchAgents/com.ollama.serve.plist
+
+   # Stop any existing Ollama UI/Daemon to prevent port binding conflicts
+   killall Ollama ollama 2>/dev/null || true
+
+   # Unload old plist (if exists) and load the new configuration
+   launchctl unload ~/Library/LaunchAgents/com.ollama.serve.plist 2>/dev/null || true
+   launchctl load ~/Library/LaunchAgents/com.ollama.serve.plist
+   ```
+
+2. **Enable the Keep-Alive Health Script**:
+   A background daemon script has been provided to continuously monitor Ollama's availability and restart it if it encounters failures:
+   ```bash
+   # Make the health script executable
+   chmod +x scripts/ollama-health.sh
+
+   # Start the health check daemon in the background
+   nohup ./scripts/ollama-health.sh > ~/ollama-health.log 2>&1 &
+   ```
+
+3. **Retrieve the Host IP**:
+   Find the local network IP address of the macOS server:
+   ```bash
+   ipconfig getifaddr en0
+   ```
+   *(Example output: `OLLAMA_HOST_IP`)*
+
+---
+
+### 2. Client (Kali Linux) Remote Connection
+
+To connect your Kali Linux machine or any AITP client to the dedicated macOS Ollama server over the local network:
+
+1. **Configure Environment Variables**:
+   Export the endpoint and model details to direct the trust engine to the remote host:
+   ```bash
+   export OLLAMA_ENDPOINT="http://<MAC_IP>:11434"
+   export OLLAMA_MODEL="gemma4:latest"
+   ```
+
+2. **Verify Connectivity**:
+   Test communication with the remote server's API:
+   ```bash
+   # 1. Fetch available models from the remote endpoint
+   curl http://<MAC_IP>:11434/api/tags
+
+   # 2. Perform a remote test inference call (JSON mode verification)
+   curl -X POST http://<MAC_IP>:11434/api/generate \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "gemma4:latest",
+       "prompt": "Respond ONLY with valid JSON: {\"verdict\":\"ALLOW\",\"confidence\":0.95,\"reason\":\"test\"}",
+       "stream": false
+     }' | python3 -m json.tool
+   ```
+
+---
+
 ## 🔒 Production Hardening
 
 For production deployments:
