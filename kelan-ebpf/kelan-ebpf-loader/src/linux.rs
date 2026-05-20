@@ -6,7 +6,7 @@
 
 use std::path::Path;
 use thiserror::Error;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 #[derive(Debug, Error)]
 pub enum EbpfLoaderError {
@@ -31,9 +31,9 @@ pub struct EbpfLoader {
     interface: String,
     attached: bool,
     // When bpf-linker is available, this holds
-    // the actual program handle
+    // the actual program handle / BPF context
     #[cfg(feature = "ebpf-native")]
-    program_handle: Option<aya::programs::Xdp>,
+    _bpf: Option<aya::Bpf>,
 }
 
 impl EbpfLoader {
@@ -66,28 +66,29 @@ impl EbpfLoader {
                 interface: interface.to_string(),
                 attached: false,
                 #[cfg(feature = "ebpf-native")]
-                program_handle: None,
+                _bpf: None,
             });
         }
         
         #[cfg(feature = "ebpf-native")]
         {
-            return Self::load_native(interface, bpf_object_path);
+            Self::load_native(interface, bpf_object_path)
         }
         
-        // bpf-linker not available — software fallback
-        warn!(
-            "bpf-linker not available. \
-             Software enforcement active. \
-             Install bpf-linker for kernel enforcement."
-        );
-        
-        Ok(Self {
-            interface: interface.to_string(),
-            attached: false,
-            #[cfg(feature = "ebpf-native")]
-            program_handle: None,
-        })
+        #[cfg(not(feature = "ebpf-native"))]
+        {
+            // bpf-linker not available — software fallback
+            warn!(
+                "bpf-linker not available. \
+                 Software enforcement active. \
+                 Install bpf-linker for kernel enforcement."
+            );
+            
+            Ok(Self {
+                interface: interface.to_string(),
+                attached: false,
+            })
+        }
     }
     
     #[cfg(feature = "ebpf-native")]
@@ -131,7 +132,7 @@ impl EbpfLoader {
         Ok(Self {
             interface: interface.to_string(),
             attached: true,
-            program_handle: Some(program.clone()),
+            _bpf: Some(bpf),
         })
     }
     
@@ -148,7 +149,7 @@ impl EbpfLoader {
     /// Update PERMIT_MAP: allow session through XDP
     pub fn permit_session(
         &self,
-        session_id: u64,
+        _session_id: u64,
         _src_ip: u32,
         _dst_ip: u32,
         _expiry_ts: u64,
@@ -164,7 +165,7 @@ impl EbpfLoader {
             // Implementation uses aya map API
             info!(
                 "eBPF: Permitting session {} src={} dst={}",
-                session_id, src_ip, dst_ip
+                _session_id, _src_ip, _dst_ip
             );
         }
         
@@ -185,7 +186,7 @@ impl EbpfLoader {
         {
             info!(
                 "eBPF: Denying IP {} until ts {}",
-                src_ip, drop_until_ts
+                _src_ip, _drop_until_ts
             );
         }
         
@@ -247,7 +248,7 @@ mod tests {
             interface: "lo".to_string(),
             attached: false,
             #[cfg(feature = "ebpf-native")]
-            program_handle: None,
+            _bpf: None,
         };
         // Software mode permit should always succeed
         assert!(loader.permit_session(
@@ -261,7 +262,7 @@ mod tests {
             interface: "lo".to_string(),
             attached: false,
             #[cfg(feature = "ebpf-native")]
-            program_handle: None,
+            _bpf: None,
         };
         assert!(loader.deny_ip(0x7f000001, 9999999999).is_ok());
     }
