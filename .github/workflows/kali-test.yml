@@ -1,0 +1,31 @@
+name: Kali Security Tests (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_host:
+        description: Target host IP
+        required: true
+        default: localhost
+
+jobs:
+  security-tests:
+    name: Security Validation
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test tools
+        run: |
+          sudo apt-get install -y hping3 nmap netcat-openbsd
+
+      - name: Run SYN flood test
+        run: |
+          hping3 --syn -c 200 -i u1000 -p 9999 \
+            ${{ github.event.inputs.target_host }} 2>&1 | tail -5
+        continue-on-error: true
+
+      - name: Run nmap port scan
+        run: |
+          nmap -sV -p 8080,9999 ${{ github.event.inputs.target_host }}
+        continue-on-error: true
