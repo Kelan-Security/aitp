@@ -31,3 +31,7 @@ aya-obj     = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[features]
+ebpf-native = []
+
