@@ -24,7 +24,17 @@ struct UserspaceStats {
 
 impl BpfEnforcer {
     pub async fn new(interface_name: &str) -> anyhow::Result<Self> {
-        tracing::warn!("BPF XDP not available. Starting userspace pcap enforcement.");
+        let reason = if cfg!(target_os = "linux") {
+            "bpf-linker not available or eBPF native feature not enabled"
+        } else {
+            "non-Linux platform"
+        };
+        tracing::warn!(
+            "eBPF XDP unavailable (reason: {}). \
+             Software enforcement active — all features work, \
+             higher CPU usage expected.",
+            reason
+        );
 
         let permits = Arc::new(DashMap::new());
         let stats = Arc::new(UserspaceStats {

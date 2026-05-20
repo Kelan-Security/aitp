@@ -37,10 +37,10 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = "9"
 argon2 = "0.5"
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 tower-http = { version = "0.5", features = ["compression-gzip", "cors", "fs", "set-header"] }
 axum-server = { version = "0.7", features = ["tls-rustls"] }
-rustls-pemfile = "2"
+rustls-pemfile = "2.2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
@@ -70,3 +70,7 @@ reqwest = { version = "0.11", features = ["json"] }
 assert_cmd = "2"
 uuid    = { version = "1", features = ["v4"] }
 wiremock = "0.6"
+
+[features]
+ebpf-native = ["kelan-ebpf-loader/ebpf-native"]
+

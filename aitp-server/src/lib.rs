@@ -60,6 +60,8 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
         .expect("Failed to load or generate server identity");
     let server_identity = Arc::new(server_identity);
 
+    let (verdict_tx, _) = tokio::sync::broadcast::channel(1000);
+
     let app_state = Arc::new(state::AppState {
         db: db_pool,
         hub: ws::WsHub::new(memory_budget.clone(), server_identity.clone()),
@@ -74,6 +76,7 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
         gemini_client,
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
+        verdict_tx,
     });
 
     // ── Background Tasks ──────────────────────────────────────────────────────
@@ -174,6 +177,8 @@ pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Resul
         .expect("Failed to load or generate server identity");
     let server_identity = Arc::new(server_identity);
 
+    let (verdict_tx, _) = tokio::sync::broadcast::channel(1000);
+
     let app_state = Arc::new(state::AppState {
         db: db_pool,
         hub: ws::WsHub::new(memory_budget.clone(), server_identity.clone()),
@@ -188,6 +193,7 @@ pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Resul
         gemini_client,
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
+        verdict_tx,
     });
 
     if app_config.sentinel_enabled {
@@ -213,6 +219,7 @@ pub fn build_app(state: Arc<state::AppState>, _config: &config::AppConfig) -> Ro
     Router::new()
         .merge(api::router())
         .route("/ws", get(ws::ws_handler))
+        .route("/ws/agent", get(api::agentic::ws_agentic_handler))
         .route("/metrics", get(metrics::metrics_handler))
         .route("/health", get(|| async { axum::Json(serde_json::json!({"status":"ok","version":"0.3.0"})) }))
         .with_state(state)
@@ -308,6 +315,16 @@ async fn process_aitp_packet(
                 crate::trust::TrustVerdict::Deny => 0u8,
             };
 
+            // Wire HandshakeManager dead code logic during handshake completion
+            let mut hs_mgr = state.handshakes.write().await;
+            let _ = hs_mgr.begin(&header);
+            
+            let current_phase = if let Ok(ctx) = hs_mgr.complete_trust_eval(session_id, result.trust_score, result.verdict.as_str()) {
+                ctx.phase
+            } else {
+                crate::protocol::handshake::HandshakePhase::AwaitingSynAck
+            };
+
             crate::enforcement::register_kernel_session(
                 &state.enforcer,
                 session_id,
@@ -317,12 +334,9 @@ async fn process_aitp_packet(
                 result.trust_score,
                 verdict_byte,
                 [0u8; 32],
+                current_phase,
             ).await;
-            
-            // Wire HandshakeManager dead code logic during handshake completion
-            let mut hs_mgr = state.handshakes.write().await;
-            let _ = hs_mgr.begin(&header);
-            let _ = hs_mgr.complete_trust_eval(session_id, result.trust_score, result.verdict.as_str());
+
             let _ = hs_mgr.get(session_id);
             let _ = hs_mgr.remove(session_id);
 

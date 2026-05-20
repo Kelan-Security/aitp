@@ -44,7 +44,17 @@ pub async fn register_kernel_session(
     trust_score: u8,
     verdict: u8,
     _shared_secret: [u8; crate::crypto::MLKEM768_SS_BYTES],
+    phase: crate::protocol::handshake::HandshakePhase,
 ) {
+    if phase != crate::protocol::handshake::HandshakePhase::Complete {
+        tracing::warn!(
+            "Blocked early kernel registration for session {} \
+             (phase: {:?})",
+            session_id,
+            phase
+        );
+        return;
+    }
     let permit = SessionPermit::new(
         source_id,
         dest_id,

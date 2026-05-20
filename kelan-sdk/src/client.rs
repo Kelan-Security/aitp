@@ -33,11 +33,14 @@ impl AitpClient {
             server, intent
         );
 
-        let session_id: u64 = rand::random();
+        use rand::RngCore;
+        let mut session_id_bytes = [0u8; 8];
+        rand::rngs::OsRng.fill_bytes(&mut session_id_bytes);
+        let session_id = u64::from_ne_bytes(session_id_bytes);
         let source_id = identity.verifying_key.entity_id();
         let dest_id = [0u8; 32];
         let mut nonce = [0u8; 12];
-        for item in &mut nonce { *item = rand::random(); }
+        rand::rngs::OsRng.fill_bytes(&mut nonce);
         let timestamp = 0; // Just use 0 for now
         
         let syn_header = AitpHeader::new(

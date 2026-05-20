@@ -7,7 +7,7 @@
 
 use pqcrypto_mlkem::mlkem768::{self, Ciphertext, PublicKey as KemPk, SecretKey as KemSk};
 use pqcrypto_traits::kem::{Ciphertext as CiphertextTrait, SharedSecret as PqSharedSecret};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use sha3::{Digest, Sha3_256};
 use x25519_dalek::{EphemeralSecret, PublicKey as X25519Pk};
 
