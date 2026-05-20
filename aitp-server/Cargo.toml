@@ -66,7 +66,7 @@ futures-util  = { version = "0.3", default-features = false, features = ["sink",
 
 [dev-dependencies]
 tokio   = { version = "1", features = ["test-util", "full"] }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 assert_cmd = "2"
 uuid    = { version = "1", features = ["v4"] }
 wiremock = "0.6"
