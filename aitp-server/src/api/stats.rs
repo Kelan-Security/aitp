@@ -16,7 +16,7 @@ async fn stats(
     let uptime = state.start_time.elapsed().as_secs();
     let stats = state.db.get_stats(uptime).await?;
 
-    let ebpf_stats = state.enforcer.stats().await.unwrap_or_default();
+    let ebpf_stats: kelan_ebpf_loader::EnforcerStats = state.enforcer.stats().await.unwrap_or_default();
 
     let mut resp = serde_json::to_value(&stats).unwrap();
     resp["ebpf_packets_total"] = serde_json::json!(ebpf_stats.packets_total);

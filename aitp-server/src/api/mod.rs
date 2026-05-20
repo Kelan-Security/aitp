@@ -8,6 +8,7 @@ pub mod sentinel;
 pub mod sessions;
 pub mod stats;
 pub mod threat;
+pub mod agentic;
 
 use crate::state::AppState;
 use axum::Router;

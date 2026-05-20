@@ -5,9 +5,20 @@ use crate::config::AppConfig;
 use crate::db::DbPool;
 use crate::sentinel::{SentinelEvent, SentinelState};
 use crate::ws::WsHub;
-use tokio::sync::mpsc;
+use serde::{Serialize, Deserialize};
+use tokio::sync::{mpsc, broadcast};
 
 use crate::budget::MemoryBudget;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AgentVerdictSync {
+    pub entity_id: String,
+    pub session_id: String,
+    pub verdict: String,   // ALLOW, DENY, MONITOR
+    pub confidence: f32,
+    pub timestamp: i64,
+    pub action: String,    // PERMIT, REVOKE
+}
 
 /// Shared application state, wrapped in Arc for concurrent access.
 pub struct AppState {
@@ -24,6 +35,7 @@ pub struct AppState {
     pub gemini_client: Arc<crate::ai::GeminiClient>,
     pub sessions: tokio::sync::RwLock<crate::protocol::session::SessionManager>,
     pub handshakes: tokio::sync::RwLock<crate::protocol::handshake::HandshakeManager>,
+    pub verdict_tx: broadcast::Sender<AgentVerdictSync>,
 }
 
 impl AppState {

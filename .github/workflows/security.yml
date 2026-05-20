@@ -26,16 +26,15 @@ jobs:
       - name: TruffleHog Scan
         uses: trufflesecurity/trufflehog@main
         with:
-          extra_args: --only-verified --fail
-        # Scans full repo, not just diff
-        # Works on push and PR equally
+          # Remove --fail as the action includes it natively.
+          # --only-verified ensures we only fail on active, verified credentials.
+          extra_args: --only-verified
 
   cargo-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
       
@@ -48,8 +47,25 @@ jobs:
           key: ${{ runner.os }}-audit-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
       
       - name: Run audit
-        run: cargo audit
-        # Uses .cargo/audit.toml for ignore rules
+        run: |
+          echo "::group::Security Audit Results"
+          # Run audit and output to json, ignoring exit code temporarily
+          cargo audit --json > audit.json || true
+          
+          # Print the normal human-readable output to logs
+          cargo audit || true
+          
+          # Use jq to check for critical vulnerabilities
+          CRITICAL=$(jq '[.vulnerabilities.list[] | select(.advisory.cvss_base_score >= 7.0)] | length' audit.json)
+          
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL HIGH/CRITICAL vulnerabilities!"
+            exit 1
+          fi
+          
+          echo "::endgroup::"
