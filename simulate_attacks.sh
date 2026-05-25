@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-# Source .env to get GEMINI_API_KEY
+# Source .env to get OLLAMA_ENDPOINT
 if [ -f .env ]; then
   # Use a simpler way to source that handles potential spaces/comments
   export $(grep -v '^#' .env | xargs)
@@ -186,14 +186,14 @@ echo "Total Evaluated:  $(echo $FINAL | jq '.ai_calls // 0')"
 echo "Total Blocked:    $(echo $FINAL | jq '.blocked_today // 0')"
 echo ""
 
-echo -e "${BLUE}[AI CHECK]${NC} Verifying Gemini reasoning..."
-# Use GEMINI_API_KEY from .env
+echo -e "${BLUE}[AI CHECK]${NC} Verifying Ollama reasoning..."
+# Use OLLAMA_ENDPOINT from .env
 VERIFY=$(auth -X POST $BASE/config/verify-key \
-  -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" \
+  -d "{\"provider\":\"ollama\",\"model\":\"${OLLAMA_MODEL:-gemma3:9b}\",\"api_key\":\"${OLLAMA_ENDPOINT:-}\"}" \
   2>/dev/null || echo '{"test_evaluation":{"reasoning":"API call failed"}}')
 
 REASONING=$(echo $VERIFY | jq -r '.test_evaluation.reasoning // "not available"')
-echo "  Gemini says:  $REASONING"
+echo "  Ollama says:  $REASONING"
 
 echo ""
 echo -e "${BOLD}Simulation complete.${NC}"

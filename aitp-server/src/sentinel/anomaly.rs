@@ -429,7 +429,7 @@ pub async fn check_critical_anomalies(state: &Arc<AppState>, sentinel: &Arc<Sent
     drop(anomalies); // Release lock before async work
 
     for anomaly in critical {
-        // Use the Gemini-powered agentic threat response engine.
+        // Use the Ollama-powered agentic threat response engine.
         // Falls back to rule-based response if no API key is configured.
         crate::agent::activate_agent(state, &anomaly).await;
     }

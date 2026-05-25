@@ -95,33 +95,19 @@ AITP_UDP_PORT=9999
 # ── Database ──────────────────────────────────────────────────────
 AITP_DB_PATH=./data/aitp.db
 
-# ── AI Provider (choose one) ──────────────────────────────────────
-# Default: rules (no API key needed for testing)
-AITP_AI_ENGINE_PROVIDER=gemini
+# ── AI Provider ───────────────────────────────────────────────────
+# Default: ollama
+AITP_AI_ENGINE_PROVIDER=ollama
 AITP_AI_ENGINE_TRUST_MODE=hybrid
 
-# Google Gemini (RECOMMENDED - set your key here)
-AITP_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]=gemini-2.5-flash
-
-# Anthropic Claude (alternative)
-# AITP_AI_ENGINE_PROVIDER=claude
-AITP_CLAUDE_API_KEY=
-AITP_CLAUDE_MODEL=claude-haiku-4-5-20251001
-
-# OpenAI (alternative)
-# AITP_AI_ENGINE_PROVIDER=openai
-AITP_OPENAI_API_KEY=
-AITP_OPENAI_MODEL=gpt-4o-mini
-
-# Ollama local (no key needed)
-# AITP_AI_ENGINE_PROVIDER=ollama
+# Ollama settings
 AITP_OLLAMA_URL=http://localhost:11434
-AITP_OLLAMA_MODEL=llama3.2
+AITP_OLLAMA_MODEL=gemma3:9b
 
 # ── Logging ───────────────────────────────────────────────────────
 RUST_LOG=aitp_web=info,tower_http=warn
 ENV
-      echo -e "  ${GREEN}✓${NC} Created .env — edit it to add your Gemini API key"
+      echo -e "  ${GREEN}✓${NC} Created .env — edit it to configure OLLAMA_ENDPOINT"
     fi
   fi
 

@@ -119,7 +119,7 @@ sudo systemctl status kelan
 ```bash
 sudo nano /opt/kelan/.env
 # Set:
-#   AITP_AI_ENGINE_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
+#   AITP_AI_ENGINE_OLLAMA_BASE_URL=http://localhost:11434
 #   JWT_SECRET=a_random_64_char_string
 #   GRAFANA_PASSWORD=your_grafana_password
 

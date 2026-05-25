@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-# Source .env to get GEMINI_API_KEY
+# Source .env to get OLLAMA_ENDPOINT
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
 fi
@@ -77,4 +77,4 @@ auth $BASE/stats | jq '.'
 
 echo ""
 echo "Verifying AI Reasoning..."
-auth -X POST $BASE/config/verify-key -d "{\"provider\":\"gemini\",\"model\":\"${AITP_GEMINI_MODEL:-gemini-2.5-flash}\",\"api_key\":\"${GEMINI_API_KEY:-}\"}" | jq '.'
+auth -X POST $BASE/config/verify-key -d "{\"provider\":\"ollama\",\"model\":\"${OLLAMA_MODEL:-gemma3:9b}\",\"api_key\":\"${OLLAMA_ENDPOINT:-}\"}" | jq '.'

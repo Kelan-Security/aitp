@@ -91,7 +91,7 @@ Write-Host ""
 Write-Host "  ✓ Kelan Security installed successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Next steps:" -ForegroundColor Yellow
-Write-Host '  $env:GEMINI_API_KEY = "your_key_here"'
+Write-Host '  $env:OLLAMA_ENDPOINT = "http://localhost:11434"'
 Write-Host "  kelan-server"
 Write-Host ""
 Write-Host "  Docs: https://docs.kelan.io"

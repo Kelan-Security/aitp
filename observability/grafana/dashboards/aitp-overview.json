@@ -469,7 +469,7 @@
     "tags": [
         "aitp",
         "trust-engine",
-        "gemini"
+        "ollama"
     ],
     "templating": {
         "list": [

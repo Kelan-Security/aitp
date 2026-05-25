@@ -44,13 +44,6 @@ doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_gemini_response"
-path = "fuzz_targets/fuzz_gemini_response.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
 name = "fuzz_identity_resolve"
 path = "fuzz_targets/fuzz_identity_resolve.rs"
 test = false

@@ -69,10 +69,11 @@ write_files:
       HTTPS_PORT=3001
       NETWORK_INTERFACE=enp0s3
 
-      # AI Engine (Gemini)
+      # AI Engine (Ollama)
       AITP_AI_ENGINE_MODE=hybrid
-      # REPLACE: set your Gemini API key here or pass via OCI Instance Principal
-      AITP_AI_ENGINE_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
+      # REPLACE: set your Ollama base URL and model
+      AITP_AI_ENGINE_OLLAMA_BASE_URL=http://127.0.0.1:11434
+      AITP_AI_ENGINE_OLLAMA_MODEL=gemma3:9b
 
       # Auth
       JWT_SECRET=REPLACE_WITH_RANDOM_SECRET_MIN_32_CHARS

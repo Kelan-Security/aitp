@@ -78,7 +78,7 @@ docker-build:
 
 docker-run:
 	docker run -p 3000:3000 -p 9999:9999/udp \
-		-e GEMINI_API_KEY=$${GEMINI_API_KEY} \
+		-e OLLAMA_ENDPOINT=$${OLLAMA_ENDPOINT} \
 		-e AITP_JWT_SECRET=$${AITP_JWT_SECRET:-$(shell openssl rand -base64 48)} \
 		-v kelan_data:/app/data \
 		kelan-server:local
