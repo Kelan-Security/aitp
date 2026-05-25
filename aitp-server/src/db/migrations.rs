@@ -22,7 +22,7 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            gemini_api_key_enc TEXT,
+            ollama_endpoint_enc TEXT,
             trust_mode TEXT DEFAULT 'hybrid',
             created_at INTEGER NOT NULL
         )

@@ -44,10 +44,11 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
     let sentinel_instance = Arc::new(sentinel::SentinelState::new());
     let _ = sentinel_instance.load_from_db(&db_pool, "system").await;
 
-    let gemini_client = Arc::new(ai::GeminiClient::new(&app_config.gemini_api_key));
+    let ollama_client = Arc::new(ai::OllamaClient::new(&app_config.ollama_endpoint));
     let trust_engine = trust::HybridTrustEngine::new(
-        gemini_client.clone(),
-        &app_config.gemini_model,
+        &app_config.ollama_endpoint,
+        &app_config.ollama_model,
+        app_config.ollama_timeout_secs,
         app_config.trust_alpha,
         &app_config.trust_mode,
     );
@@ -73,7 +74,7 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
         memory_budget,
         enforcer,
         server_identity: server_identity.clone(),
-        gemini_client,
+        ollama_client,
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
         verdict_tx,
@@ -161,10 +162,11 @@ pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Resul
     let sentinel_instance = Arc::new(sentinel::SentinelState::new());
     let _ = sentinel_instance.load_from_db(&db_pool, "system").await;
 
-    let gemini_client = Arc::new(ai::GeminiClient::new(&app_config.gemini_api_key));
+    let ollama_client = Arc::new(ai::OllamaClient::new(&app_config.ollama_endpoint));
     let trust_engine = trust::HybridTrustEngine::new(
-        gemini_client.clone(),
-        &app_config.gemini_model,
+        &app_config.ollama_endpoint,
+        &app_config.ollama_model,
+        app_config.ollama_timeout_secs,
         app_config.trust_alpha,
         &app_config.trust_mode,
     );
@@ -190,7 +192,7 @@ pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Resul
         memory_budget,
         enforcer,
         server_identity: server_identity.clone(),
-        gemini_client,
+        ollama_client,
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
         verdict_tx,

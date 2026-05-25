@@ -46,16 +46,12 @@ JWT_REFRESH_EXPIRY_DAYS=30
 AITP_JWT_SECRET=$(generate_secret)
 
 # ============================================================================
-# GEMINI AI TRUST ENGINE
+# OLLAMA AI TRUST ENGINE
 # ============================================================================
-# Get your API key from: https://aistudio.google.com/app/apikey
-GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-AITP_AI_ENGINE_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-AITP_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-
-GEMINI_MODEL=gemini-2.5-flash
-AITP_GEMINI_MODEL=gemini-2.5-flash
-GEMINI_MAX_TOKENS=8192
+# Ollama endpoint (use local default or specify remote Mac IP)
+OLLAMA_ENDPOINT=http://localhost:11434
+OLLAMA_MODEL=gemma3:9b
+OLLAMA_TIMEOUT_SECS=8
 
 # ============================================================================
 # SERVER CONFIGURATION
@@ -188,10 +184,9 @@ JWT_EXPIRY_HOURS=24
 JWT_REFRESH_SECRET=GENERATE_WITH_openssl_rand_base64_64
 JWT_REFRESH_EXPIRY_DAYS=30
 
-GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-AITP_AI_ENGINE_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-AITP_GEMINI_API_KEY=[REDACTED_GEMINI_KEY]
-GEMINI_MODEL=gemini-2.5-flash
+OLLAMA_ENDPOINT=http://localhost:11434
+OLLAMA_MODEL=gemma3:9b
+OLLAMA_TIMEOUT_SECS=8
 
 SERVER_PORT=3000
 AITP_HTTP_PORT=3000
@@ -263,9 +258,9 @@ echo "======================================"
 echo ""
 echo "📝 Next steps:"
 echo ""
-echo "  1. Set your Gemini API key:"
+echo "  1. Verify/Set your Ollama Endpoint:"
 echo "     nano config/.env"
-echo "     → GEMINI_API_KEY=<your key from aistudio.google.com>"
+echo "     → OLLAMA_ENDPOINT=http://localhost:11434"
 echo ""
 echo "  2. Set ALLOWED_ORIGINS for your domain or localhost"
 echo ""

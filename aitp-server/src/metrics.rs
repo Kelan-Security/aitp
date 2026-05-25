@@ -28,10 +28,10 @@ lazy_static! {
         vec![0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0, 20.0, 50.0]
     ).unwrap();
 
-    /// Gemini API call latency
-    pub static ref GEMINI_LATENCY: HistogramVec = register_histogram_vec!(
-        "kelan_gemini_latency_ms",
-        "Gemini 2.5 API call latency in milliseconds",
+    /// Ollama API call latency
+    pub static ref OLLAMA_LATENCY: HistogramVec = register_histogram_vec!(
+        "kelan_ollama_latency_ms",
+        "Ollama API call latency in milliseconds",
         &["model", "outcome"],  // outcome: success | timeout | error
         vec![100.0, 500.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0, 8000.0, 15000.0]
     ).unwrap();
@@ -51,10 +51,10 @@ lazy_static! {
         &["result"]  // hit | miss
     ).unwrap();
 
-    /// Gemini API errors
-    pub static ref GEMINI_ERRORS: CounterVec = register_counter_vec!(
-        "kelan_gemini_errors_total",
-        "Gemini API errors by type",
+    /// Ollama API errors
+    pub static ref OLLAMA_ERRORS: CounterVec = register_counter_vec!(
+        "kelan_ollama_errors_total",
+        "Ollama API errors by type",
         &["error_type"]  // timeout | rate_limit | auth | network | parse
     ).unwrap();
 
@@ -203,28 +203,28 @@ lazy_static! {
         &["org_id", "tier"]
     ).unwrap();
 
-    // ── Gemini / Circuit Breaker ─────────────────────────────────────────────
+    // ── Ollama / Circuit Breaker ─────────────────────────────────────────────
 
-    /// Gemini request durations (seconds)
-    pub static ref GEMINI_REQUEST_DURATION: prometheus::Histogram = prometheus::register_histogram!(
-        "kelan_gemini_request_duration_seconds",
-        "Gemini AI request duration in seconds",
+    /// Ollama request durations (seconds)
+    pub static ref OLLAMA_REQUEST_DURATION: prometheus::Histogram = prometheus::register_histogram!(
+        "kelan_ollama_request_duration_seconds",
+        "Ollama AI request duration in seconds",
         vec![0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
     ).unwrap();
 
-    /// Gemini timeout counter
-    pub static ref GEMINI_TIMEOUT_TOTAL: prometheus::Counter = prometheus::register_counter!(
-        "kelan_gemini_timeout_total",
-        "Total number of Gemini request timeouts"
+    /// Ollama timeout counter
+    pub static ref OLLAMA_TIMEOUT_TOTAL: prometheus::Counter = prometheus::register_counter!(
+        "kelan_ollama_timeout_total",
+        "Total number of Ollama request timeouts"
     ).unwrap();
 
     /// Circuit breaker state gauge (0=closed, 1=open, 2=half-open)
-    pub static ref GEMINI_CIRCUIT_BREAKER_STATE: Gauge = register_gauge!(
-        "kelan_gemini_circuit_breaker_state",
-        "Gemini circuit breaker state (0=closed 1=open 2=half-open)"
+    pub static ref OLLAMA_CIRCUIT_BREAKER_STATE: Gauge = register_gauge!(
+        "kelan_ollama_circuit_breaker_state",
+        "Ollama circuit breaker state (0=closed 1=open 2=half-open)"
     ).unwrap();
 
-    /// Trust verdict source counter (gemini | rules | fallback)
+    /// Trust verdict source counter (ollama | rules | fallback)
     pub static ref TRUST_VERDICT_SOURCE: CounterVec = register_counter_vec!(
         "kelan_trust_verdict_source_total",
         "Trust verdicts by evaluation source",
@@ -309,13 +309,13 @@ pub fn record_session(
         .observe(trust_score as f64);
 }
 
-/// Helper: record a Gemini API call
-pub fn record_gemini_call(model: &str, outcome: &str, latency_ms: f64) {
-    GEMINI_LATENCY
+/// Helper: record an Ollama API call
+pub fn record_ollama_call(model: &str, outcome: &str, latency_ms: f64) {
+    OLLAMA_LATENCY
         .with_label_values(&[model, outcome])
         .observe(latency_ms);
     if outcome != "success" {
-        GEMINI_ERRORS.with_label_values(&[outcome]).inc();
+        OLLAMA_ERRORS.with_label_values(&[outcome]).inc();
     }
 }
 

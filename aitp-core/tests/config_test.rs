@@ -42,53 +42,53 @@ fn test_template_file_loads_and_validates() {
     assert_eq!(config.ai_engine.trust_mode, "hybrid");
     assert_eq!(config.observability.prometheus_port, 9100);
 
-    // Template uses rules mode, so no Gemini key needed
+    // Template uses rules mode, so no Ollama key/base URL needed
     assert!(config.validate().is_ok(), "template config should validate");
 }
 
-// ────────────────────────── Gemini API Key Validation ──────────────────────────
+// ────────────────────────── Ollama Base URL Validation ──────────────────────────
 
 #[test]
-fn test_gemini_mode_requires_api_key() {
+fn test_ollama_mode_requires_base_url() {
     let mut config = AitpConfig::default();
-    config.ai_engine.provider = "gemini".into();
-    config.ai_engine.gemini_api_key = String::new();
-    config.ai_engine.gemini_timeout_ms = 4; // < trust timeout
+    config.ai_engine.provider = "ollama".into();
+    config.ai_engine.ollama_base_url = String::new();
+    config.ai_engine.ollama_timeout_ms = 4; // < trust timeout
 
     let errors = config.validate().unwrap_err();
-    let key_error = errors
+    let url_error = errors
         .iter()
-        .find(|e| e.field == "ai_engine.gemini_api_key");
+        .find(|e| e.field == "ai_engine.ollama_base_url");
 
     assert!(
-        key_error.is_some(),
-        "should detect missing gemini_api_key. Errors: {:?}",
+        url_error.is_some(),
+        "should detect missing ollama_base_url. Errors: {:?}",
         errors.iter().map(|e| e.to_string()).collect::<Vec<_>>()
     );
 
-    let msg = &key_error.unwrap().message;
+    let msg = &url_error.unwrap().message;
     assert!(
-        msg.contains("AITP_AI_ENGINE_GEMINI_API_KEY"),
+        msg.contains("AITP_AI_ENGINE_OLLAMA_BASE_URL"),
         "error should mention the env var to set: {msg}"
     );
     assert!(
-        msg.contains("gemini"),
+        msg.contains("ollama"),
         "error should mention the mode: {msg}"
     );
 }
 
 #[test]
-fn test_hybrid_mode_requires_api_key() {
+fn test_hybrid_mode_requires_base_url() {
     let mut config = AitpConfig::default();
     config.ai_engine.trust_mode = "hybrid".into();
-    config.ai_engine.provider = "gemini".into();
-    config.ai_engine.gemini_api_key = String::new();
-    config.ai_engine.gemini_timeout_ms = 4;
+    config.ai_engine.provider = "ollama".into();
+    config.ai_engine.ollama_base_url = String::new();
+    config.ai_engine.ollama_timeout_ms = 4;
 
     let errors = config.validate().unwrap_err();
     assert!(
-        errors.iter().any(|e| e.field == "ai_engine.gemini_api_key"),
-        "hybrid mode should also require gemini_api_key"
+        errors.iter().any(|e| e.field == "ai_engine.ollama_base_url"),
+        "hybrid mode should also require ollama_base_url"
     );
 }
 
@@ -97,7 +97,7 @@ fn test_rules_mode_does_not_require_api_key() {
     let mut config = AitpConfig::default();
     config.ai_engine.trust_mode = "rules".into();
     config.ai_engine.provider = "rules".into();
-    config.ai_engine.gemini_api_key = String::new();
+    config.ai_engine.ollama_base_url = String::new();
 
     // With non-privileged port, should validate
     assert!(config.validate().is_ok());
@@ -106,16 +106,16 @@ fn test_rules_mode_does_not_require_api_key() {
 // ────────────────────────── Timeout Budget ──────────────────────────
 
 #[test]
-fn test_gemini_timeout_exceeds_trust_timeout() {
+fn test_ollama_timeout_exceeds_trust_timeout() {
     let mut config = AitpConfig::default();
-    config.ai_engine.provider = "gemini".into();
-    config.ai_engine.gemini_api_key = "test-key".into();
-    config.ai_engine.gemini_timeout_ms = 10; // > trust_eval_timeout_ms (5)
+    config.ai_engine.provider = "ollama".into();
+    config.ai_engine.ollama_base_url = "http://localhost:11434".into();
+    config.ai_engine.ollama_timeout_ms = 10; // > trust_eval_timeout_ms (5)
 
     let errors = config.validate().unwrap_err();
     let timeout_err = errors
         .iter()
-        .find(|e| e.field == "ai_engine.gemini_timeout_ms");
+        .find(|e| e.field == "ai_engine.ollama_timeout_ms");
 
     assert!(
         timeout_err.is_some(),
@@ -134,18 +134,18 @@ fn test_gemini_timeout_exceeds_trust_timeout() {
 }
 
 #[test]
-fn test_gemini_timeout_exactly_equals_trust_timeout() {
+fn test_ollama_timeout_exactly_equals_trust_timeout() {
     let mut config = AitpConfig::default();
-    config.ai_engine.provider = "gemini".into();
-    config.ai_engine.gemini_api_key = "test-key".into();
-    config.ai_engine.gemini_timeout_ms = 5; // == trust_eval_timeout_ms
+    config.ai_engine.provider = "ollama".into();
+    config.ai_engine.ollama_base_url = "http://localhost:11434".into();
+    config.ai_engine.ollama_timeout_ms = 5; // == trust_eval_timeout_ms
     config.trust.trust_eval_timeout_ms = 5;
 
     let errors = config.validate().unwrap_err();
     assert!(
         errors
             .iter()
-            .any(|e| e.field == "ai_engine.gemini_timeout_ms"),
+            .any(|e| e.field == "ai_engine.ollama_timeout_ms"),
         "equal values should also fail — need at least 1ms overhead"
     );
 }
@@ -200,11 +200,11 @@ fn test_env_override_trust_policy() {
 }
 
 #[test]
-fn test_env_override_gemini_api_key() {
-    std::env::set_var("AITP_AI_ENGINE_GEMINI_API_KEY", "sk-test-key-12345");
+fn test_env_override_ollama_api_key() {
+    std::env::set_var("AITP_AI_ENGINE_OLLAMA_API_KEY", "sk-test-key-12345");
     let config = AitpConfig::load(None).expect("load should succeed");
-    assert_eq!(config.ai_engine.gemini_api_key, "sk-test-key-12345");
-    std::env::remove_var("AITP_AI_ENGINE_GEMINI_API_KEY");
+    assert_eq!(config.ai_engine.ollama_api_key, "sk-test-key-12345");
+    std::env::remove_var("AITP_AI_ENGINE_OLLAMA_API_KEY");
 }
 
 #[test]
@@ -221,11 +221,11 @@ fn test_env_override_ebpf_enabled() {
 fn test_hybrid_weights_must_sum_to_one() {
     let mut config = AitpConfig::default();
     config.ai_engine.trust_mode = "hybrid".into();
-    config.ai_engine.provider = "gemini".into();
-    config.ai_engine.gemini_api_key = "key".into();
-    config.ai_engine.gemini_timeout_ms = 4;
+    config.ai_engine.provider = "ollama".into();
+    config.ai_engine.ollama_base_url = "http://localhost:11434".into();
+    config.ai_engine.ollama_timeout_ms = 4;
     config.ai_engine.rules_weight = 0.3;
-    config.ai_engine.gemini_weight = 0.3; // sum = 0.6
+    config.ai_engine.ollama_weight = 0.3; // sum = 0.6
 
     let errors = config.validate().unwrap_err();
     assert!(

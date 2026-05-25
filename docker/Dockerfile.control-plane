@@ -40,6 +40,8 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /app/target/release/aitp-control-plane /usr/local/bin/aitp-control-plane
 
 ENV AITP_LOG_LEVEL=info
+ENV OLLAMA_ENDPOINT=http://localhost:11434
+ENV OLLAMA_MODEL=gemma3:9b
 
 EXPOSE 8080/tcp
 EXPOSE 9102/tcp

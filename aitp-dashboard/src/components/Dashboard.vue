@@ -119,7 +119,7 @@ const formatNumber = (num) => {
         </div>
 
         <div class="ai-section">
-          <h3 class="section-title">Gemini Reasoning</h3>
+          <h3 class="section-title">Ollama AI Reasoning</h3>
           <div class="ai-card card" v-for="alert in alerts" :key="alert.ts">
             <div class="ai-header">
               <span class="tag tag-ai">AI VERDICT</span>

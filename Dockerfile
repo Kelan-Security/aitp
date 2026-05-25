@@ -36,6 +36,8 @@ EXPOSE 9999/udp
 ENV DB_URL=sqlite:/var/lib/kelan/kelan.db
 ENV KELAN_MODE=auto
 ENV RUST_LOG=info
+ENV OLLAMA_ENDPOINT=http://localhost:11434
+ENV OLLAMA_MODEL=gemma3:9b
 
 HEALTHCHECK --interval=30s --timeout=5s \
     CMD curl -f http://localhost:8080/api/health || exit 1

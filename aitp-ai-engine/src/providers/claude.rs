@@ -21,8 +21,8 @@ impl From<&AiEngineConfig> for ClaudeConfig {
             api_key: std::env::var("AITP_CLAUDE_API_KEY")
                 .unwrap_or_else(|_| c.claude_api_key.clone()),
             model: std::env::var("AITP_CLAUDE_MODEL").unwrap_or_else(|_| c.claude_model.clone()),
-            timeout_ms: c.gemini_timeout_ms, // Assuming AiEngineConfig has this field, or it's a typo and should be claude_timeout_ms
-            cache_ttl_secs: c.gemini_cache_ttl_secs, // Assuming AiEngineConfig has this field, or it's a typo and should be claude_cache_ttl_secs
+            timeout_ms: c.ollama_timeout_ms,
+            cache_ttl_secs: c.ollama_cache_ttl_secs,
         }
     }
 }

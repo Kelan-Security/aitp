@@ -9,7 +9,7 @@ use crate::auth::OrgId;
 use crate::db::models::*;
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::trust::gemini::GeminiTrustEngine;
+use crate::trust::ollama_engine::OllamaTrustEngine;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
@@ -48,8 +48,13 @@ async fn verify_key(
     OrgId(org_id): OrgId,
     Json(req): Json<VerifyKeyReq>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let client = Arc::new(crate::ai::GeminiClient::new(&req.api_key));
-    let engine = GeminiTrustEngine::new(client, &req.model);
+    let endpoint = if req.api_key.starts_with("http") {
+        &req.api_key
+    } else {
+        &state.config.ollama_endpoint
+    };
+    let client = Arc::new(reqwest::Client::new());
+    let engine = OllamaTrustEngine::new(client, endpoint, &req.model);
 
     match engine.verify_key().await {
         Ok(result) => {
@@ -61,7 +66,7 @@ async fn verify_key(
                     "info",
                     None,
                     None,
-                    &format!("Gemini API key verified — model: {}", req.model),
+                    &format!("Ollama endpoint verified — model: {}", req.model),
                     Some("{}"),
                 )
                 .await;
@@ -70,7 +75,7 @@ async fn verify_key(
                 &org_id,
                 "INFO",
                 &format!(
-                    "Gemini key verified — model={} score={}",
+                    "Ollama endpoint verified — model={} score={}",
                     req.model, result.trust_score
                 ),
             );
@@ -91,9 +96,9 @@ async fn verify_key(
         Err(e) => {
             state
                 .hub
-                .log("ERROR", &format!("Gemini key verification failed: {}", e));
+                .log("ERROR", &format!("Ollama verification failed: {}", e));
             Err(AppError::BadRequest(format!(
-                "API key verification failed: {}",
+                "Ollama verification failed: {}",
                 e
             )))
         }

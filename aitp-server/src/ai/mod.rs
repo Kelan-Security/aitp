@@ -1,3 +1,3 @@
-pub mod gemini;
+pub mod ollama;
 
-pub use gemini::GeminiClient;
+pub use ollama::OllamaClient;

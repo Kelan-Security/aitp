@@ -334,7 +334,7 @@ fi
 section "TEST 10: Secret Leakage & Monitoring"
 
 BODY=$(curl -s "$KELAN_URL/api/stats" 2>/dev/null)
-FORBIDDEN_TERMS=("JWT_SECRET" "AITP_JWT_SECRET" "GEMINI_API_KEY" "DATABASE_URL" "password_hash" "private_key")
+FORBIDDEN_TERMS=("JWT_SECRET" "AITP_JWT_SECRET" "DATABASE_URL" "password_hash" "private_key")
 LEAKED=false
 for term in "${FORBIDDEN_TERMS[@]}"; do
     if echo "$BODY" | grep -qi "$term"; then

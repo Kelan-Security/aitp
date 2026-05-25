@@ -2,11 +2,11 @@
 // Module entry point exposing the agent and its integration with the Sentinel.
 
 pub mod cve;
-pub mod gemini_agent;
+pub mod ollama_agent;
 pub mod mitre;
 pub mod types;
 
-pub use gemini_agent::ThreatResponseAgent;
+pub use ollama_agent::ThreatResponseAgent;
 
 use crate::sentinel::Anomaly;
 
@@ -16,16 +16,16 @@ use std::sync::Arc;
 /// Activate the agentic threat response for a critical anomaly.
 /// Called from the Sentinel when a CRITICAL anomaly is detected.
 pub async fn activate_agent(state: &Arc<AppState>, anomaly: &Anomaly) {
-    if state.config.gemini_api_key.is_empty() {
-        tracing::warn!("Agent activation skipped — no Gemini API key configured");
+    if state.config.ollama_endpoint.is_empty() {
+        tracing::warn!("Agent activation skipped — no Ollama endpoint configured");
         // Fall back to rule-based response
         crate::sentinel::threat::activate_threat_response(state, &state.sentinel, anomaly).await;
         return;
     }
 
     let agent = ThreatResponseAgent::new(
-        state.gemini_client.clone(),
-        state.config.gemini_model.clone(),
+        state.ollama_client.clone(),
+        state.config.ollama_model.clone(),
         state.db.clone(),
         Arc::new(state.hub.clone()),
         state.config.auto_quarantine,

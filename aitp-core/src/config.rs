@@ -9,7 +9,7 @@
 //! # Validation
 //!
 //! Call [`AitpConfig::validate()`] after loading to check for semantic errors
-//! (e.g. Gemini API key required when mode is `gemini`, timeout budget consistency).
+//! (e.g. Ollama endpoint required when mode is `ollama`, timeout budget consistency).
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -217,25 +217,22 @@ pub struct AiEngineSection {
     pub trust_mode: String,
 
     #[serde(default)]
-    pub gemini_api_key: String,
+    pub ollama_api_key: String,
 
-    #[serde(default = "d_gemini_model")]
-    pub gemini_model: String,
+    #[serde(default = "d_ollama_timeout")]
+    pub ollama_timeout_ms: u64,
 
-    #[serde(default = "d_gemini_timeout")]
-    pub gemini_timeout_ms: u64,
+    #[serde(default = "d_ollama_cache")]
+    pub ollama_cache_ttl_secs: u64,
 
-    #[serde(default = "d_gemini_cache")]
-    pub gemini_cache_ttl_secs: u64,
-
-    #[serde(default = "d_gemini_rps")]
-    pub gemini_max_rps: u32,
+    #[serde(default = "d_ollama_rps")]
+    pub ollama_max_rps: u32,
 
     #[serde(default = "d_rules_weight")]
     pub rules_weight: f64,
 
-    #[serde(default = "d_gemini_weight")]
-    pub gemini_weight: f64,
+    #[serde(default = "d_ollama_weight")]
+    pub ollama_weight: f64,
 
     #[serde(default)]
     pub claude_api_key: String,
@@ -261,13 +258,12 @@ impl Default for AiEngineSection {
         Self {
             provider: d_provider(),
             trust_mode: d_trust_mode(),
-            gemini_api_key: String::new(),
-            gemini_model: d_gemini_model(),
-            gemini_timeout_ms: d_gemini_timeout(),
-            gemini_cache_ttl_secs: d_gemini_cache(),
-            gemini_max_rps: d_gemini_rps(),
+            ollama_api_key: String::new(),
+            ollama_timeout_ms: d_ollama_timeout(),
+            ollama_cache_ttl_secs: d_ollama_cache(),
+            ollama_max_rps: d_ollama_rps(),
             rules_weight: d_rules_weight(),
-            gemini_weight: d_gemini_weight(),
+            ollama_weight: d_ollama_weight(),
             claude_api_key: String::new(),
             claude_model: d_claude_model(),
             openai_api_key: String::new(),
@@ -462,24 +458,24 @@ impl AitpConfig {
         env_override_str("AITP_AI_ENGINE_PROVIDER", &mut self.ai_engine.provider);
         env_override_str("AITP_AI_ENGINE_TRUST_MODE", &mut self.ai_engine.trust_mode);
         env_override_str(
-            "AITP_AI_ENGINE_GEMINI_API_KEY",
-            &mut self.ai_engine.gemini_api_key,
+            "AITP_AI_ENGINE_OLLAMA_API_KEY",
+            &mut self.ai_engine.ollama_api_key,
         );
         env_override_str(
-            "AITP_AI_ENGINE_GEMINI_MODEL",
-            &mut self.ai_engine.gemini_model,
+            "AITP_AI_ENGINE_OLLAMA_MODEL",
+            &mut self.ai_engine.ollama_model,
         );
         env_override_u64(
-            "AITP_AI_ENGINE_GEMINI_TIMEOUT_MS",
-            &mut self.ai_engine.gemini_timeout_ms,
+            "AITP_AI_ENGINE_OLLAMA_TIMEOUT_MS",
+            &mut self.ai_engine.ollama_timeout_ms,
         );
         env_override_u64(
-            "AITP_AI_ENGINE_GEMINI_CACHE_TTL_SECS",
-            &mut self.ai_engine.gemini_cache_ttl_secs,
+            "AITP_AI_ENGINE_OLLAMA_CACHE_TTL_SECS",
+            &mut self.ai_engine.ollama_cache_ttl_secs,
         );
         env_override_u32(
-            "AITP_AI_ENGINE_GEMINI_MAX_RPS",
-            &mut self.ai_engine.gemini_max_rps,
+            "AITP_AI_ENGINE_OLLAMA_MAX_RPS",
+            &mut self.ai_engine.ollama_max_rps,
         );
 
         // [observability]
@@ -612,7 +608,7 @@ impl AitpConfig {
         }
 
         // AI engine provider must be valid
-        let valid_providers = ["rules", "gemini", "claude", "openai", "ollama"];
+        let valid_providers = ["rules", "claude", "openai", "ollama"];
         if !valid_providers.contains(&self.ai_engine.provider.as_str()) {
             errors.push(ConfigValidationError {
                 field: "ai_engine.provider".into(),
@@ -637,11 +633,11 @@ impl AitpConfig {
             });
         }
 
-        // If provider requires API key, must be set
-        if self.ai_engine.provider == "gemini" && self.ai_engine.gemini_api_key.is_empty() {
+        // If provider requires API key/endpoint, must be set
+        if self.ai_engine.provider == "ollama" && self.ai_engine.ollama_base_url.is_empty() {
             errors.push(ConfigValidationError {
-                field: "ai_engine.gemini_api_key".into(),
-                message: "gemini_api_key is required when ai_engine.provider is 'gemini' (AITP_AI_ENGINE_GEMINI_API_KEY).".into(),
+                field: "ai_engine.ollama_base_url".into(),
+                message: "ollama_base_url is required when ai_engine.provider is 'ollama' (AITP_AI_ENGINE_OLLAMA_BASE_URL).".into(),
             });
         }
         if self.ai_engine.provider == "claude" && self.ai_engine.claude_api_key.is_empty() {
@@ -657,29 +653,29 @@ impl AitpConfig {
             });
         }
 
-        // Gemini timeout must leave overhead budget for trust eval
-        if self.ai_engine.gemini_timeout_ms >= self.trust.trust_eval_timeout_ms
-            && self.ai_engine.provider == "gemini"
+        // Ollama timeout must leave overhead budget for trust eval
+        if self.ai_engine.ollama_timeout_ms >= self.trust.trust_eval_timeout_ms
+            && self.ai_engine.provider == "ollama"
         {
             errors.push(ConfigValidationError {
-                field: "ai_engine.gemini_timeout_ms".into(),
+                field: "ai_engine.ollama_timeout_ms".into(),
                 message: format!(
-                    "gemini_timeout_ms ({}) must be < trust_eval_timeout_ms ({}) \
+                    "ollama_timeout_ms ({}) must be < trust_eval_timeout_ms ({}) \
                      to leave overhead budget.",
-                    self.ai_engine.gemini_timeout_ms, self.trust.trust_eval_timeout_ms
+                    self.ai_engine.ollama_timeout_ms, self.trust.trust_eval_timeout_ms
                 ),
             });
         }
 
         // In hybrid mode, weights should sum close to 1.0
         if self.ai_engine.trust_mode == "hybrid" {
-            let sum = self.ai_engine.rules_weight + self.ai_engine.gemini_weight;
+            let sum = self.ai_engine.rules_weight + self.ai_engine.ollama_weight;
             if (sum - 1.0).abs() > 0.01 {
                 errors.push(ConfigValidationError {
-                    field: "ai_engine.rules_weight / gemini_weight".into(),
+                    field: "ai_engine.rules_weight / ollama_weight".into(),
                     message: format!(
-                        "in hybrid mode, rules_weight ({}) + gemini_weight ({}) should sum to 1.0 (got {sum:.2})",
-                        self.ai_engine.rules_weight, self.ai_engine.gemini_weight
+                        "in hybrid mode, rules_weight ({}) + ollama_weight ({}) should sum to 1.0 (got {sum:.2})",
+                        self.ai_engine.rules_weight, self.ai_engine.ollama_weight
                     ),
                 });
             }
@@ -733,7 +729,7 @@ pub enum ConfigError {
 /// A single validation error with field path and human-readable message.
 #[derive(Debug, Clone)]
 pub struct ConfigValidationError {
-    /// Dot-separated field path (e.g. `"ai_engine.gemini_api_key"`).
+    /// Dot-separated field path (e.g. `"ai_engine.ollama_base_url"`).
     pub field: String,
     /// Human-readable explanation of the problem.
     pub message: String,
@@ -897,9 +893,6 @@ fn d_provider() -> String {
 fn d_trust_mode() -> String {
     "hybrid".into()
 }
-fn d_gemini_model() -> String {
-    "gemini-2.5-flash".into()
-}
 fn d_claude_model() -> String {
     "claude-haiku-4-5-20251001".into()
 }
@@ -912,19 +905,19 @@ fn d_ollama_base_url() -> String {
 fn d_ollama_model() -> String {
     "llama3.2".into()
 }
-fn d_gemini_timeout() -> u64 {
+fn d_ollama_timeout() -> u64 {
     4000
 }
-fn d_gemini_cache() -> u64 {
+fn d_ollama_cache() -> u64 {
     60
 }
-fn d_gemini_rps() -> u32 {
+fn d_ollama_rps() -> u32 {
     100
 }
 fn d_rules_weight() -> f64 {
     0.4
 }
-fn d_gemini_weight() -> f64 {
+fn d_ollama_weight() -> f64 {
     0.6
 }
 
@@ -977,37 +970,37 @@ mod tests {
     }
 
     #[test]
-    fn test_gemini_mode_requires_api_key() {
+    fn test_ollama_mode_requires_base_url() {
         let mut config = AitpConfig::default();
-        config.ai_engine.provider = "gemini".into();
-        config.ai_engine.gemini_api_key = String::new();
-        config.ai_engine.gemini_timeout_ms = 4; // Less than trust timeout
+        config.ai_engine.provider = "ollama".into();
+        config.ai_engine.ollama_base_url = String::new();
+        config.ai_engine.ollama_timeout_ms = 4; // Less than trust timeout
 
         let errors = config.validate().unwrap_err();
-        let key_error = errors
+        let url_error = errors
             .iter()
-            .find(|e| e.field == "ai_engine.gemini_api_key");
-        assert!(key_error.is_some(), "should require gemini_api_key");
+            .find(|e| e.field == "ai_engine.ollama_base_url");
+        assert!(url_error.is_some(), "should require ollama_base_url");
         assert!(
-            key_error
+            url_error
                 .unwrap()
                 .message
-                .contains("AITP_AI_ENGINE_GEMINI_API_KEY"),
+                .contains("AITP_AI_ENGINE_OLLAMA_BASE_URL"),
             "error should mention the env var name"
         );
     }
 
     #[test]
-    fn test_gemini_timeout_exceeds_trust_timeout() {
+    fn test_ollama_timeout_exceeds_trust_timeout() {
         let mut config = AitpConfig::default();
-        config.ai_engine.provider = "gemini".into();
-        config.ai_engine.gemini_api_key = "test-key".into();
-        config.ai_engine.gemini_timeout_ms = 10; // > trust_eval_timeout_ms (5)
+        config.ai_engine.provider = "ollama".into();
+        config.ai_engine.ollama_base_url = "http://localhost:11434".into();
+        config.ai_engine.ollama_timeout_ms = 10; // > trust_eval_timeout_ms (5)
 
         let errors = config.validate().unwrap_err();
         let timeout_err = errors
             .iter()
-            .find(|e| e.field == "ai_engine.gemini_timeout_ms");
+            .find(|e| e.field == "ai_engine.ollama_timeout_ms");
         assert!(
             timeout_err.is_some(),
             "should detect timeout budget violation"
@@ -1053,11 +1046,11 @@ mod tests {
     fn test_hybrid_mode_weights_must_sum_to_one() {
         let mut config = AitpConfig::default();
         config.ai_engine.trust_mode = "hybrid".into();
-        config.ai_engine.provider = "gemini".into();
-        config.ai_engine.gemini_api_key = "key".into();
-        config.ai_engine.gemini_timeout_ms = 4;
+        config.ai_engine.provider = "ollama".into();
+        config.ai_engine.ollama_base_url = "http://localhost:11434".into();
+        config.ai_engine.ollama_timeout_ms = 4;
         config.ai_engine.rules_weight = 0.3;
-        config.ai_engine.gemini_weight = 0.3; // sum = 0.6, not 1.0
+        config.ai_engine.ollama_weight = 0.3; // sum = 0.6, not 1.0
 
         let errors = config.validate().unwrap_err();
         assert!(errors.iter().any(|e| e.message.contains("sum to 1.0")));

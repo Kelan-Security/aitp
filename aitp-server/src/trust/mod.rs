@@ -1,7 +1,7 @@
 pub mod breaker;
 pub mod circuit_breaker;
 pub mod fallback_rules;
-pub mod gemini;
+pub mod ollama_engine;
 pub mod rules;
 
 use moka::future::Cache;
@@ -56,7 +56,7 @@ pub struct TrustResult {
     pub confidence: f32,
     pub behavioral_flags: Vec<String>,
     pub evaluation_ms: f64,
-    pub source: String, // "rules" | "gemini" | "hybrid"
+    pub source: String, // "rules" | "ollama" | "hybrid"
 }
 
 /// Context provided to trust engines for evaluation.
@@ -101,7 +101,7 @@ impl From<&SessionContext> for TrustCacheKey {
 pub struct HybridTrustEngine {
     pub rules: rules::RulesEngine,
     pub fallback: fallback_rules::FallbackRulesEngine,
-    pub gemini: Option<gemini::GeminiTrustEngine>,
+    pub ollama: Option<ollama_engine::OllamaTrustEngine>,
     pub alpha: f64,   // weight for rules vs AI (alpha=rules weight)
     pub mode: String, // "hybrid" | "rules" | "ai_only"
     pub cache: Cache<TrustCacheKey, Arc<TrustResult>>,
@@ -110,12 +110,21 @@ pub struct HybridTrustEngine {
 
 impl HybridTrustEngine {
     pub fn new(
-        gemini_client: Arc<crate::ai::GeminiClient>,
-        gemini_model: &str,
+        ollama_endpoint: &str,
+        ollama_model: &str,
+        ollama_timeout_secs: u64,
         alpha: f64,
         mode: &str,
     ) -> Self {
-        let gemini = Some(gemini::GeminiTrustEngine::new(gemini_client, gemini_model));
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(ollama_timeout_secs))
+            .build()
+            .unwrap_or_default();
+        let ollama = Some(ollama_engine::OllamaTrustEngine::new(
+            Arc::new(client),
+            ollama_endpoint,
+            ollama_model,
+        ));
 
         let cache = Cache::builder()
             .max_capacity(50_000)
@@ -126,7 +135,7 @@ impl HybridTrustEngine {
         Self {
             rules: rules::RulesEngine::new(),
             fallback: fallback_rules::FallbackRulesEngine::new(),
-            gemini,
+            ollama,
             alpha,
             mode: mode.to_string(),
             cache,
@@ -136,7 +145,6 @@ impl HybridTrustEngine {
 
     /// Evaluate trust for a session context.
     pub async fn evaluate(&self, ctx: &SessionContext) -> TrustResult {
-        // Rules-only mode: skip cache entirely — O(1) evaluation is faster than cache I/O
         if self.mode == "rules" {
             let mut result = self.rules.evaluate(ctx);
             result.evaluation_ms = 0.0;
@@ -174,9 +182,8 @@ impl HybridTrustEngine {
                 result
             }
             "ai_only" if is_ai_allowed => {
-                let result = if let Some(ref gemini) = self.gemini {
-                    // Hard cap: entire AI evaluation bounded at 2.5s to guarantee fallback speed
-                    let ai_future = gemini.evaluate(ctx);
+                let result = if let Some(ref ollama) = self.ollama {
+                    let ai_future = ollama.evaluate(ctx);
                     match tokio::time::timeout(Duration::from_millis(2500), ai_future).await {
                         Ok(Ok(mut r)) => {
                             self.breaker.record_success();
@@ -210,8 +217,8 @@ impl HybridTrustEngine {
             "hybrid" if is_ai_allowed => {
                 let rules_result = self.rules.evaluate(ctx);
 
-                let ai_result = if let Some(ref gemini) = self.gemini {
-                    let ai_future = gemini.evaluate(ctx);
+                let ai_result = if let Some(ref ollama) = self.ollama {
+                    let ai_future = ollama.evaluate(ctx);
                     match tokio::time::timeout(Duration::from_millis(2500), ai_future).await {
                         Ok(Ok(res)) => {
                             self.breaker.record_success();
@@ -271,9 +278,9 @@ impl HybridTrustEngine {
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;
                 result
             }
-            _ => { // Breaker is OPEN or mode matches nothing
+            _ => {
                 if self.mode != "rules" {
-                    tracing::warn!("Circuit Breaker OPEN. Falling back to rules fast-path.");
+                    tracing::warn!("Circuit Breaker OPEN or invalid mode. Falling back to rules fast-path.");
                 }
                 let mut result = self.fallback.evaluate(ctx);
                 result.evaluation_ms = start.elapsed().as_secs_f64() * 1000.0;

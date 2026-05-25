@@ -11,7 +11,7 @@
 //! `IdentityVerificationService` defends against this by:
 //! 1. Maintaining a registry of **trusted** identity names.
 //! 2. Detecting typosquatting via Levenshtein distance (warn if distance < 2).
-//! 3. Sanitising identity names before they are embedded in Gemini prompts,
+//! 3. Sanitising identity names before they are embedded in Ollama prompts,
 //!    blocking prompt-injection attempts.
 
 use dashmap::DashMap;
@@ -118,7 +118,7 @@ impl IdentityVerificationService {
         results
     }
 
-    /// Sanitise an identity `name` before it is used in a Gemini / LLM prompt.
+    /// Sanitise an identity `name` before it is used in a Ollama / LLM prompt.
     ///
     /// Rejects names that:
     /// - Contain prompt-injection keywords (`ignore`, `system`, `override`, etc.)

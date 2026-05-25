@@ -43,6 +43,8 @@ COPY config/aitp.toml /etc/aitp/aitp.toml
 
 ENV AITP_LOG_LEVEL=info
 ENV AITP_NODE_LISTEN_PORT=9999
+ENV OLLAMA_ENDPOINT=http://localhost:11434
+ENV OLLAMA_MODEL=gemma3:9b
 
 EXPOSE 9999/udp
 EXPOSE 9100/tcp

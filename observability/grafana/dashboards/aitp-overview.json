@@ -127,7 +127,7 @@
         },
         {
             "id": 3,
-            "title": "Gemini Cache Hit Rate",
+            "title": "Ollama Cache Hit Rate",
             "type": "gauge",
             "gridPos": {
                 "h": 6,
@@ -141,7 +141,7 @@
             },
             "targets": [
                 {
-                    "expr": "rate(aitp_gemini_cache_hits_total[5m]) / clamp_min(rate(aitp_gemini_calls_total[5m]), 0.001) * 100",
+                    "expr": "rate(kelan_trust_cache_total{result=\"hit\"}[5m]) / clamp_min(rate(kelan_trust_cache_total[5m]), 0.001) * 100",
                     "legendFormat": "Hit Rate %",
                     "refId": "A"
                 }
@@ -230,7 +230,7 @@
         },
         {
             "id": 5,
-            "title": "Gemini Latency",
+            "title": "Ollama Latency",
             "type": "timeseries",
             "gridPos": {
                 "h": 8,
@@ -244,17 +244,17 @@
             },
             "targets": [
                 {
-                    "expr": "histogram_quantile(0.50, sum(rate(aitp_gemini_latency_ms_bucket[5m])) by (le))",
+                    "expr": "histogram_quantile(0.50, sum(rate(kelan_ollama_latency_ms_bucket[5m])) by (le))",
                     "legendFormat": "p50",
                     "refId": "A"
                 },
                 {
-                    "expr": "histogram_quantile(0.95, sum(rate(aitp_gemini_latency_ms_bucket[5m])) by (le))",
+                    "expr": "histogram_quantile(0.95, sum(rate(kelan_ollama_latency_ms_bucket[5m])) by (le))",
                     "legendFormat": "p95",
                     "refId": "B"
                 },
                 {
-                    "expr": "histogram_quantile(0.99, sum(rate(aitp_gemini_latency_ms_bucket[5m])) by (le))",
+                    "expr": "histogram_quantile(0.99, sum(rate(kelan_ollama_latency_ms_bucket[5m])) by (le))",
                     "legendFormat": "p99",
                     "refId": "C"
                 }

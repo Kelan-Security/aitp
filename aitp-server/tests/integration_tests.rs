@@ -361,7 +361,7 @@ mod security_headers {
             .await
             .unwrap_or_default();
 
-        let forbidden = ["JWT_SECRET", "GEMINI_API_KEY", "DATABASE_URL", "password_hash"];
+        let forbidden = ["JWT_SECRET", "OLLAMA_ENDPOINT", "DATABASE_URL", "password_hash"];
         for term in &forbidden {
             assert!(
                 !body.to_lowercase().contains(&term.to_lowercase()),

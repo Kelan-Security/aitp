@@ -8,6 +8,26 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Pre-flight: check Ollama is reachable
+OLLAMA_EP=${OLLAMA_ENDPOINT:-http://localhost:11434}
+echo "Checking Ollama AI engine at $OLLAMA_EP..."
+if ! curl -s --max-time 5 "$OLLAMA_EP/api/tags" > /dev/null 2>&1; then
+  echo ""
+  echo -e "${YELLOW}⚠️  WARNING: Ollama not reachable at $OLLAMA_EP${NC}"
+  echo "   The server will start but AI trust will use fallback rules."
+  echo ""
+  echo "   To enable full AI trust evaluation:"
+  echo "   1. On your Mac: OLLAMA_HOST=0.0.0.0 ollama serve"
+  echo "   2. Pull model: ollama pull gemma3:9b"
+  echo "   3. Set in .env: OLLAMA_ENDPOINT=http://<MAC-IP>:11434"
+  echo ""
+else
+  echo "✅ Ollama reachable"
+  # Show which model will be used
+  MODEL=${OLLAMA_MODEL:-gemma3:9b}
+  echo "   Model: $MODEL"
+fi
+
 echo -e "${BLUE}"
 echo "╔═══════════════════════════════════════╗"
 echo "║     KELAN SECURITY v0.3.0             ║"
@@ -37,9 +57,7 @@ check_cmd node   # for web terminal
 if [ ! -f .env ]; then
     echo -e "${YELLOW}No .env found. Creating from template...${NC}"
     cp .env.example .env
-    echo -e "${RED}IMPORTANT: Edit .env and add your GEMINI_API_KEY${NC}"
-    echo "Then re-run this script."
-    exit 1
+    echo -e "${GREEN}Created .env file. Running with local Ollama defaults.${NC}"
 fi
 
 source .env

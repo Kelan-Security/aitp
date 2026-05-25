@@ -22,8 +22,8 @@ impl From<&AiEngineConfig> for OpenAiConfig {
             api_key: std::env::var("AITP_OPENAI_API_KEY")
                 .unwrap_or_else(|_| c.openai_api_key.clone()),
             model: std::env::var("AITP_OPENAI_MODEL").unwrap_or_else(|_| c.openai_model.clone()),
-            timeout_ms: c.gemini_timeout_ms,
-            cache_ttl_secs: c.gemini_cache_ttl_secs,
+            timeout_ms: c.ollama_timeout_ms,
+            cache_ttl_secs: c.ollama_cache_ttl_secs,
         }
     }
 }

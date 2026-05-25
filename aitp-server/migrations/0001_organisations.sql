@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS organisations (
     name          TEXT NOT NULL,
     email         TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    gemini_api_key_enc TEXT,
+    ollama_endpoint_enc TEXT,
     trust_mode    TEXT NOT NULL DEFAULT 'hybrid',
     created_at    INTEGER NOT NULL
 );

@@ -65,7 +65,7 @@ impl CircuitBreaker {
                     if *write_state == BreakerState::Open {
                         *write_state = BreakerState::HalfOpen;
                         *self.last_state_change.write().await = Instant::now();
-                        crate::metrics::GEMINI_CIRCUIT_BREAKER_STATE.set(2.0); // HalfOpen
+                        crate::metrics::OLLAMA_CIRCUIT_BREAKER_STATE.set(2.0); // HalfOpen
                         return true; // Allow ONE probe request
                     }
                 }
@@ -84,7 +84,7 @@ impl CircuitBreaker {
             *current_state = BreakerState::Closed;
             *self.last_state_change.write().await = Instant::now();
             self.reset_counters();
-            crate::metrics::GEMINI_CIRCUIT_BREAKER_STATE.set(0.0); // Closed
+            crate::metrics::OLLAMA_CIRCUIT_BREAKER_STATE.set(0.0); // Closed
         }
     }
 
@@ -111,7 +111,7 @@ impl CircuitBreaker {
             let mut write_state = self.state.write().await;
             *write_state = BreakerState::Open;
             *self.last_state_change.write().await = Instant::now();
-            crate::metrics::GEMINI_CIRCUIT_BREAKER_STATE.set(1.0); // Open
+            crate::metrics::OLLAMA_CIRCUIT_BREAKER_STATE.set(1.0); // Open
             return;
         }
 
@@ -138,8 +138,8 @@ impl CircuitBreaker {
         if *write_state != BreakerState::Open {
             *write_state = BreakerState::Open;
             *self.last_state_change.write().await = Instant::now();
-            crate::metrics::GEMINI_CIRCUIT_BREAKER_STATE.set(1.0); // Open
-            tracing::error!("Gemini Circuit Breaker TRIPPED OPEN. Fallback Rules engaged.");
+            crate::metrics::OLLAMA_CIRCUIT_BREAKER_STATE.set(1.0); // Open
+            tracing::error!("Ollama Circuit Breaker TRIPPED OPEN. Fallback Rules engaged.");
         }
     }
 

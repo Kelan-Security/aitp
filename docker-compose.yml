@@ -1,7 +1,7 @@
 ####################################################################
 #  AITP — Full Stack Docker Compose
 #  Usage:
-#    cp .env.example .env   # Edit AITP_GEMINI_API_KEY
+#    cp .env.example .env
 #    docker compose up --build -d
 #    ./scripts/validate_stack.sh
 ####################################################################
@@ -87,7 +87,10 @@ services:
       - AITP_NODE_LISTEN_PORT=9999
       - AITP_CONTROL_PLANE_ADDRESS=http://172.20.0.10:8080
       - AITP_AI_ENGINE_MODE=hybrid
-      - AITP_AI_ENGINE_GEMINI_API_KEY=${AITP_GEMINI_API_KEY}
+      - OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-http://localhost:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3:9b}
+      - OLLAMA_TIMEOUT_SECS=${OLLAMA_TIMEOUT_SECS:-8}
+      - KELAN_DEV_MODE=true
       - AITP_TRUST_DEFAULT_POLICY=deny
       - AITP_LOG_LEVEL=debug
       - AITP_LOG_FORMAT=json
@@ -118,7 +121,10 @@ services:
       - AITP_NODE_LISTEN_PORT=9998
       - AITP_CONTROL_PLANE_ADDRESS=http://172.20.0.10:8080
       - AITP_AI_ENGINE_MODE=hybrid
-      - AITP_AI_ENGINE_GEMINI_API_KEY=${AITP_GEMINI_API_KEY}
+      - OLLAMA_ENDPOINT=${OLLAMA_ENDPOINT:-http://localhost:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3:9b}
+      - OLLAMA_TIMEOUT_SECS=${OLLAMA_TIMEOUT_SECS:-8}
+      - KELAN_DEV_MODE=true
       - AITP_TRUST_DEFAULT_POLICY=deny
       - AITP_LOG_LEVEL=debug
       - AITP_LOG_FORMAT=json

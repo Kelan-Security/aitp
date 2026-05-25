@@ -8,7 +8,7 @@ pub struct TrustResult {
     /// 0–255. Below 64 = Deny. 64–127 = Monitor. 128+ = Allow.
     pub trust_score: u8,
     pub verdict: TrustVerdict,
-    /// Natural language reasoning from Gemini 2.5
+    /// Natural language reasoning from Ollama
     pub reasoning: String,
     /// Confidence of the AI evaluation, 0.0–1.0
     pub confidence: f32,

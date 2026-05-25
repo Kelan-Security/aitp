@@ -57,12 +57,12 @@ pub enum ReasonCode {
     PolicyAllow,
     /// Deterministic fallback due to timeout.
     TimeoutFallback,
-    /// Gemini AI assessment (risk factor from model).
-    GeminiAssessment,
+    /// Ollama AI assessment (risk factor from model).
+    OllamaAssessment,
 }
 
 impl ReasonCode {
-    /// Parse a reason code from a Gemini `primary_risk_factor` string.
+    /// Parse a reason code from an Ollama `primary_risk_factor` string.
     pub fn from_string(s: &str) -> Self {
         let lower = s.to_lowercase();
         if lower.contains("anomal") || lower.contains("probe") || lower.contains("flag") {
@@ -78,7 +78,7 @@ impl ReasonCode {
         } else if lower.contains("timeout") {
             Self::TimeoutFallback
         } else {
-            Self::GeminiAssessment
+            Self::OllamaAssessment
         }
     }
 }

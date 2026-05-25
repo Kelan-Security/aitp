@@ -12,7 +12,7 @@ pub struct Organisation {
     #[serde(skip_serializing)]
     pub password_hash: String,
     #[serde(skip_serializing)]
-    pub gemini_api_key_enc: Option<String>,
+    pub ollama_endpoint_enc: Option<String>,
     pub trust_mode: String,
     pub created_at: i64,
 }
@@ -140,7 +140,7 @@ pub struct SignupReq {
     #[allow(dead_code)]
     pub industry: Option<String>,
     #[allow(dead_code)]
-    pub gemini_api_key: Option<String>,
+    pub ollama_endpoint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

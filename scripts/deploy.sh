@@ -83,10 +83,10 @@ fi
 echo -e "${GREEN}✓ $ENV_FILE found${NC}"
 
 # Validate no placeholder secrets remain
-if grep -qE "YOUR_GEMINI|YOUR_|CHANGE_ME|GENERATE_WITH" "$ENV_FILE" 2>/dev/null; then
+if grep -qE "YOUR_|CHANGE_ME|GENERATE_WITH" "$ENV_FILE" 2>/dev/null; then
     echo ""
     echo -e "${YELLOW}⚠ Warning: $ENV_FILE still contains placeholder values:${NC}"
-    grep -E "YOUR_GEMINI|YOUR_|CHANGE_ME|GENERATE_WITH" "$ENV_FILE" | head -5 | sed 's/^/    /'
+    grep -E "YOUR_|CHANGE_ME|GENERATE_WITH" "$ENV_FILE" | head -5 | sed 's/^/    /'
     echo ""
     if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
         echo -e "${RED}✗ Cannot deploy to production with placeholder secrets.${NC}"

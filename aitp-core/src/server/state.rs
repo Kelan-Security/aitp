@@ -87,7 +87,7 @@ impl AlertType {
             Self::IntentMismatch => "INTENT MISMATCH — BEHAVIORAL ANOMALY",
             Self::SybilSuspect => "SYBIL SUSPECT — IDENTITY FLOOD",
             Self::ScoreCollapse => "TRUST SCORE COLLAPSE",
-            Self::PromptInjection => "GEMINI PROMPT INJECTION BLOCKED",
+            Self::PromptInjection => "OLLAMA PROMPT INJECTION BLOCKED",
             Self::HandshakeTimeout => "HANDSHAKE TIMEOUT",
             Self::PermitExpired => "EXPIRED PERMIT USED",
             Self::MassRevocation => "MASS SESSION REVOCATION",

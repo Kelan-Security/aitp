@@ -103,32 +103,32 @@ groups:
             P95 latency is {{ $value | humanizeDuration }}.
             Consider scaling or investigating slow queries.
 
-      - alert: GeminiAPIHighLatency
+      - alert: OllamaAPIHighLatency
         expr: |
           histogram_quantile(0.95,
-            rate(kelan_gemini_api_duration_seconds_bucket[5m])
+            rate(kelan_ollama_request_duration_seconds_bucket[5m])
           ) > 4.0
         for: 5m
         labels:
           severity: warning
           team: infra
         annotations:
-          summary: "Gemini API P95 latency above 4 seconds"
+          summary: "Ollama API P95 latency above 4 seconds"
           description: >
             AI trust evaluation is slow ({{ $value | humanizeDuration }}).
             Trust scoring may time out and fall back to rule-based mode.
 
-      - alert: GeminiAPIErrorRate
-        expr: rate(kelan_gemini_api_errors_total[5m]) > 0.01
+      - alert: OllamaAPIErrorRate
+        expr: rate(kelan_ollama_errors_total[5m]) > 0.01
         for: 2m
         labels:
           severity: critical
           team: infra
         annotations:
-          summary: "Gemini API errors detected"
+          summary: "Ollama API errors detected"
           description: >
-            {{ $value | humanize }} Gemini API errors/sec.
-            Verify GEMINI_API_KEY is valid and quota is not exhausted.
+            {{ $value | humanize }} Ollama API errors/sec.
+            Verify OLLAMA_ENDPOINT is valid and active.
 
       - alert: eBPFEnforcerOffline
         expr: kelan_ebpf_mode == 0

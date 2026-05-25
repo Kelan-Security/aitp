@@ -11,8 +11,9 @@ pub struct AppConfig {
     pub redirect_port: u16, // AITP_REDIRECT_PORT, default 8080
     pub udp_port: u16,
     pub db_path: String,
-    pub gemini_api_key: String,
-    pub gemini_model: String,
+    pub ollama_endpoint: String,
+    pub ollama_model: String,
+    pub ollama_timeout_secs: u64,
     pub trust_mode: String, // "hybrid" | "rules" | "ai_only"
     pub trust_alpha: f64,   // weight for rules vs AI (0.4 = 40% rules)
     pub sentinel_enabled: bool,
@@ -66,11 +67,14 @@ impl AppConfig {
                     raw
                 }
             },
-            gemini_api_key: std::env::var("AITP_AI_ENGINE_GEMINI_API_KEY")
-                .or_else(|_| std::env::var("GEMINI_API_KEY"))
-                .unwrap_or_default(),
-            gemini_model: std::env::var("AITP_GEMINI_MODEL")
-                .unwrap_or_else(|_| "gemini-2.5-flash".into()),
+            ollama_endpoint: std::env::var("OLLAMA_ENDPOINT")
+                .unwrap_or_else(|_| "http://localhost:11434".into()),
+            ollama_model: std::env::var("OLLAMA_MODEL")
+                .unwrap_or_else(|_| "gemma3:9b".into()),
+            ollama_timeout_secs: std::env::var("OLLAMA_TIMEOUT_SECS")
+                .unwrap_or_else(|_| "8".into())
+                .parse()
+                .unwrap_or(8),
             trust_mode: std::env::var("AITP_TRUST_MODE").unwrap_or_else(|_| "hybrid".into()),
             trust_alpha: std::env::var("AITP_TRUST_ALPHA")
                 .unwrap_or_else(|_| "0.4".into())
@@ -115,7 +119,7 @@ impl AppConfig {
             None => "HTTP DEV",
         };
         format!(
-            "Mode={} HTTP={} UDP={} DB={} Trust={} Alpha={:.1} Sentinel={} AutoQ={} Gemini={}",
+            "Mode={} HTTP={} UDP={} DB={} Trust={} Alpha={:.1} Sentinel={} AutoQ={} OllamaEndpoint={}",
             tls,
             self.http_port,
             self.udp_port,
@@ -124,11 +128,7 @@ impl AppConfig {
             self.trust_alpha,
             self.sentinel_enabled,
             self.auto_quarantine,
-            if self.gemini_api_key.is_empty() {
-                "not configured"
-            } else {
-                "configured"
-            },
+            self.ollama_endpoint,
         )
     }
 

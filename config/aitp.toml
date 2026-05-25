@@ -50,14 +50,15 @@ min_trust_score_monitor = 64
 # ── AI engine (trust scoring backend) ───────────────────────
 
 [ai_engine]
-mode = "rules"                             # rules | gemini | hybrid
-gemini_api_key = ""                        # Set via env: AITP_AI_ENGINE_GEMINI_API_KEY
-gemini_model = "gemini-2.5-flash"
-gemini_timeout_ms = 4000                   # Must leave 1ms budget for overhead
-gemini_cache_ttl_secs = 60                 # Cache identical contexts
-gemini_max_rps = 100                       # Rate limit to avoid quota burn
+mode = "rules"                             # rules | ollama | hybrid
+ollama_api_key = ""                        # Set via env: AITP_AI_ENGINE_OLLAMA_API_KEY
+ollama_base_url = "http://localhost:11434"
+ollama_model = "llama3.2"
+ollama_timeout_ms = 4000                   # Must leave 1ms budget for overhead
+ollama_cache_ttl_secs = 60                 # Cache identical contexts
+ollama_max_rps = 100                       # Rate limit to avoid quota burn
 rules_weight = 0.4                         # In hybrid mode: rules contribute 40%
-gemini_weight = 0.6                        # Gemini contributes 60%
+ollama_weight = 0.6                        # Ollama contributes 60%
 
 # ── Observability ───────────────────────────────────────────
 

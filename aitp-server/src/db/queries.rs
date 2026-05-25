@@ -21,8 +21,8 @@ impl DbPool {
     // ═══ Organisations ═══
 
     pub async fn create_org(&self, org: Organisation) -> Result<(), sqlx::Error> {
-        let sql_pg = "INSERT INTO organisations (id, name, email, password_hash, gemini_api_key_enc, trust_mode, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)";
-        let sql_sq = "INSERT INTO organisations (id, name, email, password_hash, gemini_api_key_enc, trust_mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        let sql_pg = "INSERT INTO organisations (id, name, email, password_hash, ollama_endpoint_enc, trust_mode, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+        let sql_sq = "INSERT INTO organisations (id, name, email, password_hash, ollama_endpoint_enc, trust_mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         match self {
             DbPool::Postgres(p) => {
@@ -31,7 +31,7 @@ impl DbPool {
                     .bind(&org.name)
                     .bind(&org.email)
                     .bind(&org.password_hash)
-                    .bind(&org.gemini_api_key_enc)
+                    .bind(&org.ollama_endpoint_enc)
                     .bind(&org.trust_mode)
                     .bind(org.created_at)
                     .execute(p)
@@ -43,7 +43,7 @@ impl DbPool {
                     .bind(&org.name)
                     .bind(&org.email)
                     .bind(&org.password_hash)
-                    .bind(&org.gemini_api_key_enc)
+                    .bind(&org.ollama_endpoint_enc)
                     .bind(&org.trust_mode)
                     .bind(org.created_at)
                     .execute(p)
@@ -96,11 +96,11 @@ impl DbPool {
         if let Some(key) = api_key_enc {
             match self {
                 DbPool::Postgres(p) => {
-                    sqlx::query("UPDATE organisations SET gemini_api_key_enc = $1, trust_mode = $2 WHERE id = $3")
+                    sqlx::query("UPDATE organisations SET ollama_endpoint_enc = $1, trust_mode = $2 WHERE id = $3")
                         .bind(key).bind(trust_mode).bind(id).execute(p).await?;
                 }
                 DbPool::Sqlite(p) => {
-                    sqlx::query("UPDATE organisations SET gemini_api_key_enc = ?, trust_mode = ? WHERE id = ?")
+                    sqlx::query("UPDATE organisations SET ollama_endpoint_enc = ?, trust_mode = ? WHERE id = ?")
                         .bind(key).bind(trust_mode).bind(id).execute(p).await?;
                 }
             }

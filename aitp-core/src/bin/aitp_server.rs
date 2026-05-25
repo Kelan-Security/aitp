@@ -3,7 +3,7 @@
 /// # Usage
 /// ```bash
 /// aitp-server --port 9999 --dev-mode
-/// aitp-server --port 9999 --gemini-key $GEMINI_API_KEY --trust-mode hybrid
+/// aitp-server --port 9999 --ollama-endpoint http://127.0.0.1:11434 --trust-mode hybrid
 /// ```
 use aitp_core::events::EventBus;
 use aitp_core::header::DEFAULT_UDP_PORT;
@@ -44,9 +44,9 @@ struct Cli {
     #[arg(long, default_value = "server.key", env = "AITP_IDENTITY")]
     identity: PathBuf,
 
-    /// Gemini API key for AI trust evaluation.
-    #[arg(long, env = "AITP_GEMINI_API_KEY")]
-    gemini_key: Option<String>,
+    /// Ollama endpoint URL for AI trust evaluation.
+    #[arg(long, env = "OLLAMA_ENDPOINT")]
+    ollama_endpoint: Option<String>,
 
     /// Trust evaluation mode: `hybrid` (rules + AI) | `rules-only` | `ai-only`.
     #[arg(long, default_value = "rules-only", env = "AITP_TRUST_MODE")]

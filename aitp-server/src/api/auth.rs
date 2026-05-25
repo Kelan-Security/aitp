@@ -47,7 +47,7 @@ async fn signup(
         name: req.org_name,
         email: req.email,
         password_hash,
-        gemini_api_key_enc: None,
+        ollama_endpoint_enc: None,
         trust_mode: "hybrid".to_string(),
         created_at: now,
     };

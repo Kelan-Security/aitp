@@ -5,7 +5,6 @@ use tokio::time::timeout;
 
 use crate::provider::{AiProvider, AiTrustResult};
 use crate::providers::claude::ClaudeProvider;
-use crate::providers::gemini::GeminiProvider;
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
 use crate::providers::rules::RulesProvider;
@@ -67,19 +66,17 @@ impl TrustContext {
 pub struct AiEngineConfig {
     pub provider: String,
     pub trust_mode: String,
-    pub gemini_api_key: String,
-    pub gemini_model: String,
-    pub gemini_timeout_ms: u64,
-    pub gemini_cache_ttl_secs: u64,
-    pub gemini_max_rps: u32,
     pub rules_weight: f64,
-    pub gemini_weight: f64,
+    pub ollama_weight: f64,
     pub claude_api_key: String,
     pub claude_model: String,
     pub openai_api_key: String,
     pub openai_model: String,
     pub ollama_base_url: String,
     pub ollama_model: String,
+    pub ollama_timeout_ms: u64,
+    pub ollama_cache_ttl_secs: u64,
+    pub ollama_max_rps: u32,
 }
 
 impl Default for AiEngineConfig {
@@ -87,19 +84,17 @@ impl Default for AiEngineConfig {
         Self {
             provider: "rules".to_string(),
             trust_mode: "fallback".to_string(),
-            gemini_api_key: String::new(),
-            gemini_model: "gemini-2.5-flash".to_string(),
-            gemini_timeout_ms: 5000,
-            gemini_cache_ttl_secs: 300,
-            gemini_max_rps: 10,
             rules_weight: 1.0,
-            gemini_weight: 1.0,
+            ollama_weight: 1.0,
             claude_api_key: String::new(),
             claude_model: "claude-3".to_string(),
             openai_api_key: String::new(),
             openai_model: "gpt-4o".to_string(),
             ollama_base_url: "http://localhost:11434".to_string(),
             ollama_model: "llama3".to_string(),
+            ollama_timeout_ms: 5000,
+            ollama_cache_ttl_secs: 300,
+            ollama_max_rps: 10,
         }
     }
 }
@@ -189,10 +184,10 @@ impl TrustEngine {
         Self::new(AiEngineConfig::default()).unwrap()
     }
 
-    pub fn with_gemini(api_key: &str) -> Self {
+    pub fn with_ollama(endpoint: &str) -> Self {
         let config = AiEngineConfig {
-            provider: "gemini".to_string(),
-            gemini_api_key: api_key.to_string(),
+            provider: "ollama".to_string(),
+            ollama_base_url: endpoint.to_string(),
             ..Default::default()
         };
         Self::new(config).unwrap()
@@ -201,7 +196,6 @@ impl TrustEngine {
     pub fn new(config: AiEngineConfig) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let fallback = Arc::new(RulesProvider::new());
         let primary: Arc<dyn AiProvider> = match config.provider.as_str() {
-            "gemini" => Arc::new(GeminiProvider::new(&config)?),
             "claude" => Arc::new(ClaudeProvider::new(&config)?),
             "openai" => Arc::new(OpenAiProvider::new(&config)?),
             "ollama" => Arc::new(OllamaProvider::new(&config)?),
@@ -226,7 +220,7 @@ impl TrustEngine {
             return TrustDecision::from_ai_result(res, start.elapsed().as_nanos() as u64);
         }
 
-        let timeout_duration = Duration::from_millis(self.config.gemini_timeout_ms);
+        let timeout_duration = Duration::from_millis(self.config.ollama_timeout_ms);
         let system_prompt = "You are AITP Trust Engine. Evaluate this intent.";
 
         let ai_result = match timeout(
@@ -244,7 +238,7 @@ impl TrustEngine {
 
         if self.config.trust_mode == "hybrid" {
             let rules_res = self.fallback.evaluate_trust(ctx, "").await.unwrap();
-            let hybrid_score = (ai_result.trust_score as f64 * self.config.gemini_weight
+            let hybrid_score = (ai_result.trust_score as f64 * self.config.ollama_weight
                 + rules_res.trust_score as f64 * self.config.rules_weight)
                 as u8;
 

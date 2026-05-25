@@ -8,7 +8,7 @@
 //!   - IPv4 and IPv6 availability
 //!   - XDP driver mode probe
 //!   - eBPF program load status
-//!   - Environment variables (GEMINI key, JWT secret)
+//!   - Environment variables (Ollama endpoint, JWT secret)
 //!   - SQLite database connectivity
 //!
 //! Exit codes:
@@ -341,7 +341,7 @@ fn main() {
     section("kelan");
     let checks: Vec<Check> = vec![
         check_ebpf_status(),
-        check_env_var("AITP_AI_ENGINE_GEMINI_API_KEY", "Gemini API key", false),
+        check_env_var("OLLAMA_ENDPOINT", "Ollama endpoint", false),
         check_env_var("JWT_SECRET", "JWT secret", true),
         check_database(),
         check_permit_map(),
@@ -426,8 +426,8 @@ mod tests {
 
     #[test]
     fn test_doctor_env_var_not_set_non_critical() {
-        std::env::remove_var("AITP_AI_ENGINE_GEMINI_API_KEY");
-        let c = check_env_var("AITP_AI_ENGINE_GEMINI_API_KEY", "Gemini API key", false);
+        std::env::remove_var("OLLAMA_ENDPOINT");
+        let c = check_env_var("OLLAMA_ENDPOINT", "Ollama endpoint", false);
         // Non-critical missing → Warn, not Fail
         assert_eq!(c.status, CheckStatus::Warn);
     }

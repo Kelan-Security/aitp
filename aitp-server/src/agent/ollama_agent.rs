@@ -1,5 +1,5 @@
-// AITP Agentic Threat Response Engine — gemini_agent.rs
-// ReAct (Reasoning + Acting) loop powered by Gemini for autonomous threat investigation.
+// AITP Agentic Threat Response Engine — ollama_agent.rs
+// ReAct (Reasoning + Acting) loop powered by Ollama for autonomous threat investigation.
 
 use super::cve::CveIntelligence;
 use super::mitre;
@@ -52,7 +52,7 @@ Investigation principles:
 "#;
 
 pub struct ThreatResponseAgent {
-    client: Arc<crate::ai::GeminiClient>,
+    client: Arc<crate::ai::OllamaClient>,
     model: String,
     db: DbPool,
     hub: Arc<WsHub>,
@@ -63,7 +63,7 @@ pub struct ThreatResponseAgent {
 
 impl ThreatResponseAgent {
     pub fn new(
-        client: Arc<crate::ai::GeminiClient>,
+        client: Arc<crate::ai::OllamaClient>,
         model: String,
         db: DbPool,
         hub: Arc<WsHub>,
@@ -109,18 +109,18 @@ impl ThreatResponseAgent {
 
         conversation.push(serde_json::json!({
             "role": "user",
-            "parts": [{ "text": initial_context }]
+            "content": initial_context
         }));
 
         for step_num in 1..=MAX_STEPS {
             // Acquire AI slot permit to limit concurrency
             let _permit = self.memory_budget.acquire_ai_slot().await;
 
-            // Call Gemini via shared client
+            // Call Ollama via shared client
             let response = match self.client.chat(&self.model, Some(AGENT_SYSTEM_PROMPT), conversation.clone(), 0.2).await {
                 Ok(text) => text,
                 Err(e) => {
-                    tracing::error!("Agent step {} Gemini call failed: {}", step_num, e);
+                    tracing::error!("Agent step {} Ollama call failed: {}", step_num, e);
                     break;
                 }
             };
@@ -159,12 +159,12 @@ impl ThreatResponseAgent {
 
             // Add to conversation
             conversation.push(serde_json::json!({
-                "role": "model",
-                "parts": [{ "text": response }]
+                "role": "assistant",
+                "content": response
             }));
             conversation.push(serde_json::json!({
                 "role": "user",
-                "parts": [{ "text": format!("OBSERVATION:\n{}", observation) }]
+                "content": format!("OBSERVATION:\n{}", observation)
             }));
 
             if is_terminal {
@@ -596,8 +596,6 @@ impl ThreatResponseAgent {
         serde_json::to_string_pretty(&edges).unwrap_or_default()
     }
 
-    // ─── Fallback report when agent loop exhausts steps ──────────────────────
-
     fn fallback_report(
         &self,
         anomaly: &Anomaly,
@@ -655,12 +653,10 @@ fn severity_from_anomaly(sev: &AnomalySeverity) -> String {
 }
 
 fn extract_json(text: &str) -> Result<String, String> {
-    // Try parsing the whole thing first
     if serde_json::from_str::<Value>(text).is_ok() {
         return Ok(text.to_string());
     }
 
-    // Find first { and last }
     let start = text.find('{').ok_or("No JSON object found")?;
     let end = text.rfind('}').ok_or("No closing brace found")?;
     if end <= start {

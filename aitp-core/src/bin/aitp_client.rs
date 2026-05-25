@@ -366,7 +366,7 @@ async fn cmd_connect(
         "  {}  {}  {}",
         "→".dimmed(),
         "AITP_TRUST_EVAL     ".cyan(),
-        "AI trust evaluation (rules + Gemini)".dimmed()
+        "AI trust evaluation (rules + Ollama)".dimmed()
     );
 
     // Wait for SYN-ACK

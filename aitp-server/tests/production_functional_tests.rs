@@ -21,10 +21,11 @@ async fn setup_test_db() -> DbPool {
 async fn create_test_state(db: DbPool, sentinel_tx: mpsc::Sender<SentinelEvent>) -> Arc<AppState> {
     let mut config = AppConfig::from_env();
     config.db_path = "sqlite::memory:".to_string();
-    let gemini_client = Arc::new(aitp_server::ai::GeminiClient::new("fake-key"));
+    let ollama_client = Arc::new(aitp_server::ai::OllamaClient::new(&config.ollama_endpoint));
     let trust_engine = aitp_server::trust::HybridTrustEngine::new(
-        gemini_client.clone(),
-        &config.gemini_model,
+        &config.ollama_endpoint,
+        &config.ollama_model,
+        config.ollama_timeout_secs,
         config.trust_alpha,
         &config.trust_mode,
     );
@@ -32,6 +33,7 @@ async fn create_test_state(db: DbPool, sentinel_tx: mpsc::Sender<SentinelEvent>)
     let enforcer = Arc::new(aitp_server::enforcement::init_enforcer("lo").await.unwrap());
     let server_identity = Arc::new(aitp_server::crypto::HybridEntityIdentity::load_or_generate().unwrap());
     let sentinel_instance = Arc::new(aitp_server::sentinel::SentinelState::new());
+    let (verdict_tx, _) = tokio::sync::broadcast::channel(1000);
 
     Arc::new(AppState {
         db,
@@ -44,9 +46,10 @@ async fn create_test_state(db: DbPool, sentinel_tx: mpsc::Sender<SentinelEvent>)
         memory_budget,
         enforcer,
         server_identity,
-        gemini_client,
+        ollama_client,
         sessions: tokio::sync::RwLock::new(aitp_server::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(aitp_server::protocol::handshake::HandshakeManager::new()),
+        verdict_tx,
     })
 }
 
@@ -102,8 +105,7 @@ fn test_crypto_signing_roundtrip() {
 
 #[tokio::test]
 async fn test_rules_only_evaluation_speed() {
-    let ai_client = Arc::new(aitp_server::ai::GeminiClient::new("fake-key"));
-    let engine = HybridTrustEngine::new(ai_client, "gemini-1.5-flash", 1.0, "rules");
+    let engine = HybridTrustEngine::new("http://localhost:11434", "gemma3:9b", 8, 1.0, "rules");
     
     let ctx = test_context();
     
@@ -118,10 +120,10 @@ async fn test_rules_only_evaluation_speed() {
 }
 
 #[tokio::test]
-async fn test_gemini_timeout_triggers_fallback() {
+async fn test_ollama_timeout_triggers_fallback() {
     let mock_server = MockServer::start().await;
     
-    // Mock Gemini to hang for 30s
+    // Mock Ollama to hang for 30s
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
         .mount(&mock_server)
@@ -130,12 +132,7 @@ async fn test_gemini_timeout_triggers_fallback() {
     // Use a client that points to mock
     let _config = AppConfig::from_env();
     
-    // Since we can't easily inject the URL into GeminiClient in this test without 
-    // modifying it, we'll assume it uses standard reqwest timeout.
-    // Standard timeout in our implementation is 2.5s.
-    
-    let ai_client = Arc::new(aitp_server::ai::GeminiClient::new_with_url("fake-key", &mock_server.uri()));
-    let engine = HybridTrustEngine::new(ai_client, "gemini-1.5-flash", 0.5, "ai_only");
+    let engine = HybridTrustEngine::new(&mock_server.uri(), "gemma3:9b", 8, 0.5, "ai_only");
     
     let ctx = test_context();
     let start = Instant::now();
@@ -145,25 +142,24 @@ async fn test_gemini_timeout_triggers_fallback() {
     // Should fallback to rules within timeout (2.5s)
     assert!(elapsed < Duration::from_millis(3000));
     assert_eq!(result.source, "rules_fallback");
-    println!("✓ Gemini timeout fallback: {:?} (target <3000ms)", elapsed);
+    println!("✓ Ollama timeout fallback: {:?} (target <3000ms)", elapsed);
 }
 
 #[tokio::test]
 async fn test_circuit_breaker_opens_on_failures() {
     let mock_server = MockServer::start().await;
     
-    // Make Gemini fail with 500
+    // Make Ollama fail with 500
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&mock_server)
         .await;
 
-    let ai_client = Arc::new(aitp_server::ai::GeminiClient::new_with_url("fake-key", &mock_server.uri()));
     // Threshold = 20% failure, minimum sample 10
-    let engine = HybridTrustEngine::new(ai_client, "gemini-1.5-flash", 0.0, "ai_only");
+    let engine = HybridTrustEngine::new(&mock_server.uri(), "gemma3:9b", 8, 0.0, "ai_only");
     
     // Trigger breaker using unique contexts to bypass the trust cache
-    // (identical contexts would be cache-hits and skip the Gemini call entirely)
+    // (identical contexts would be cache-hits and skip the Ollama call entirely)
     for i in 0..22u32 {
         let mut unique_ctx = test_context();
         unique_ctx.source_entity_id = format!("entity-{}", i);

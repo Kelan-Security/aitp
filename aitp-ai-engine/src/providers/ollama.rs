@@ -20,7 +20,7 @@ impl From<&AiEngineConfig> for OllamaConfig {
             base_url: std::env::var("AITP_OLLAMA_BASE_URL")
                 .unwrap_or_else(|_| c.ollama_base_url.clone()),
             model: std::env::var("AITP_OLLAMA_MODEL").unwrap_or_else(|_| c.ollama_model.clone()),
-            timeout_ms: c.gemini_timeout_ms,
+            timeout_ms: c.ollama_timeout_ms,
         }
     }
 }
