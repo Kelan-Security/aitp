@@ -77,6 +77,12 @@ ollama run gemma3:9b "hello"
 
 # 3. Expose Ollama on all interfaces if running on a remote machine:
 # Set OLLAMA_HOST=0.0.0.0 environment variable before launching the Ollama service.
+Normal forensice tools to be installed  
+
+# Switch to pane 1 in tmux (Ctrl+B then arrow keys)
+apt install -y hping3 nmap python3 python3-pip tcpdump netcat-openbsd
+pip3 install requests scapy --break-system-packages
+echo "✅ Attack tools ready"
 ```
 
 ---
@@ -87,7 +93,7 @@ Create or modify your `.env` file in the project root:
 
 ```ini
 # AI Engine — points to MacBook or local Ollama host
-OLLAMA_ENDPOINT=http://OLLAMA_HOST_IP:11434
+OLLAMA_ENDPOINT=http:<Your device or server IP>>:pORT NUMBER
 OLLAMA_MODEL=gemma3:9b
 OLLAMA_TIMEOUT_SECS=8
 
