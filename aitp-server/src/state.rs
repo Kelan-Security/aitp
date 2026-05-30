@@ -36,6 +36,7 @@ pub struct AppState {
     pub sessions: tokio::sync::RwLock<crate::protocol::session::SessionManager>,
     pub handshakes: tokio::sync::RwLock<crate::protocol::handshake::HandshakeManager>,
     pub verdict_tx: broadcast::Sender<AgentVerdictSync>,
+    pub simulation_active: std::sync::atomic::AtomicBool,
 }
 
 impl AppState {

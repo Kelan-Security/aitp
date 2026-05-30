@@ -78,6 +78,7 @@ pub async fn run_server(app_config: config::AppConfig) -> anyhow::Result<()> {
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
         verdict_tx,
+        simulation_active: std::sync::atomic::AtomicBool::new(false),
     });
 
     // ── Background Tasks ──────────────────────────────────────────────────────
@@ -196,6 +197,7 @@ pub async fn run_with_listener(listener: std::net::TcpListener) -> anyhow::Resul
         sessions: tokio::sync::RwLock::new(crate::protocol::session::SessionManager::new()),
         handshakes: tokio::sync::RwLock::new(crate::protocol::handshake::HandshakeManager::new()),
         verdict_tx,
+        simulation_active: std::sync::atomic::AtomicBool::new(false),
     });
 
     if app_config.sentinel_enabled {

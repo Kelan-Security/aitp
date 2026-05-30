@@ -59,6 +59,7 @@ impl AppConfig {
                 .unwrap_or(9999),
             db_path: {
                 let raw = std::env::var("DATABASE_URL")
+                    .or_else(|_| std::env::var("KELAN_DB_URL"))
                     .or_else(|_| std::env::var("AITP_DB_PATH"))
                     .unwrap_or_else(|_| "./data/aitp.db".into());
                 if !raw.contains("://") {

@@ -14,8 +14,8 @@ path              = "src/main.rs"
 required-features = []
 
 [dependencies]
-aya-bpf = { git = "https://github.com/aya-rs/aya", features = ["bindings", "macros"] }
-aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
+aya-bpf = { package = "aya-ebpf", git = "https://github.com/aya-rs/aya.git", features = ["bindings", "macros"] }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya.git" }
 
 [profile.release]
 opt-level     = 2

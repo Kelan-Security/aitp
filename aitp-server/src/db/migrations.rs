@@ -88,9 +88,11 @@ pub async fn run(pool: &DbPool) -> anyhow::Result<()> {
     match pool {
         DbPool::Sqlite(p) => {
             sqlx::query(sql).execute(p).await?;
+            let _ = sqlx::query("CREATE VIEW IF NOT EXISTS verdicts AS SELECT * FROM sessions;").execute(p).await;
         }
         DbPool::Postgres(p) => {
             sqlx::query(sql).execute(p).await?;
+            let _ = sqlx::query("CREATE OR REPLACE VIEW verdicts AS SELECT * FROM sessions;").execute(p).await;
         }
     }
 

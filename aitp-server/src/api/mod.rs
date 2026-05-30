@@ -9,6 +9,7 @@ pub mod sessions;
 pub mod stats;
 pub mod threat;
 pub mod agentic;
+pub mod devsecops;
 
 use crate::state::AppState;
 use axum::Router;
@@ -26,5 +27,6 @@ pub fn router() -> Router<Arc<AppState>> {
         .merge(policies::router())
         .merge(config::router())
         .merge(stats::router())
+        .merge(devsecops::router())
         .layer(CompressionLayer::new())
 }

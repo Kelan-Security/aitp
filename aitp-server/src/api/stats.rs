@@ -18,7 +18,23 @@ async fn stats(
 
     let ebpf_stats: kelan_ebpf_loader::EnforcerStats = state.enforcer.stats().await.unwrap_or_default();
 
+    let total_verdicts: i64 = match &state.db {
+        crate::db::DbPool::Postgres(p) => {
+            sqlx::query_scalar("SELECT count(*) FROM sessions")
+                .fetch_one(p)
+                .await
+                .unwrap_or(0)
+        }
+        crate::db::DbPool::Sqlite(p) => {
+            sqlx::query_scalar("SELECT count(*) FROM sessions")
+                .fetch_one(p)
+                .await
+                .unwrap_or(0)
+        }
+    };
+
     let mut resp = serde_json::to_value(&stats).unwrap();
+    resp["verdicts_total"] = serde_json::json!(total_verdicts);
     resp["ebpf_packets_total"] = serde_json::json!(ebpf_stats.packets_total);
     resp["ebpf_packets_dropped"] = serde_json::json!(ebpf_stats.packets_dropped);
     resp["ebpf_active_permits"] = serde_json::json!(ebpf_stats.active_permits);

@@ -212,7 +212,12 @@ fn check_ebpf_status() -> Check {
 // ── Environment variables ─────────────────────────────────────────────────────
 
 fn check_env_var(var: &'static str, display_name: &'static str, is_critical: bool) -> Check {
-    match std::env::var(var) {
+    let resolved_var = if var == "KELAN_JWT_SECRET" {
+        if std::env::var("KELAN_JWT_SECRET").is_ok() { "KELAN_JWT_SECRET" } else { "JWT_SECRET" }
+    } else {
+        var
+    };
+    match std::env::var(resolved_var) {
         Ok(val) if !val.is_empty() => {
             // Never print the actual secret value
             let masked = if val.len() > 8 {
@@ -235,7 +240,8 @@ fn check_env_var(var: &'static str, display_name: &'static str, is_critical: boo
 // ── Database connectivity ─────────────────────────────────────────────────────
 
 fn check_database() -> Check {
-    let db_url = std::env::var("DATABASE_URL")
+    let db_url = std::env::var("KELAN_DB_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| "sqlite:data/kelan.db".to_string());
 
     // For SQLite: check if the file path is accessible
@@ -342,7 +348,7 @@ fn main() {
     let checks: Vec<Check> = vec![
         check_ebpf_status(),
         check_env_var("OLLAMA_ENDPOINT", "Ollama endpoint", false),
-        check_env_var("JWT_SECRET", "JWT secret", true),
+        check_env_var("KELAN_JWT_SECRET", "JWT secret", true),
         check_database(),
         check_permit_map(),
     ];
