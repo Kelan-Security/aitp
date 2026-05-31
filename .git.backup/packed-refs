@@ -1,0 +1,4 @@
+# pack-refs with: peeled fully-peeled sorted 
+8897585673562154f4b14449e8fc00b5033afb1b refs/heads/main
+a2afaf60bbbebfb59975fa589da0ab0d0473a161 refs/remotes/origin/feat/ollama-integration
+2c4bb1ac27fdc71f66edb479ac6ac57f2dec201b refs/remotes/origin/main
