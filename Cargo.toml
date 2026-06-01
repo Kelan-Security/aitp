@@ -1,17 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "aitp-core",
-    "aitp-identity",
-    "aitp-ai-engine",
-    "aitp-control-plane",
-    "kelan-sdk",
-    "aitp-observability",
-    "aitp-server",
-    "aitp-client",
-    "kelan-crypto",
     "kelan-ebpf/kelan-ebpf-loader",
-    "tools/kelan-license-tool"
 ]
 exclude = [
     "kelan-ebpf/kelan-ebpf-program",

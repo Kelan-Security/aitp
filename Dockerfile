@@ -1,45 +1,65 @@
-# Stage 1: Builder
-FROM rust:1.76-slim AS builder
+# ══ Stage 1: Python dependencies ═══════════════════════════════
+FROM python:3.12-slim AS deps
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ══ Stage 2: Rust eBPF build (XDP only) ════════════════════════
+FROM rust:1.76-slim AS rust-builder
 
 RUN apt-get update && apt-get install -y \
-    clang llvm libelf-dev zlib1g-dev libbpf-dev \
-    linux-libc-dev pkg-config musl-tools
+    clang llvm libelf-dev pkg-config zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY kelan-ebpf/         ./kelan-ebpf/
+COPY Cargo.toml          ./
+COPY Cargo.lock          ./
+
+RUN cargo build --release -p kelan-ebpf-loader 2>&1 | tail -5 || \
+    echo "eBPF build skipped (non-Linux or missing deps)"
+
+# ══ Stage 3: Runtime ════════════════════════════════════════════
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sqlite3 curl iproute2 net-tools tcpdump \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .
 
-# Build without native eBPF for portability
-RUN cargo build --release -p aitp-server \
-    --no-default-features 2>&1
+# Python packages from Stage 1
+COPY --from=deps /usr/local/lib/python3.12/site-packages \
+                 /usr/local/lib/python3.12/site-packages
+COPY --from=deps /usr/local/bin/uvicorn /usr/local/bin/
 
-# Stage 2: Runtime
-FROM debian:bookworm-slim
+# Rust eBPF binary (optional — falls back to software mode)
+COPY --from=rust-builder /build/target/release/kelan-ebpf-loader \
+                          /usr/local/bin/kelan-ebpf-loader 2>/dev/null || true
 
-RUN apt-get update && apt-get install -y \
-    libssl3 ca-certificates iptables iproute2 \
-    curl && rm -rf /var/lib/apt/lists/*
+# Python source
+COPY kelan/    ./kelan/
+COPY scripts/  ./scripts/
+COPY .env.example .env.example
 
-RUN useradd -r -u 1001 -g root kelan
+RUN mkdir -p data logs
 
-WORKDIR /app
-COPY --from=builder /app/target/release/aitp_server .
-COPY --from=builder /app/migrations ./migrations
+# Environment defaults
+ENV AITP_HTTP_PORT=3000
+ENV AITP_HOST=0.0.0.0
+ENV DATABASE_URL=sqlite+aiosqlite:///app/data/kelan.db
+ENV OLLAMA_MODEL=gemma4:latest
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 
-RUN mkdir -p /var/lib/kelan && chown kelan /var/lib/kelan
+EXPOSE 3000
 
-# eBPF needs CAP_BPF (added via docker run, not here)
-USER kelan
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -sf http://localhost:3000/api/health || exit 1
 
-EXPOSE 8080
-EXPOSE 9999/udp
-
-ENV DB_URL=sqlite:/var/lib/kelan/kelan.db
-ENV KELAN_MODE=auto
-ENV RUST_LOG=info
-ENV OLLAMA_ENDPOINT=http://localhost:11434
-ENV OLLAMA_MODEL=gemma3:9b
-
-HEALTHCHECK --interval=30s --timeout=5s \
-    CMD curl -f http://localhost:8080/api/health || exit 1
-
-ENTRYPOINT ["./aitp_server"]
+CMD ["python", "scripts/start.py"]

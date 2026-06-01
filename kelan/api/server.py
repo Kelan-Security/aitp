@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
 from ..config import get_settings
@@ -43,6 +44,7 @@ handshake_mgr: Optional[HandshakeManager] = None
 
 _ws_clients: set[WebSocket] = set()
 _start_time = time.time()
+_xdp_drops = 0
 
 # In-memory ring buffers
 _verdict_buf: list[dict] = []
@@ -97,6 +99,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
                   allow_methods=["*"], allow_headers=["*"])
 
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
 # ── Helpers 
 async def _on_verdict(payload: dict):
     """Called on every verdict — store + broadcast."""
@@ -136,7 +146,7 @@ class EnrollReq(BaseModel):
     entity_id:          str
     intent:             str   = "INIT_ENROL"
     name:               str   = ""
-    version:            int   = 1
+    version:            Any   = 1
     x25519_public_key:  Optional[str] = None
     kem_public_key:     Optional[str] = None
     signature:          Optional[str] = None
@@ -166,12 +176,14 @@ class TrustEvalReq(BaseModel):
 
 class XdpDropReport(BaseModel):
     count:     int
-    interface: str
+    interface: str = "eth0"
+    reason:    Optional[str] = None
 
 
 # ── Routes
 
 @app.get("/")
+@app.get("/dashboard")
 async def get_dashboard():
     return FileResponse("static/index.html")
 
@@ -196,7 +208,7 @@ async def stats():
     REQ_COUNT.labels("stats").inc()
     eng = engine.stats if engine else {}
     return {
-        "requests":         sum(eng.values()),
+        "requests":         eng.get("total", 0),
         "verdicts_total":   eng.get("total", 0),
         "allow":            eng.get("allow", 0),
         "deny":             eng.get("deny", 0),
@@ -205,6 +217,7 @@ async def stats():
         "circuit_state":    eng.get("circuit", "unknown"),
         "cache":            eng.get("cache", {}),
         "ebpf_mode":        ebpf.mode if ebpf else "unknown",
+        "packets_dropped":  _xdp_drops,
         "ollama_model":     cfg.ollama_model,
         "uptime_s":         int(time.time() - _start_time),
     }
@@ -213,13 +226,20 @@ async def stats():
 @app.get("/api/verdicts")
 async def verdicts(limit: int = 100):
     REQ_COUNT.labels("verdicts").inc()
-    return await fetch_verdicts(limit=limit)
+    return {"verdicts": await fetch_verdicts(limit=limit)}
 
 
 @app.get("/api/anomalies")
 async def anomalies(limit: int = 50):
     REQ_COUNT.labels("anomalies").inc()
-    return await fetch_anomalies(limit=limit)
+    return {"anomalies": await fetch_anomalies(limit=limit)}
+
+
+@app.get("/api/sentinel/events")
+async def sentinel_events(limit: int = 20):
+    REQ_COUNT.labels("sentinel_events").inc()
+    events = sentinel.recent(n=limit) if sentinel else []
+    return {"events": events}
 
 
 @app.post("/api/enroll")
@@ -291,11 +311,12 @@ async def enroll(req: EnrollReq, request: Request):
 async def handshake(req: HandshakeReq, request: Request):
     REQ_COUNT.labels("handshake").inc()
     
-    # ML-KEM enforcement
-    if cfg.require_pq and req.phase == 1 and not req.kem_public_key:
-        raise HTTPException(status_code=403, detail={"error": "pq_required", "reason": "ML-KEM public key required (require_pq=true)"})
-    if cfg.require_pq and req.phase == 3 and not req.kem_ciphertext:
-        raise HTTPException(status_code=403, detail={"error": "pq_downgrade", "reason": "ML-KEM ciphertext required in Phase 3"})
+    # Enforce PQ checks
+    if cfg.require_pq:
+        if req.phase == 1 and not req.kem_public_key:
+            raise HTTPException(status_code=403, detail={"error": "pq_required", "reason": "ML-KEM public key required (require_pq=true)"})
+        if req.phase > 1 and not req.kem_ciphertext:
+            raise HTTPException(status_code=403, detail={"error": "pq_downgrade_denied", "reason": "ML-KEM-768 ciphertext required — classical-only sessions rejected"})
         
     try:
         if req.phase == 1:

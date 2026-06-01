@@ -21,6 +21,10 @@ async def init_db():
     )
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from sqlalchemy import text
+        await conn.execute(text("CREATE VIEW IF NOT EXISTS verdicts AS SELECT * FROM verdict_log;"))
+        await conn.execute(text("CREATE VIEW IF NOT EXISTS anomalies AS SELECT * FROM anomaly_log;"))
+        await conn.execute(text("CREATE TABLE IF NOT EXISTS audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT, timestamp REAL);"))
 
 
 def get_session() -> AsyncSession:

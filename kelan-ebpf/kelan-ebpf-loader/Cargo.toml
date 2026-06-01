@@ -19,6 +19,8 @@ sha3             = { workspace = true }
 rand             = { workspace = true }
 zeroize          = { workspace = true }
 # Userspace software-enforcement deps — compiled on ALL platforms
+serde             = { workspace = true, features = ["derive"] }
+serde_json        = { workspace = true }
 crossbeam-channel = "0.5"
 dashmap           = "5.5"
 governor          = "0.8"

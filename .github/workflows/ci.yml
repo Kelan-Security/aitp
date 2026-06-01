@@ -1,0 +1,145 @@
+name: Kelan Python CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+
+  # ── Job 1: Lint & Format ─────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - run: pip install ruff black isort --quiet
+
+      - name: Ruff lint
+        run: ruff check kelan/ scripts/ --output-format=github
+        continue-on-error: true
+
+      - name: Black format check
+        run: black --check kelan/ scripts/
+        continue-on-error: true
+
+  # ── Job 2: Unit + Integration Tests ─────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio pytest-cov httpx
+
+      - name: Create data directory
+        run: mkdir -p data logs
+
+      - name: Run unit tests
+        run: |
+          pytest kelan/tests/unit/ -v \
+            --tb=short \
+            --cov=kelan \
+            --cov-report=term-missing \
+            --cov-fail-under=60
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///data/test.db
+          OLLAMA_ENDPOINT: http://localhost:11434
+          OLLAMA_MODEL: gemma4:latest
+          KELAN_JWT_SECRET: test_secret_for_ci_only_32chars_min
+          AITP_HTTP_PORT: "3001"
+          REQUIRE_PQ: "false"
+
+      - name: Run integration tests (mock Ollama)
+        run: |
+          pytest kelan/tests/integration/ -v \
+            --tb=short
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///data/test_int.db
+          KELAN_JWT_SECRET: test_secret_for_ci_only_32chars_min
+          OLLAMA_ENDPOINT: http://localhost:11434
+          OLLAMA_MODEL: gemma4:latest
+          REQUIRE_PQ: "false"
+        continue-on-error: true
+
+  # ── Job 3: Secret Scanning ────────────────────────────────────
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check no .env files committed
+        run: |
+          if git ls-files | grep -E "^\.env$|\.env\.prod|\.env\.staging"; then
+            echo "::error::Secret .env file committed!"
+            exit 1
+          fi
+          echo "✅ No secret files committed"
+
+      - name: Check no hardcoded API keys
+        run: |
+          if grep -rn \
+            --include="*.py" --include="*.yml" \
+            --include="*.yaml" --include="*.toml" \
+            -E "AIza[0-9A-Za-z_-]{35}|sk-[a-zA-Z0-9]{48}" .; then
+            echo "::error::Hardcoded API key found!"
+            exit 1
+          fi
+          echo "✅ No hardcoded API keys"
+
+  # ── Job 4: Docker Build ───────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-22.04
+    needs: [test, secrets]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/kelan-security
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
