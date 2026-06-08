@@ -2,9 +2,19 @@
 Ollama Client — Local LLM inference via HTTP.
 Connects to Ollama running locally or on the MacBook (OLLAMA_ENDPOINT).
 NO external API calls. NO API keys. NO cloud dependencies.
+
+ FIX 1 — Session leak:
+   ONE shared httpx.AsyncClient per OllamaClient instance.
+   Created lazily inside an asyncio.Lock → no per-request client creation.
+   Closed explicitly on shutdown via close().
+
+ Model switching:
+   Set OLLAMA_MODEL in .env — _get_model_options() auto-adjusts
+   generation params (temperature, num_predict, stop tokens) per model.
 """
 import asyncio
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from enum import Enum
@@ -53,22 +63,112 @@ class OllamaClient:
     """
     Async HTTP client for local Ollama inference.
     Handles retries, connection pooling, and verdict JSON parsing.
+
+    FIX 1 — ONE shared httpx.AsyncClient for the lifetime of this object.
+    _session_lock prevents concurrent coroutines from racing to create
+    duplicate clients (which would leak connections under high load).
     """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # MODEL PRESETS — change OLLAMA_MODEL in .env to switch
+    # PRESET_CPU   = "qwen2.5:3b"   # current ✅  (CPU, ~2GB RAM)
+    # PRESET_GPU_S = "gemma3:9b"    # future  (6GB VRAM)
+    # PRESET_GPU_L = "gemma3:27b"   # future  (18GB VRAM)
+    # PRESET_ALT   = "mistral:7b"   # future  (5GB VRAM)
+    # ─────────────────────────────────────────────────────────────────────
 
     def __init__(self, endpoint: str, model: str, timeout: int = 60):
         self.endpoint = endpoint.rstrip("/")
-        self.model = model
+        # Model resolved from arg → env → default
+        # Change OLLAMA_MODEL in .env to switch models without code changes
+        self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
         self.timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
+        # FIX 1: lock prevents concurrent coroutines racing on _client init
+        self._session_lock = asyncio.Lock()
+
+        log.info(
+            "ollama_client_init",
+            model=self.model,
+            endpoint=self.endpoint,
+            timeout=self.timeout,
+        )
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self.endpoint,
-                timeout=httpx.Timeout(connect=5.0, read=self.timeout, write=10.0, pool=5.0),
-                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-            )
+        """Return the shared httpx.AsyncClient, creating it if needed.
+
+        FIX 1: asyncio.Lock ensures only ONE client is created even when
+        many coroutines call _get_client() simultaneously at startup.
+        """
+        async with self._session_lock:
+            if self._client is None or self._client.is_closed:
+                self._client = httpx.AsyncClient(
+                    base_url=self.endpoint,
+                    timeout=httpx.Timeout(
+                        connect=5.0,
+                        read=self.timeout,
+                        write=10.0,
+                        pool=5.0,
+                    ),
+                    limits=httpx.Limits(
+                        max_connections=20,
+                        max_keepalive_connections=10,
+                        keepalive_expiry=30.0,
+                    ),
+                )
+                log.debug("ollama_client_created", model=self.model)
         return self._client
+
+    def _get_model_options(self) -> dict:
+        """Return Ollama generation options tuned per model size.
+
+        Change OLLAMA_MODEL in .env — this auto-adjusts.
+        qwen2.5:3b  → tight stop tokens for clean JSON output on CPU
+        gemma3:9b   → more headroom, different stop tokens (future GPU)
+        """
+        model = self.model.lower()
+
+        # ── qwen2.5:3b (current — CPU, 8 GB RAM) ───────────────────────
+        if "qwen" in model or "3b" in model:
+            return {
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "num_predict": 80,
+                "stop": ["<|im_end|>", "\n\n", "```"],
+            }
+
+        # ── gemma3:9b (future GPU — uncomment when ready) ───────────────
+        # if "gemma3" in model and "9b" in model:
+        #     return {
+        #         "temperature": 0.15,
+        #         "top_p":       0.95,
+        #         "num_predict": 120,
+        #         "stop": ["\n\n\n"],
+        #     }
+
+        # ── gemma3:27b (future high-end GPU) ────────────────────────────
+        # if "gemma3" in model and "27b" in model:
+        #     return {
+        #         "temperature": 0.1,
+        #         "top_p":       0.95,
+        #         "num_predict": 150,
+        #         "stop": ["\n\n\n"],
+        #     }
+
+        # ── mistral:7b (alternative GPU) ────────────────────────────────
+        # if "mistral" in model:
+        #     return {
+        #         "temperature": 0.1,
+        #         "top_p":       0.9,
+        #         "num_predict": 100,
+        #         "stop": ["</s>", "\n\n"],
+        #     }
+
+        # ── fallback defaults ────────────────────────────────────────────
+        return {
+            "temperature": 0.1,
+            "num_predict": 80,
+        }
 
     async def health_check(self) -> bool:
         """Returns True if Ollama is reachable."""
@@ -101,18 +201,19 @@ class OllamaClient:
         reraise=True,
     )
     async def _generate(self, prompt: str) -> str:
-        """Raw generation call — retried on transient network errors."""
+        """Raw generation call — retried on transient network errors.
+
+        Uses the shared client (FIX 1) and model-aware options.
+        To switch models: change OLLAMA_MODEL in .env, restart server.
+        """
+        # FIX 1: reuses the shared client — no per-request client creation
         client = await self._get_client()
         payload = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {
-                "temperature": 0.1,
-                "top_p": 0.9,
-                "num_predict": 200,
-                "stop": ["\n\n", "```", "---"],
-            },
+            # Options auto-tuned per model via _get_model_options()
+            "options": self._get_model_options(),
         }
         resp = await client.post("/api/generate", json=payload)
         resp.raise_for_status()

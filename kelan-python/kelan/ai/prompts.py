@@ -1,6 +1,13 @@
 """
-Attack detection prompts for Ollama (gemma4:latest).
+Attack detection prompts for Ollama.
 Centralised here so prompt engineering changes don't require touching engine code.
+
+Model dispatch:
+  qwen2.5:3b  → <|im_start|>/<|im_end|> chat-template tokens  ← CURRENT
+  gemma3:9b   → uncomment the gemma3 block when GPU is ready   ← FUTURE
+  others      → generic SYSTEM_PROMPT format                   ← FALLBACK
+
+To switch models: change OLLAMA_MODEL in .env, restart server.
 """
 
 SYSTEM_PROMPT = """You are the Kelan Security AI Trust Engine — a cybersecurity expert embedded in a zero-trust network system.
@@ -36,15 +43,79 @@ Respond with ONLY valid JSON — no markdown, no explanation:
 
 
 def build_evaluation_prompt(session: dict) -> str:
-    """Build the full prompt for a session evaluation."""
+    """Build the full prompt for a session evaluation.
+
+    Dispatches to a model-specific template based on OLLAMA_MODEL env var.
+    To switch models: change OLLAMA_MODEL in .env, restart the server.
+    This function auto-selects the correct prompt format.
+    """
     import json
+    import os
+
+    model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b").lower()
+    session_json = json.dumps(session, indent=2, default=str)
+
+    # ─────────────────────────────────────────────────────────────────────
+    # CURRENT: qwen2.5:3b prompt (CPU-friendly, chat-template tokens)
+    # These <|im_start|>/<|im_end|> tokens tell qwen to output ONLY JSON.
+    # ─────────────────────────────────────────────────────────────────────
+    if "qwen" in model or "3b" in model:
+        return (
+            "<|im_start|>system\n"
+            "You are the Kelan Security AI Trust Engine — a cybersecurity expert "
+            "embedded in a zero-trust network system.\n"
+            "Output ONLY a JSON object. No explanation. No markdown. No code blocks. "
+            "Raw JSON only.\n\n"
+            "Rules:\n"
+            "- DENY:    SYN/UDP flood, port scan>100, sybil burst>10, "
+            "brute-force>20, exploit pattern\n"
+            "- MONITOR: anomaly present but not severe, unknown entity, "
+            "new enrollment\n"
+            "- ALLOW:   clean session, known entity, low anomaly\n"
+            "- confidence<0.5 → override to MONITOR\n"
+            "- reason ≤ 100 chars\n"
+            "<|im_end|>\n"
+            "<|im_start|>user\n"
+            f"Classify this network session:\n{session_json}\n\n"
+            '{"verdict":"ALLOW","confidence":0.9,"reason":"brief reason"}\n'
+            "<|im_end|>\n"
+            "<|im_start|>assistant\n"
+        )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # FUTURE: gemma3:9b / gemma3:27b — uncomment when GPU is ready
+    # Step 1: ollama pull gemma3:9b   (on GPU machine)
+    # Step 2: set OLLAMA_MODEL=gemma3:9b in .env
+    # Step 3: also increase OLLAMA_TIMEOUT_SECS=15 for larger model
+    # Step 4: restart server — this block activates automatically
+    # ─────────────────────────────────────────────────────────────────────
+    # if "gemma3" in model:
+    #     return (
+    #         "You are the Kelan Security AI Trust Engine.\n"
+    #         "Analyze this session and respond ONLY with valid JSON.\n"
+    #         "No markdown. No explanation.\n\n"
+    #         f"Session:\n{session_json}\n\n"
+    #         "Rules:\n"
+    #         "- DENY:    SYN/UDP flood, port scan, sybil, brute-force, exploit\n"
+    #         "- MONITOR: minor anomalies or unknown entity\n"
+    #         "- ALLOW:   clean, known entity, low anomaly (<0.3)\n"
+    #         "- confidence<0.5 → override to MONITOR\n\n"
+    #         'Respond with exactly: {"verdict":"ALLOW","confidence":0.95,"reason":"explanation"}\n'
+    #         "verdict = ALLOW, DENY, or MONITOR only\n"
+    #         "confidence = 0.0 to 1.0 only"
+    #     )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # DEFAULT: generic format (works for most models)
+    # ─────────────────────────────────────────────────────────────────────
     return f"""{SYSTEM_PROMPT}
 
 Session context:
-{json.dumps(session, indent=2, default=str)}
+{session_json}
 
 JSON verdict:"""
 
 
+# ── Quick sanity-check prompt ─────────────────────────────────────────────────
 VERIFY_PROMPT = """Reply with exactly this JSON and nothing else:
-{"status":"ok","model":"gemma4","role":"kelan-trust-engine"}"""
+{"status":"ok","model":"kelan-trust-engine","role":"security-classifier"}"""

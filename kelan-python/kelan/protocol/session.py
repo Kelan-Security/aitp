@@ -52,12 +52,12 @@ class SessionManager:
         entity_id: str,
         verdict: TrustVerdict,
     ) -> SessionRecord:
-        """Store a session verdict and return the record."""
-        # Evict oldest if at capacity
-        while len(self._order) >= self._capacity and self._order:
-            old = self._order[0]
-            self._sessions.pop(old, None)
+        """Store a session verdict and return the record.
 
+        Eviction: deque(maxlen=capacity) auto-drops the oldest session_id
+        when full. We then remove the evicted ID from _sessions to free
+        memory. O(1) amortised — no loop needed.
+        """
         token = str(uuid.uuid4()) if verdict.verdict != Verdict.DENY else None
         record = SessionRecord(
             session_id=session_id,
@@ -68,7 +68,14 @@ class SessionManager:
             permit_token=token,
         )
         self._sessions[session_id] = record
-        self._order.append(session_id)
+
+        # If at capacity, the deque will drop the oldest ID on append.
+        # Capture it first so we can remove it from _sessions.
+        evicted: Optional[str] = self._order[0] if len(self._order) >= self._capacity else None
+        self._order.append(session_id)          # oldest auto-dropped if maxlen hit
+        if evicted and evicted not in self._order:
+            self._sessions.pop(evicted, None)   # free the dict entry too
+
         return record
 
     def get(self, session_id: str) -> Optional[SessionRecord]:
