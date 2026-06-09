@@ -661,3 +661,207 @@ class TestEbpfBridge:
         bridge = EbpfBridge(socket_path="/nonexistent/kelan-ebpf.sock")
         result = await bridge.report_drop_count()
         assert result is None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 12 — FIX 2: Database session leak (get_db context manager)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestDatabaseSessionLeak:
+    """
+    FIX 2 — get_db() always commits on success, rolls back on exception,
+    and closes the session in `finally` — connections never orphaned.
+    Uses in-memory SQLite; no external services needed.
+    """
+
+    async def test_get_db_raises_when_not_initialised(self):
+        """get_db() must raise RuntimeError if init_db() was never called."""
+        import kelan.database as db_mod
+        original = db_mod._session_factory
+        db_mod._session_factory = None
+        try:
+            with pytest.raises(RuntimeError, match="not initialised"):
+                async with db_mod.get_db() as _:
+                    pass
+        finally:
+            db_mod._session_factory = original
+
+    async def test_init_and_close_db(self, tmp_path, monkeypatch):
+        """init_db() creates engine+factory; close_db() disposes cleanly."""
+        import kelan.database as db_mod
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/t.db")
+        db_mod._engine = None
+        db_mod._session_factory = None
+        try:
+            await db_mod.init_db()
+            assert db_mod._engine is not None
+            assert db_mod._session_factory is not None
+        finally:
+            await db_mod.close_db()
+            db_mod._engine = None
+            db_mod._session_factory = None
+
+    async def test_get_db_commits_on_success(self, tmp_path, monkeypatch):
+        """commit() called once on clean exit; rollback() never called."""
+        import kelan.database as db_mod
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/t.db")
+        db_mod._engine = None
+        db_mod._session_factory = None
+        committed, rolled_back = [], []
+        try:
+            await db_mod.init_db()
+            real_factory = db_mod._session_factory
+
+            # async_sessionmaker.__call__() is synchronous — spy must be a plain def
+            def spy_factory():
+                s = real_factory()
+                orig_c, orig_r = s.commit, s.rollback
+                async def tc(): committed.append(1); return await orig_c()
+                async def tr(): rolled_back.append(1); return await orig_r()
+                s.commit, s.rollback = tc, tr
+                return s
+
+            db_mod._session_factory = spy_factory
+            async with db_mod.get_db() as _:
+                pass
+            assert committed == [1],   "commit() must be called exactly once"
+            assert rolled_back == [],  "rollback() must NOT be called on success"
+        finally:
+            await db_mod.close_db()
+            db_mod._engine = None
+            db_mod._session_factory = None
+
+    async def test_get_db_rolls_back_on_exception(self, tmp_path, monkeypatch):
+        """rollback() + close() always called on exception — never leaks."""
+        import kelan.database as db_mod
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/t.db")
+        db_mod._engine = None
+        db_mod._session_factory = None
+        rolled_back, closed = [], []
+        try:
+            await db_mod.init_db()
+            real_factory = db_mod._session_factory
+
+            # async_sessionmaker.__call__() is synchronous — spy must be a plain def
+            def spy_factory():
+                s = real_factory()
+                orig_r, orig_cl = s.rollback, s.close
+                async def tr(): rolled_back.append(1); return await orig_r()
+                async def tcl(): closed.append(1); return await orig_cl()
+                s.rollback, s.close = tr, tcl
+                return s
+
+            db_mod._session_factory = spy_factory
+            with pytest.raises(ValueError):
+                async with db_mod.get_db() as _:
+                    raise ValueError("simulated failure")
+            assert rolled_back == [1], "rollback() must be called on exception"
+            assert closed == [1],      "close() must always be called (finally)"
+        finally:
+            await db_mod.close_db()
+            db_mod._engine = None
+            db_mod._session_factory = None
+
+    def test_no_direct_session_factory_calls_in_server(self):
+        """
+        VERIFY (FIX 2): server/main.py must not call _session_factory() directly.
+        All DB access must go through `async with get_db() as db:`.
+        """
+        import inspect
+        import kelan.server.main as main_mod
+        src = inspect.getsource(main_mod)
+        assert "_session_factory()" not in src, (
+            "Found _session_factory() in server/main.py — use get_db() instead"
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 13 — FIX 3: Stats endpoint (2-second cache + TypeError guards)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestStatsEndpoint:
+    """FIX 3 — _compute_stats() never crashes; get_verdicts() returns a dict."""
+
+    def _swap(self, main_mod, sessions=None, engine=None, sentinel=None):
+        """Context helper — swap globals, yield, restore."""
+        orig = (main_mod.sessions, main_mod.engine, main_mod.sentinel)
+        main_mod.sessions = sessions
+        main_mod.engine   = engine
+        main_mod.sentinel = sentinel
+        return orig
+
+    def test_compute_stats_has_required_keys(self):
+        import kelan.server.main as m
+        orig = self._swap(m)
+        try:
+            result = m._compute_stats()
+            for k in ("mode", "uptime_seconds", "verdicts", "engine",
+                      "sentinel", "circuit_state", "ollama_model"):
+                assert k in result, f"Missing key: {k}"
+        finally:
+            m.sessions, m.engine, m.sentinel = orig
+
+    def test_compute_stats_survives_all_none(self):
+        """_compute_stats() must not raise when all singletons are None."""
+        import kelan.server.main as m
+        orig = self._swap(m)
+        try:
+            result = m._compute_stats()
+            assert isinstance(result, dict)
+            assert result["verdicts"] == {}
+        finally:
+            m.sessions, m.engine, m.sentinel = orig
+
+    def test_circuit_state_is_always_a_string(self):
+        import kelan.server.main as m
+        orig = self._swap(m)
+        try:
+            assert isinstance(m._compute_stats()["circuit_state"], str)
+        finally:
+            m.sessions, m.engine, m.sentinel = orig
+
+    def test_stats_cache_module_vars_exist(self):
+        import kelan.server.main as m
+        assert hasattr(m, "_stats_cache"), "_stats_cache must exist (FIX 3)"
+        assert hasattr(m, "STATS_TTL"),    "STATS_TTL must exist (FIX 3)"
+        assert m.STATS_TTL > 0
+
+    async def test_get_verdicts_returns_dict_with_total(self):
+        import kelan.server.main as m
+        import kelan.protocol.session as sm_mod
+        from kelan.ai.ollama_client import TrustVerdict, Verdict
+        sm = sm_mod.SessionManager(capacity=100)
+        for i in range(5):
+            sm.store(f"s{i}", "ent", TrustVerdict(Verdict.ALLOW, 0.9, "ok"))
+        orig_sessions = m.sessions
+        m.sessions = sm
+        try:
+            result = await m.get_verdicts(limit=10)
+            assert "verdicts" in result, "Must have 'verdicts' key"
+            assert "total"    in result, "Must have 'total' key (FIX 3)"
+            assert isinstance(result["verdicts"], list)
+        finally:
+            m.sessions = orig_sessions
+
+    async def test_get_verdicts_no_sessions_returns_total_zero(self):
+        import kelan.server.main as m
+        orig_sessions = m.sessions
+        m.sessions = None
+        try:
+            result = await m.get_verdicts()
+            assert result == {"verdicts": [], "total": 0}
+        finally:
+            m.sessions = orig_sessions
+
+    def test_no_plain_list_module_globals_in_server(self):
+        """VERIFY (FIX 3): no bare `= []` at module level in server/main.py."""
+        import inspect
+        import kelan.server.main as m
+        src = inspect.getsource(m)
+        bad = [
+            line.strip() for line in src.splitlines()
+            if line.strip().endswith("= []")
+            and not line.strip().startswith("#")
+            and not line.strip().startswith("return")
+        ]
+        assert bad == [], f"Bare list assignments found at module level: {bad}"

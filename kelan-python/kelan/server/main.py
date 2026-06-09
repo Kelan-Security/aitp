@@ -14,8 +14,10 @@ Endpoints:
   WS   /ws/agent            — Agentic verdict sync (WebSocket)
 """
 import asyncio
+import os
 import time
 import uuid
+from collections import deque
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -30,6 +32,7 @@ from ..ai.ollama_client import OllamaClient, Verdict
 from ..sentinel.anomaly import SentinelEngine
 from ..protocol.session import SessionManager
 from ..enforcement.ebpf_bridge import EbpfBridge
+from ..simulation.engine import SimulationEngine
 from .models import (
     EnrollRequest, HandshakeRequest, XdpDropReport,
     HealthResponse, EnrollResponse, StatsResponse,
@@ -44,10 +47,15 @@ engine: Optional[HybridTrustEngine] = None
 sentinel: Optional[SentinelEngine] = None
 sessions: Optional[SessionManager] = None
 ebpf: Optional[EbpfBridge] = None
+simulation: Optional[SimulationEngine] = None
 ws_clients: set[WebSocket] = set()
 
 _started_at = time.time()
 _xdp_drops = 0
+
+# FIX 3: stats cache — recomputed at most every 2 s, never on every request
+_stats_cache: dict = {"data": None, "ts": 0.0}
+STATS_TTL = 2.0
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -55,7 +63,36 @@ _xdp_drops = 0
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup → run → shutdown."""
-    global ollama, engine, sentinel, sessions, ebpf
+    global ollama, engine, sentinel, sessions, ebpf, simulation
+
+    # FIX 7: Memory monitor background task
+    async def _memory_monitor():
+        log = structlog.get_logger()
+        while True:
+            try:
+                await asyncio.sleep(60)
+                with open("/proc/self/status") as f:
+                    for line in f:
+                        if line.startswith("VmRSS:"):
+                            rss_mb = int(line.split()[1]) / 1024
+                            log.info("memory_rss_mb",
+                                rss_mb=round(rss_mb, 1),
+                                verdicts_buffered=len(
+                                    sessions.recent_verdicts(500) if sessions else []
+                                ),
+                            )
+                            if rss_mb > 500:
+                                log.warning("memory_high", rss_mb=round(rss_mb, 1))
+                            break
+            except asyncio.CancelledError:
+                break
+            except FileNotFoundError:
+                # macOS does not have /proc — skip silently
+                await asyncio.sleep(60)
+            except Exception as e:
+                log.debug("mem_monitor_err", error=str(e))
+
+    asyncio.create_task(_memory_monitor(), name="memory-monitor")
 
     log.info("kelan_starting", version="3.0.0", engine="python+ollama",
              ollama=settings.ollama_endpoint, model=settings.ollama_model)
@@ -83,12 +120,15 @@ async def lifespan(app: FastAPI):
     sentinel = SentinelEngine()
     sessions = SessionManager()
     ebpf = EbpfBridge()
+    simulation = SimulationEngine(engine, sentinel)
 
     log.info("kelan_ready", port=settings.http_port,
              require_pq=settings.require_pq, ebpf=settings.ebpf_enabled)
     yield
 
     # Shutdown
+    if simulation:
+        await simulation.stop()
     if ollama:
         await ollama.close()
     log.info("kelan_stopped")
@@ -146,30 +186,80 @@ async def health():
     )
 
 
+def _compute_stats() -> dict:
+    """
+    FIX 3 — safe stats computation.
+    Guards every attribute access with getattr() so a missing field
+    can never raise TypeError / AttributeError and crash the endpoint.
+    """
+    global _xdp_drops
+    s_stats  = sessions.stats()  if sessions  else {}
+    e_stats  = engine.stats()    if engine    else {}
+    sen_stats = sentinel.stats() if sentinel  else {}
+    
+    # Flatten verdicts for test script expectations
+    by_verdict = s_stats.get("by_verdict", {})
+    v_allow = by_verdict.get("ALLOW", 0)
+    v_deny = by_verdict.get("DENY", 0)
+    v_monitor = by_verdict.get("MONITOR", 0)
+
+    return {
+        "mode":             "python+ebpf",
+        "started_at":       _started_at,
+        "uptime_seconds":   int(time.time() - _started_at),
+        "xdp_drops":        int(_xdp_drops),
+        "verdicts":         by_verdict,
+        "verdicts_total":   s_stats.get("total_sessions", 0),
+        "verdicts_allow":   v_allow,
+        "verdicts_deny":    v_deny,
+        "verdicts_monitor": v_monitor,
+        "sessions":         s_stats,
+        "engine":           e_stats,
+        "sentinel":         sen_stats,
+        "websocket_clients": len(ws_clients),
+        "simulation_active": getattr(simulation, "active", False) if simulation else False,
+        "ollama_model":     os.getenv("OLLAMA_MODEL", settings.ollama_model),
+        # Safe engine sub-fields for dashboards
+        "ollama_calls_total":    int(e_stats.get("ollama_calls", 0)),
+        "fallback_calls_total":  int(e_stats.get("fallback_calls", 0)),
+        "circuit_state":         str(
+            e_stats.get("circuit_breaker", {}).get("state", "unknown")
+        ),
+    }
+
+
 @app.get("/api/stats", tags=["system"])
 async def get_stats():
-    global _xdp_drops
-    s_stats = sessions.stats() if sessions else {}
-    e_stats = engine.stats() if engine else {}
-    sen_stats = sentinel.stats() if sentinel else {}
-    return {
-        "mode": "python+ebpf",
-        "started_at": _started_at,
-        "uptime_seconds": int(time.time() - _started_at),
-        "xdp_drops": _xdp_drops,
-        "verdicts": s_stats.get("by_verdict", {}),
-        "sessions": s_stats,
-        "engine": e_stats,
-        "sentinel": sen_stats,
-        "websocket_clients": len(ws_clients),
-    }
+    """Runtime metrics — cached for 2 s to avoid recomputing on every poll."""
+    now = time.monotonic()
+    if _stats_cache["data"] and (now - _stats_cache["ts"]) < STATS_TTL:
+        return _stats_cache["data"]
+    data = _compute_stats()
+    _stats_cache["data"] = data
+    _stats_cache["ts"] = now
+    return data
 
 
 @app.get("/api/verdicts", tags=["verdicts"])
 async def get_verdicts(limit: int = 100):
+    """FIX 3: returns {verdicts, total} dict — never a bare list."""
     if not sessions:
-        return {"verdicts": []}
-    return {"verdicts": sessions.recent_verdicts(min(limit, 500))}
+        return {"verdicts": [], "total": 0}
+    cap = min(limit, 500)
+    verdicts = sessions.recent_verdicts(cap)
+    return {
+        "verdicts": verdicts,
+        "total":    sessions.stats().get("total_sessions", len(verdicts)),
+    }
+
+
+@app.post("/api/simulate/toggle", tags=["simulation"])
+async def toggle_simulation():
+    """Toggle the background simulation engine."""
+    if not simulation:
+        return {"status": "error", "message": "Simulation engine not initialized"}
+    is_active = await simulation.toggle()
+    return {"simulation_active": is_active}
 
 
 @app.get("/api/anomalies", tags=["sentinel"])
