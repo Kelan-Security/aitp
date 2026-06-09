@@ -4,9 +4,36 @@ Replaces Rust HybridTrustEngine completely.
 """
 import time
 from enum import Enum
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, cast
 import structlog
 from .ollama_client import OllamaClient, TrustVerdict, Verdict
+from prometheus_client import Counter, Histogram, Gauge, REGISTRY
+
+if "kelan_verdicts_total" in REGISTRY._names_to_collectors:
+    VERDICTS = cast(Counter, REGISTRY._names_to_collectors["kelan_verdicts_total"])
+else:
+    VERDICTS = Counter(
+      "kelan_verdicts_total",
+      "Trust verdicts by type",
+      ["verdict","model","via_ollama"]
+    )
+
+if "kelan_ollama_latency_seconds" in REGISTRY._names_to_collectors:
+    OLLAMA_LATENCY = cast(Histogram, REGISTRY._names_to_collectors["kelan_ollama_latency_seconds"])
+else:
+    OLLAMA_LATENCY = Histogram(
+      "kelan_ollama_latency_seconds",
+      "Ollama inference time",
+      buckets=[.1,.25,.5,1,2.5,5,10]
+    )
+
+if "kelan_circuit_breaker_open" in REGISTRY._names_to_collectors:
+    CIRCUIT_STATE = cast(Gauge, REGISTRY._names_to_collectors["kelan_circuit_breaker_open"])
+else:
+    CIRCUIT_STATE = Gauge(
+      "kelan_circuit_breaker_open",
+      "Circuit breaker state (1=open)"
+    )
 
 log = structlog.get_logger()
 VerdictHook = Callable[[dict], Awaitable[None]]
@@ -95,13 +122,17 @@ class HybridTrustEngine:
                 "cache": self.ollama.cache_stats}
 
     async def evaluate(self, session: dict) -> TrustVerdict:
+        via_ollama = False
         if not self.cb.allow:
             verdict = _fallback(session)
             self._counts["fallbacks"] += 1
         else:
             try:
+                t0 = time.monotonic()
                 verdict = await self.ollama.evaluate(session)
+                via_ollama = True
                 self.cb.success()
+                OLLAMA_LATENCY.observe(time.monotonic() - t0)
             except Exception as exc:
                 self.cb.failure()
                 verdict = _fallback(session)
@@ -111,6 +142,14 @@ class HybridTrustEngine:
         k = verdict.verdict.value.lower()
         self._counts["total"]  += 1
         self._counts.get(k) is not None and self._counts.update({k: self._counts[k] + 1})
+
+        # Record prometheus metrics
+        VERDICTS.labels(
+            verdict=verdict.verdict.value,
+            model=getattr(self.ollama, "model", "qwen2.5:3b"),
+            via_ollama="true" if via_ollama else "false"
+        ).inc()
+        CIRCUIT_STATE.set(1 if self.cb.state == CBState.OPEN else 0)
 
         payload = {**session, **verdict.to_dict(),
                    "action": "REVOKE" if verdict.verdict == Verdict.DENY else "PERMIT"}

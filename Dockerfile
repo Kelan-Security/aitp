@@ -1,66 +1,52 @@
-# ══ Stage 1: Python dependencies ═══════════════════════════════
-FROM python:3.12-slim AS deps
+# ── Stage 1: Dependencies ──────────────────────
+FROM python:3.11-slim AS deps
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libssl-dev pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    gcc libpq-dev curl \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir \
+    --user -r requirements.txt
 
-# ══ Stage 2: Rust eBPF build (XDP only) ════════════════════════
-FROM rust:1.76-slim AS rust-builder
+# ── Stage 2: Runtime ───────────────────────────
+FROM python:3.11-slim AS runtime
 
-RUN apt-get update && apt-get install -y \
-    clang llvm libelf-dev pkg-config zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-COPY kelan-ebpf/         ./kelan-ebpf/
-COPY Cargo.toml          ./
-COPY Cargo.lock          ./
-
-RUN cargo build --release -p kelan-ebpf-loader 2>&1 | tail -5 || \
-    (echo "eBPF build skipped" && \
-     mkdir -p /build/target/release && \
-     touch /build/target/release/kelan-ebpf-loader)
-
-# ══ Stage 3: Runtime ════════════════════════════════════════════
-FROM python:3.12-slim AS runtime
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    sqlite3 curl iproute2 net-tools tcpdump \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends \
+    libpq5 curl \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd -r -u 1001 \
+       -s /sbin/nologin kelan
 
 WORKDIR /app
 
-# Python packages from Stage 1
-COPY --from=deps /usr/local/lib/python3.12/site-packages \
-                 /usr/local/lib/python3.12/site-packages
-COPY --from=deps /usr/local/bin/uvicorn /usr/local/bin/
+COPY --from=deps \
+  /root/.local /home/kelan/.local
 
-# Rust eBPF binary (optional — falls back to software mode)
-COPY --from=rust-builder /build/target/release/kelan-ebpf-loader /usr/local/bin/kelan-ebpf-loader
+COPY --chown=kelan:root kelan/ ./kelan/
+COPY --chown=kelan:root static/ ./static/
 
-# Python source
-COPY kelan/    ./kelan/
-COPY scripts/  ./scripts/
-COPY .env.example .env.example
+USER kelan
 
-RUN mkdir -p data logs
-
-# Environment defaults
-ENV AITP_HTTP_PORT=3000
-ENV AITP_HOST=0.0.0.0
-ENV DATABASE_URL=sqlite+aiosqlite:///app/data/kelan.db
-ENV OLLAMA_MODEL=gemma4:latest
+ENV PATH=/home/kelan/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -sf http://localhost:3000/api/health || exit 1
+HEALTHCHECK --interval=30s \
+  --timeout=5s --start-period=15s \
+  CMD curl -sf \
+    http://localhost:3000/api/health || exit 1
 
-CMD ["python", "scripts/start.py"]
+CMD ["uvicorn","kelan.server:app",
+     "--host","0.0.0.0",
+     "--port","3000",
+     "--workers","1",
+     "--loop","asyncio",
+     "--limit-max-requests","10000",
+     "--log-level","info"]

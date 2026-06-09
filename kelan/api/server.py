@@ -7,13 +7,13 @@ Endpoints: health, stats, verdicts, anomalies,
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Optional, Any
+from typing import Optional, Any, cast
 
 import structlog
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from starlette.responses import Response
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
@@ -30,10 +30,21 @@ log = structlog.get_logger()
 cfg = get_settings()
 
 # ── Prometheus metrics 
-REQ_COUNT     = Counter("kelan_requests_total", "Total requests", ["endpoint"])
-VERDICT_COUNT = Counter("kelan_verdicts_total", "Verdicts", ["verdict"])
-OLLAMA_LAT    = Histogram("kelan_ollama_latency_ms", "Ollama latency ms",
-                          buckets=[50, 100, 200, 500, 1000, 2000, 5000])
+if "kelan_requests_total" in REGISTRY._names_to_collectors:
+    REQ_COUNT = cast(Counter, REGISTRY._names_to_collectors["kelan_requests_total"])
+else:
+    REQ_COUNT = Counter("kelan_requests_total", "Total requests", ["endpoint"])
+
+if "kelan_api_verdicts_total" in REGISTRY._names_to_collectors:
+    VERDICT_COUNT = cast(Counter, REGISTRY._names_to_collectors["kelan_api_verdicts_total"])
+else:
+    VERDICT_COUNT = Counter("kelan_api_verdicts_total", "Verdicts", ["verdict"])
+
+if "kelan_ollama_latency_ms" in REGISTRY._names_to_collectors:
+    OLLAMA_LAT = cast(Histogram, REGISTRY._names_to_collectors["kelan_ollama_latency_ms"])
+else:
+    OLLAMA_LAT = Histogram("kelan_ollama_latency_ms", "Ollama latency ms",
+                           buckets=[50, 100, 200, 500, 1000, 2000, 5000])
 
 # ── Global singletons 
 ollama:    Optional[OllamaClient]     = None
@@ -98,6 +109,9 @@ app = FastAPI(
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                   allow_methods=["*"], allow_headers=["*"])
 
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -124,13 +138,14 @@ async def _on_verdict(payload: dict):
         payload.get("anomalies", {}),
     )
     # eBPF enforcement
-    if payload.get("action") == "REVOKE":
-        await ebpf.revoke(payload.get("entity_id", ""))
-    elif payload.get("action") == "PERMIT":
-        await ebpf.permit(
-            payload.get("session_id", ""),
-            payload.get("entity_id", ""),
-        )
+    if ebpf:
+        if payload.get("action") == "REVOKE":
+            await ebpf.revoke(payload.get("entity_id", ""))
+        elif payload.get("action") == "PERMIT":
+            await ebpf.permit(
+                payload.get("session_id", ""),
+                payload.get("entity_id", ""),
+            )
     # WebSocket broadcast
     dead = set()
     for ws in _ws_clients:
@@ -281,6 +296,8 @@ async def enroll(req: EnrollReq, request: Request):
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     
+    if not engine:
+        raise HTTPException(status_code=503, detail="Engine not initialized")
     verdict = await engine.evaluate(session_ctx)
     VERDICT_COUNT.labels(verdict.verdict.value).inc()
     
@@ -311,6 +328,9 @@ async def enroll(req: EnrollReq, request: Request):
 async def handshake(req: HandshakeReq, request: Request):
     REQ_COUNT.labels("handshake").inc()
     
+    if not handshake_mgr:
+        raise HTTPException(status_code=503, detail="Handshake manager not initialized")
+        
     # Enforce PQ checks
     if cfg.require_pq:
         if req.phase == 1 and not req.kem_public_key:
@@ -368,6 +388,8 @@ async def handshake(req: HandshakeReq, request: Request):
                 "pq_enabled": True,
             }
             
+            if not engine:
+                raise HTTPException(status_code=503, detail="Engine not initialized")
             verdict = await engine.evaluate(session_ctx)
             VERDICT_COUNT.labels(verdict.verdict.value).inc()
             
@@ -397,8 +419,8 @@ async def handshake(req: HandshakeReq, request: Request):
             
     except HandshakeError as e:
         raise HTTPException(status_code=403, detail={"error": "handshake_failed", "reason": str(e)})
-
-
+ 
+ 
 @app.post("/api/trust/evaluate")
 async def trust_evaluate(req: TrustEvalReq, request: Request):
     REQ_COUNT.labels("trust_evaluate").inc()
@@ -417,6 +439,8 @@ async def trust_evaluate(req: TrustEvalReq, request: Request):
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     
+    if not engine:
+        raise HTTPException(status_code=503, detail="Engine not initialized")
     verdict = await engine.evaluate(session_ctx)
     return verdict.to_dict()
 
