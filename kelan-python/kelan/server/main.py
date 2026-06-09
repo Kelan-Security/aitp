@@ -127,9 +127,9 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    if simulation:
+    if simulation is not None:
         await simulation.stop()
-    if ollama:
+    if ollama is not None:
         await ollama.close()
     log.info("kelan_stopped")
 
@@ -318,7 +318,11 @@ async def enroll(req: EnrollRequest, request: Request):
     }
 
     # ── Trust evaluation ───────────────────────────────────────────────────
-    verdict = await engine.evaluate(session_ctx)
+    if engine is not None:
+        verdict = await engine.evaluate(session_ctx)
+    else:
+        from ..ai.engine import fallback_rules
+        verdict = fallback_rules(session_ctx)
 
     # ── Persist session ─────────────────────────────────────────────────────
     if sessions:

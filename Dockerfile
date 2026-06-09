@@ -22,7 +22,9 @@ COPY Cargo.toml          ./
 COPY Cargo.lock          ./
 
 RUN cargo build --release -p kelan-ebpf-loader 2>&1 | tail -5 || \
-    echo "eBPF build skipped (non-Linux or missing deps)"
+    (echo "eBPF build skipped" && \
+     mkdir -p /build/target/release && \
+     touch /build/target/release/kelan-ebpf-loader)
 
 # ══ Stage 3: Runtime ════════════════════════════════════════════
 FROM python:3.12-slim AS runtime
@@ -39,8 +41,7 @@ COPY --from=deps /usr/local/lib/python3.12/site-packages \
 COPY --from=deps /usr/local/bin/uvicorn /usr/local/bin/
 
 # Rust eBPF binary (optional — falls back to software mode)
-COPY --from=rust-builder /build/target/release/kelan-ebpf-loader \
-                          /usr/local/bin/kelan-ebpf-loader 2>/dev/null || true
+COPY --from=rust-builder /build/target/release/kelan-ebpf-loader /usr/local/bin/kelan-ebpf-loader
 
 # Python source
 COPY kelan/    ./kelan/

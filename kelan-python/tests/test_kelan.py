@@ -492,6 +492,7 @@ class TestSentinelEngine:
     def test_sybil_burst_detected(self):
         from kelan.sentinel.anomaly import SentinelEngine
         s = SentinelEngine()
+        result = {}
         for i in range(s.ENROLL_BURST_LIMIT + 2):
             result = s.analyze(f"ent-{i}", "INIT_ENROL", "10.0.0.1")
         assert result.get("rapid_enrollment_burst") is True
@@ -499,6 +500,7 @@ class TestSentinelEngine:
     def test_connection_flood_detected(self):
         from kelan.sentinel.anomaly import SentinelEngine
         s = SentinelEngine()
+        result = {}
         for _ in range(s.CONN_FLOOD_LIMIT + 5):
             result = s.analyze("ent-flood", "DATA", "10.0.0.2")
         assert "syn_rate_per_second" in result
@@ -514,6 +516,7 @@ class TestSentinelEngine:
     def test_brute_force_flag_above_limit(self):
         from kelan.sentinel.anomaly import SentinelEngine
         s = SentinelEngine()
+        result = {}
         for _ in range(s.BRUTE_FORCE_LIMIT + 1):
             result = s.record_failed_auth("ent-brute")
         assert result.get("failed_auth_attempts", 0) > s.BRUTE_FORCE_LIMIT
@@ -711,6 +714,7 @@ class TestDatabaseSessionLeak:
         try:
             await db_mod.init_db()
             real_factory = db_mod._session_factory
+            assert real_factory is not None
 
             # async_sessionmaker.__call__() is synchronous — spy must be a plain def
             def spy_factory():
@@ -718,10 +722,10 @@ class TestDatabaseSessionLeak:
                 orig_c, orig_r = s.commit, s.rollback
                 async def tc(): committed.append(1); return await orig_c()
                 async def tr(): rolled_back.append(1); return await orig_r()
-                s.commit, s.rollback = tc, tr
+                s.commit, s.rollback = tc, tr  # type: ignore
                 return s
 
-            db_mod._session_factory = spy_factory
+            db_mod._session_factory = spy_factory  # type: ignore
             async with db_mod.get_db() as _:
                 pass
             assert committed == [1],   "commit() must be called exactly once"
@@ -741,6 +745,7 @@ class TestDatabaseSessionLeak:
         try:
             await db_mod.init_db()
             real_factory = db_mod._session_factory
+            assert real_factory is not None
 
             # async_sessionmaker.__call__() is synchronous — spy must be a plain def
             def spy_factory():
@@ -748,10 +753,10 @@ class TestDatabaseSessionLeak:
                 orig_r, orig_cl = s.rollback, s.close
                 async def tr(): rolled_back.append(1); return await orig_r()
                 async def tcl(): closed.append(1); return await orig_cl()
-                s.rollback, s.close = tr, tcl
+                s.rollback, s.close = tr, tcl  # type: ignore
                 return s
 
-            db_mod._session_factory = spy_factory
+            db_mod._session_factory = spy_factory  # type: ignore
             with pytest.raises(ValueError):
                 async with db_mod.get_db() as _:
                     raise ValueError("simulated failure")

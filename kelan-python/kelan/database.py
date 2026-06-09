@@ -15,7 +15,7 @@ Usage in route handlers:
 """
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
+from typing import AsyncGenerator, Optional
 
 import structlog
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text
@@ -126,7 +126,7 @@ async def close_db() -> None:
 # ── FIX 2: get_db() — guaranteed session cleanup ─────────────────────────────
 
 @asynccontextmanager
-async def get_db() -> AsyncIterator[AsyncSession]:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Async context manager that yields a database session.
 
