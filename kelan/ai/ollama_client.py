@@ -176,7 +176,7 @@ class OllamaClient:
             "anomalies": session.get("anomalies", {}),
             "intent":    session.get("intent", ""),
         }
-        return hashlib.md5(
+        return hashlib.sha256(
             json.dumps(key_data, sort_keys=True).encode()
         ).hexdigest()
 
