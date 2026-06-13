@@ -168,7 +168,7 @@ async def main():
     base_url = "http://localhost:3000"
     console.print(Panel.fit("[bold red]Kelan Security — Multi-Scenario Attack Simulation Suite[/bold red]", border_style="red"))
     
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=600.0) as client:
         # Check server health first
         try:
             health_resp = await client.get(f"{base_url}/api/health")

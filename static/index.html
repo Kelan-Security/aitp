@@ -9,21 +9,67 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Figtree:wght@300;400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap"
     rel="stylesheet">
   <style>
     :root {
-      --paper: #F8F7F3;
-      --ink: #0F1219;
-      --navy: #1B3560;
-      --copper: #B07D3A;
-      --divider: #D8D4C8;
-      --muted: #6B6860;
-      --success: #2D6A4F;
-      --error: #A4161A;
-      --warn: #D4A373;
-      --nav-bg: rgba(248, 247, 243, 0.8);
+      /* Light theme colors - soothing, desaturated */
+      --paper-light: #FAFAF7;
+      --paper-light-alt: #F2F0EB;
+      --ink-light: #2C2A27;
+      --navy-light: #3E5C7F;
+      --copper-light: #9B7654;
+      --divider-light: #DDD9CF;
+      --muted-light: #6B6860;
+      --success-light: #5FA876;
+      --error-light: #A87A7F;
+      --warn-light: #C9A76A;
+      
+      /* Dark theme colors - charcoal/navy with soft text */
+      --paper-dark: #0F1115;
+      --paper-dark-alt: #161922;
+      --ink-dark: #E8E6E0;
+      --navy-dark: #7BA3D1;
+      --copper-dark: #D4A688;
+      --divider-dark: #2A2D36;
+      --muted-dark: #9A9790;
+      --success-dark: #8FC9A3;
+      --error-dark: #D48D8C;
+      --warn-dark: #E8B86D;
+      
+      /* Dynamic colors based on theme */
+      --paper: var(--paper-light);
+      --paper-alt: var(--paper-light-alt);
+      --ink: var(--ink-light);
+      --navy: var(--navy-light);
+      --copper: var(--copper-light);
+      --divider: var(--divider-light);
+      --muted: var(--muted-light);
+      --success: var(--success-light);
+      --error: var(--error-light);
+      --warn: var(--warn-light);
+      
+      --nav-bg: rgba(250, 250, 247, 0.8);
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
       --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    html.dark-mode {
+      --paper: var(--paper-dark);
+      --paper-alt: var(--paper-dark-alt);
+      --ink: var(--ink-dark);
+      --navy: var(--navy-dark);
+      --copper: var(--copper-dark);
+      --divider: var(--divider-dark);
+      --muted: var(--muted-dark);
+      --success: var(--success-dark);
+      --error: var(--error-dark);
+      --warn: var(--warn-dark);
+      
+      --nav-bg: rgba(15, 17, 21, 0.9);
+      --glass-bg: rgba(0, 0, 0, 0.3);
+      --glass-border: rgba(255, 255, 255, 0.1);
     }
 
     * {
@@ -35,10 +81,11 @@
     body {
       background-color: var(--paper);
       color: var(--ink);
-      font-family: 'Figtree', sans-serif;
+      font-family: 'Inter', sans-serif;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
+      transition: background-color 0.4s ease, color 0.4s ease;
     }
 
     h1,
@@ -52,7 +99,7 @@
 
     code,
     .mono {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.9em;
     }
 
@@ -70,9 +117,14 @@
     button {
       cursor: pointer;
       border: none;
-      font-family: 'Figtree', sans-serif;
+      font-family: 'Inter', sans-serif;
       font-weight: 500;
       transition: var(--transition);
+    }
+    
+    /* Smooth scroll behavior */
+    html {
+      scroll-behavior: smooth;
     }
 
     /* Navigation */
@@ -82,21 +134,27 @@
       width: 100%;
       height: 58px;
       background: var(--nav-bg);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-bottom: 1px solid var(--divider);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--glass-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 5%;
       z-index: 1000;
+      transition: background 0.4s ease, border-color 0.4s ease;
     }
 
     .logo {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-weight: 600;
       font-size: 1.1rem;
       letter-spacing: -0.5px;
+      transition: transform 0.3s ease;
+    }
+    
+    .logo:hover {
+      transform: scale(1.02);
     }
 
     .logo span {
@@ -124,12 +182,43 @@
       color: #fff;
       padding: 8px 16px;
       font-size: 0.85rem;
-      border-radius: 4px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
     }
 
     .nav-cta:hover {
       opacity: 0.9;
-      transform: translateY(-1px);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Theme Toggle Button */
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid var(--divider);
+      color: var(--ink);
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      margin-left: 12px;
+    }
+    
+    .theme-toggle:hover {
+      background: var(--glass-bg);
+      border-color: var(--navy);
+      transform: rotate(20deg);
+    }
+    
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     /* Layout */
@@ -160,7 +249,7 @@
 
     /* Utility */
     .tag {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -178,10 +267,16 @@
 
     /* Footer */
     footer {
-      background: #fff;
+      background: var(--paper-alt);
       border-top: 1px solid var(--divider);
       padding: 60px 5% 40px;
       margin-top: 80px;
+      transition: all 0.3s ease;
+    }
+    
+    html.dark-mode footer {
+      background: rgba(22, 25, 34, 0.5);
+      border-top: 1px solid var(--divider);
     }
 
     .footer-grid {
@@ -282,28 +377,35 @@
 
     .btn {
       padding: 14px 28px;
-      border-radius: 4px;
+      border-radius: 12px;
       font-weight: 600;
       font-size: 1rem;
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      transition: all 0.3s ease;
     }
 
     .btn-primary {
       background: var(--navy);
       color: #fff;
+      border: none;
     }
 
     .btn-outline {
       background: transparent;
-      border: 1px solid var(--divider);
+      border: 1.5px solid var(--divider);
       color: var(--ink);
     }
 
     .btn:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
+      opacity: 0.95;
+      transform: translateY(-3px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+    }
+    
+    .btn-primary:hover {
+      box-shadow: 0 12px 32px rgba(62, 92, 127, 0.25);
     }
 
     /* Stats */
@@ -314,6 +416,22 @@
       margin-top: 80px;
       padding-top: 40px;
       border-top: 1px solid var(--divider);
+    }
+
+    .stat-item {
+      padding: 24px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: all 0.3s ease;
+    }
+    
+    .stat-item:hover {
+      transform: translateY(-4px);
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.08);
     }
 
     .stat-item h3 {
@@ -359,15 +477,29 @@
 
     /* Code Block */
     .code-block {
-      background: var(--ink);
+      background: rgba(15, 17, 21, 0.4);
       color: #E0E0E0;
       padding: 24px;
-      border-radius: 8px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.05);
       font-size: 0.85rem;
       line-height: 1.5;
       position: relative;
       overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .code-block:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    }
+
+    html.dark-mode .code-block {
+      background: rgba(255, 255, 255, 0.03);
+      color: #D1D5DB;
     }
 
     .code-header {
@@ -412,24 +544,29 @@
     .card-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1px;
-      background: var(--divider);
-      border: 1px solid var(--divider);
+      gap: 16px;
       margin-top: 40px;
     }
 
     .p-card {
-      background: var(--paper);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       padding: 32px;
-      transition: var(--transition);
+      border-radius: 14px;
+      transition: all 0.3s ease;
     }
 
     .p-card:hover {
-      background: #fff;
+      transform: translateY(-6px);
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.1);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
     }
 
     .p-card span {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.8rem;
       color: var(--copper);
       display: block;
@@ -486,12 +623,18 @@
 
     /* Dark CTA */
     .dark-cta {
-      background: var(--ink);
-      color: #fff;
+      background: var(--paper-alt);
+      color: var(--ink);
       padding: 80px 5%;
       text-align: center;
-      border-radius: 12px;
+      border-radius: 16px;
       margin: 80px auto;
+      transition: all 0.3s ease;
+    }
+    
+    html.dark-mode .dark-cta {
+      background: rgba(22, 25, 34, 0.6);
+      color: var(--ink);
     }
 
     .dark-cta h2 {
@@ -500,32 +643,42 @@
     }
 
     .dark-cta .btn-primary {
-      background: #fff;
-      color: var(--ink);
+      background: var(--navy);
     }
 
     /* Terminal Widget */
     .terminal-window {
-      background: #1a1b1e;
-      border-radius: 8px;
-      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+      background: rgba(26, 27, 30, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.05);
       overflow: hidden;
-      border: 1px solid #333;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+    
+    .terminal-window:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.08);
     }
 
     .term-header {
-      background: #2c2e33;
+      background: rgba(44, 46, 51, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       padding: 10px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .term-title {
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.75rem;
       color: #888;
     }
@@ -534,7 +687,7 @@
       height: 500px;
       padding: 24px;
       overflow-y: auto;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.9rem;
       line-height: 1.5;
       color: #d1d5db;
@@ -591,26 +744,32 @@
     }
 
     .term-footer {
-      background: #2c2e33;
+      background: rgba(44, 46, 51, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       padding: 12px;
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-      border-top: 1px solid #333;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .term-btn {
-      background: #3f4147;
+      background: rgba(63, 65, 71, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: #d1d5db;
       font-size: 0.75rem;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-family: 'IBM Plex Mono', monospace;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.3s ease;
     }
 
     .term-btn:hover {
-      background: #4f5157;
+      background: rgba(79, 81, 87, 0.8);
       color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
     }
 
     @media (max-width: 900px) {
@@ -637,22 +796,31 @@
     }
 
     .price-card {
-      background: #fff;
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
       padding: 40px;
-      border: 1px solid var(--divider);
-      border-radius: 8px;
+      border-radius: 14px;
       position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .price-card:hover {
+      transform: translateY(-8px);
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.08);
     }
 
     .price-card.featured {
       border-color: var(--navy);
-      box-shadow: 0 10px 30px rgba(27, 53, 96, 0.1);
+      box-shadow: 0 20px 50px rgba(62, 92, 127, 0.15);
     }
 
     .price-card.dark {
-      background: var(--ink);
+      background: var(--navy);
       color: #fff;
-      border-color: var(--ink);
+      border-color: var(--navy);
     }
 
     .featured-badge {
@@ -663,13 +831,15 @@
       background: var(--navy);
       color: #fff;
       font-size: 0.75rem;
-      padding: 4px 12px;
+      padding: 6px 14px;
       border-radius: 20px;
       font-weight: 600;
+      box-shadow: 0 4px 12px rgba(62, 92, 127, 0.25);
+      transition: all 0.3s ease;
     }
 
     .p-name {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.8rem;
       margin-bottom: 20px;
       text-transform: uppercase;
@@ -717,7 +887,7 @@
     }
 
     .release-meta {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.9rem;
     }
 
@@ -774,10 +944,17 @@
     }
 
     .contact-card {
-      background: #fff;
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
       padding: 40px;
-      border: 1px solid var(--divider);
-      border-radius: 8px;
+      border-radius: 14px;
+      transition: all 0.3s ease;
+    }
+    
+    .contact-card:hover {
+      border-color: var(--navy);
     }
 
     .form-group {
@@ -797,9 +974,21 @@
       width: 100%;
       padding: 12px;
       border: 1px solid var(--divider);
-      border-radius: 4px;
-      font-family: 'Figtree', sans-serif;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
       font-size: 1rem;
+      background: var(--paper-alt);
+      color: var(--ink);
+      transition: all 0.3s ease;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--navy);
+      background: var(--paper);
+      box-shadow: 0 0 0 3px rgba(62, 92, 127, 0.1);
     }
 
     .tag-toggle {
@@ -810,7 +999,14 @@
       font-size: 0.8rem;
       margin: 0 4px 8px 0;
       cursor: pointer;
-      transition: var(--transition);
+      transition: all 0.3s ease;
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .tag-toggle:hover {
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.08);
     }
 
     .tag-toggle.selected {
@@ -838,10 +1034,19 @@
     }
 
     .fit-card {
-      background: #fff;
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
       padding: 32px;
-      border: 1px solid var(--divider);
-      border-radius: 8px;
+      border-radius: 14px;
+      transition: all 0.3s ease;
+    }
+    
+    .fit-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.08);
     }
 
     .fit-card h3 {
@@ -874,13 +1079,15 @@
 
     .launch-list td {
       padding: 20px;
-      background: #fff;
-      border: 1px solid var(--divider);
+      background: var(--glass-bg);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid var(--glass-border);
       border-radius: 8px;
     }
 
     .launch-list td:first-child {
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.85rem;
       width: 150px;
       border-right: none;
@@ -926,18 +1133,20 @@
     .auth-card {
       max-width: 440px;
       margin: 80px auto;
-      background: #fff;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
       padding: 48px;
-      border: 1px solid var(--divider);
-      border-radius: 8px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
     }
 
     .auth-logo {
       text-align: center;
       margin-bottom: 32px;
       font-size: 1.5rem;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .auth-card h2 {
@@ -964,42 +1173,63 @@
 
     /* ── Live Demo & Install Box ── */
     .install-section {
-      background: var(--ink);
-      color: #fff;
+      background: linear-gradient(135deg, var(--paper-alt) 0%, var(--paper) 100%);
+      color: var(--ink);
       padding: 80px 5%;
       text-align: center;
+      transition: all 0.3s ease;
+    }
+    
+    html.dark-mode .install-section {
+      background: linear-gradient(135deg, var(--paper-dark-alt) 0%, var(--paper-dark) 100%);
     }
 
     .install-box {
       display: inline-flex;
       align-items: center;
       gap: 12px;
-      background: #1a1b1e;
-      border: 1px solid #333;
-      border-radius: 8px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
       padding: 16px 24px;
       margin: 32px auto 0;
-      font-family: 'IBM Plex Mono', monospace;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.95rem;
-      color: #34d399;
+      color: var(--success);
       max-width: 720px;
       position: relative;
+      transition: all 0.3s ease;
+    }
+    
+    .install-box:hover {
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.1);
     }
 
     .copy-btn {
-      background: #2d2e33;
-      border: 1px solid #444;
-      color: #ccc;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--ink);
       padding: 6px 14px;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 0.75rem;
       white-space: nowrap;
       transition: all 0.2s;
       cursor: pointer;
     }
-
-    .copy-btn:hover { background: #3f4147; color: #fff; }
-    .copy-btn.copied { background: #166534; color: #dcfce7; border-color: #166534; }
+    
+    .copy-btn:hover {
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.15);
+    }
+    
+    .copy-btn.copied {
+      background: rgba(95, 168, 118, 0.2);
+      color: var(--success);
+      border-color: var(--success);
+    }
 
     .btn-demo {
       background: transparent;
@@ -1016,8 +1246,9 @@
     .calendly-section {
       padding: 80px 5%;
       text-align: center;
-      background: #fff;
+      background: var(--paper);
       border-top: 1px solid var(--divider);
+      transition: all 0.3s ease;
     }
 
     .calendly-inline-widget {
@@ -1029,10 +1260,11 @@
 
     /* ── Newsletter / Email capture ── */
     .email-capture {
-      background: var(--navy);
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy) 100%);
       color: #fff;
       padding: 60px 5%;
       text-align: center;
+      transition: all 0.3s ease;
     }
 
     .email-capture h2 { color: #fff; font-size: 1.8rem; margin-bottom: 8px; }
@@ -1051,27 +1283,838 @@
       flex: 1 1 240px;
       padding: 13px 16px;
       border: none;
-      border-radius: 4px;
+      border-radius: 8px;
       font-size: 1rem;
-      font-family: 'Figtree', sans-serif;
+      font-family: 'Inter', sans-serif;
+      background: rgba(255, 255, 255, 0.95);
+      color: var(--ink);
+      transition: all 0.3s ease;
+    }
+    
+    .email-form input[type="email"]:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
     }
 
     .email-form button {
       background: #fff;
       color: var(--navy);
       padding: 13px 24px;
-      border-radius: 4px;
+      border-radius: 8px;
       font-weight: 600;
       font-size: 0.95rem;
       white-space: nowrap;
       border: none;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: all 0.3s ease;
     }
 
-    .email-form button:hover { opacity: 0.9; }
+    .email-form button:hover { 
+      opacity: 0.9;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
 
     .email-success { display: none; color: #dcfce7; font-size: 1.05rem; margin-top: 12px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════ */
+    /* HOW IT WORKS PAGE STYLES */
+    /* ═══════════════════════════════════════════════════════════════════════ */
+
+    /* Step Tracker */
+    .step-tracker-container {
+      position: sticky;
+      top: 70px;
+      z-index: 900;
+      background: var(--nav-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 20px 0;
+      margin-bottom: 60px;
+    }
+
+    .step-tracker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .step-node {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.4s ease;
+      cursor: pointer;
+    }
+
+    .step-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      border: 2px solid var(--divider);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ink);
+      transition: all 0.4s ease;
+    }
+
+    html:not(.dark-mode) .step-badge {
+      background: #F2F0EB;
+      border-color: #DDD9CF;
+    }
+
+    .step-node.active .step-badge {
+      background: var(--navy);
+      color: #fff;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 6px rgba(62, 92, 127, 0.2);
+      transform: scale(1.15);
+    }
+
+    .step-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-align: center;
+      white-space: nowrap;
+      opacity: 1;
+      transition: all 0.3s ease;
+    }
+
+    html.dark-mode .step-label {
+      color: #A8A69F;
+      font-weight: 700;
+      opacity: 1;
+    }
+
+    .step-node.active .step-label {
+      color: var(--navy);
+      opacity: 1;
+      font-weight: 700;
+    }
+
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--divider);
+      margin: 0 -8px;
+      min-width: 30px;
+      transition: all 0.4s ease;
+    }
+
+    .step-connector.active {
+      background: var(--navy);
+      box-shadow: 0 0 8px rgba(62, 92, 127, 0.4);
+    }
+
+    /* Primitive Sections */
+    .primitive-section {
+      position: relative;
+      margin-bottom: 100px;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .primitive-section.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .primitive-timeline-marker {
+      position: absolute;
+      left: -60px;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .timeline-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--navy);
+      border: 3px solid var(--paper);
+      box-shadow: 0 0 0 3px var(--navy);
+      margin-top: 8px;
+    }
+
+    .timeline-line {
+      width: 3px;
+      flex: 1;
+      background: linear-gradient(to bottom, var(--navy), var(--divider));
+      margin-top: 8px;
+      min-height: 350px;
+    }
+
+    /* Primitive Header */
+    .primitive-header {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 24px;
+      align-items: flex-start;
+      margin-bottom: 40px;
+    }
+
+    .primitive-badge {
+      width: 70px;
+      height: 70px;
+      border-radius: 14px;
+      background: var(--glass-bg);
+      border: 2px solid var(--navy);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--navy);
+      box-shadow: 0 8px 24px rgba(62, 92, 127, 0.15);
+      flex-shrink: 0;
+    }
+
+    .primitive-header h3 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+
+    .primitive-subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+      margin: 0;
+    }
+
+    html.dark-mode .primitive-subtitle {
+      color: #A8A69F;
+      opacity: 1;
+    }
+
+    /* Primitive Content */
+    .primitive-content {
+      margin-left: 0;
+      padding-left: 0;
+    }
+
+    .primitive-prose {
+      margin-bottom: 40px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    html.dark-mode .primitive-prose {
+      color: #B8B6AF;
+      opacity: 1;
+    }
+
+    .primitive-prose p {
+      margin-bottom: 16px;
+    }
+
+    .primitive-prose strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* Primitive Diagram */
+    .primitive-diagram-container {
+      margin: 40px 0;
+      padding: 30px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .primitive-diagram {
+      width: 100%;
+      height: auto;
+      max-height: 300px;
+      color: var(--ink);
+    }
+
+    .primitive-diagram text:not([fill]) {
+      fill: currentColor;
+    }
+
+    .diagram-line {
+      animation: drawLine 0.8s ease-out;
+    }
+
+    @keyframes drawLine {
+      from {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+      }
+      to {
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 0;
+      }
+    }
+
+    /* Key Formula Card */
+    .key-formula-card {
+      display: inline-block;
+      padding: 16px 24px;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 12px;
+      margin: 30px 0;
+      border: 1px solid var(--navy);
+      box-shadow: 0 8px 24px rgba(62, 92, 127, 0.2);
+    }
+
+    html:not(.dark-mode) .key-formula-card {
+      background: #3E5C7F;
+      color: #fff;
+      border-color: #3E5C7F;
+    }
+
+    .formula-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 1;
+      margin-bottom: 8px;
+      display: block;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    html:not(.dark-mode) .formula-label {
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .formula-content {
+      font-size: 1.1rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    /* Code Block Wrapper with Copy */
+    .code-block-wrapper {
+      margin: 30px 0;
+    }
+
+    .code-block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--paper-alt);
+      border: 1px solid var(--divider);
+      border-bottom: none;
+      border-radius: 12px 12px 0 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    html.dark-mode .code-block-header {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    html:not(.dark-mode) .code-block-header {
+      background: #F2F0EB;
+      color: #2C2A27;
+      border-color: #DDD9CF;
+    }
+
+    .code-copy-btn {
+      padding: 6px 12px;
+      background: var(--glass-bg);
+      border: 1px solid var(--divider);
+      color: var(--ink);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      opacity: 0.7;
+    }
+
+    .code-copy-btn:hover {
+      opacity: 1;
+      border-color: var(--navy);
+      background: rgba(62, 92, 127, 0.1);
+    }
+
+    .code-copy-btn.copied {
+      background: rgba(95, 168, 118, 0.2);
+      color: var(--success);
+      border-color: var(--success);
+    }
+
+    /* Code Block */
+    .code-block {
+      background: rgba(15, 17, 21, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0 0 12px 12px;
+      padding: 20px;
+      color: #D1D5DB;
+      overflow-x: auto;
+    }
+
+    html.dark-mode .code-block {
+      background: rgba(0, 0, 0, 0.5);
+      color: #E5E5E0;
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    html:not(.dark-mode) .code-block {
+      background: #F5F3F0;
+      color: #2C2A27;
+      border-color: var(--divider);
+    }
+
+    html:not(.dark-mode) .code-block .kw {
+      color: #7D4E7F;
+    }
+
+    html:not(.dark-mode) .code-block .ty {
+      color: #3E5C7F;
+    }
+
+    html:not(.dark-mode) .code-block .num {
+      color: #8B6F47;
+    }
+
+    html:not(.dark-mode) .code-block .cm {
+      color: #6B7280;
+      opacity: 0.85;
+    }
+
+    .code-block .mono {
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* Syntax highlighting classes */
+    .kw { color: #9B7FA3; font-weight: 600; }
+    .ty { color: #7BA3D1; }
+    .num { color: #B8956A; font-weight: 500; }
+    .cm { color: #6B7280; font-style: italic; opacity: 0.9; }
+
+    html.dark-mode .kw { color: #C9A9DD; }
+    html.dark-mode .ty { color: #8FC9F5; }
+    html.dark-mode .num { color: #D4A688; }
+    html.dark-mode .cm { color: #9A9790; opacity: 0.8; }
+
+    /* Trust Thresholds */
+    .trust-thresholds {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 40px 0;
+    }
+
+    .threshold-item {
+      padding: 20px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 2px solid;
+      background: var(--glass-bg);
+    }
+
+    .threshold-item.allow {
+      border-color: var(--success);
+      background: rgba(95, 168, 118, 0.1);
+    }
+
+    .threshold-item.monitor {
+      border-color: var(--warn);
+      background: rgba(201, 167, 106, 0.1);
+    }
+
+    .threshold-item.deny {
+      border-color: var(--error);
+      background: rgba(168, 122, 127, 0.1);
+    }
+
+    .threshold-label {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .threshold-item.allow .threshold-label { color: var(--success); }
+    .threshold-item.monitor .threshold-label { color: var(--warn); }
+    .threshold-item.deny .threshold-label { color: var(--error); }
+
+    .threshold-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      opacity: 1;
+      color: var(--muted);
+    }
+
+    html.dark-mode .threshold-value {
+      color: #A8A69F;
+      opacity: 1;
+    }
+
+    /* Full Flow Diagram */
+    .full-flow-diagram {
+      padding: 40px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      margin: 40px 0;
+    }
+
+    .full-flow-diagram svg {
+      color: var(--ink);
+    }
+
+    .full-flow-diagram svg text:not([fill]) {
+      fill: currentColor;
+    }
+
+    @media (max-width: 900px) {
+      .primitive-timeline-marker {
+        left: 0;
+      }
+
+      .step-tracker {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .step-connector {
+        display: none;
+      }
+
+      .trust-thresholds {
+        grid-template-columns: 1fr;
+      }
+
+      .primitive-header {
+        grid-template-columns: 1fr;
+      }
+
+      .primitive-badge {
+        width: 60px;
+        height: 60px;
+        font-size: 2rem;
+      }
+    }
+
+    /* =========================================================================
+       AITP Live Terminal Enhancements
+       ========================================================================= */
+    .terminal-window {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .term-crt-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: radial-gradient(circle, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.4) 100%),
+                  linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+      background-size: 100% 100%, 100% 4px;
+      pointer-events: none;
+      opacity: 0.035;
+      z-index: 10;
+    }
+
+    .term-line {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      opacity: 1;
+      transform: translateY(0);
+      animation: term-line-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes term-line-fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .term-line.fade-out-exit {
+      opacity: 0 !important;
+      transform: translateY(-8px) !important;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    /* Verdict color overrides matching dashboard design */
+    .term-line.deny {
+      color: #f43f5e;
+      border-color: #f43f5e;
+    }
+
+    .term-line.revoke {
+      color: #f59e0b;
+      border-color: #f59e0b;
+    }
+
+    /* Blinking streaming cursor */
+    .streaming-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.2em;
+      background: currentColor;
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: cursor-blink 0.8s step-end infinite;
+    }
+
+    @keyframes cursor-blink {
+      50% { opacity: 0; }
+    }
+
+    /* Traffic-lights pulse hover effect */
+    .term-header .code-dot {
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, filter 0.2s ease;
+    }
+    .term-header .code-dot:hover {
+      transform: scale(1.3);
+      filter: brightness(1.2);
+    }
+    .term-header .code-dot.red:hover {
+      box-shadow: 0 0 8px #ff5f56;
+    }
+    .term-header .code-dot.yellow:hover {
+      box-shadow: 0 0 8px #ffbd2e;
+    }
+    .term-header .code-dot.green:hover {
+      box-shadow: 0 0 8px #27c93f;
+    }
+
+    /* Scenario button active/completed states */
+    .term-btn.active-streaming {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.15) !important;
+      color: #fff !important;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+      animation: button-pulse-glow 1.5s infinite alternate;
+      cursor: wait;
+    }
+
+    @keyframes button-pulse-glow {
+      0% { box-shadow: 0 0 4px rgba(59, 130, 246, 0.2); }
+      100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.6); }
+    }
+
+    .term-btn.completed {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.05);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Ollama Spinner and Checkmark styling */
+    .term-spinner {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      border-top-color: #60a5fa;
+      animation: term-spin 0.6s linear infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes term-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .term-checkmark {
+      display: inline-block;
+      color: #10b981;
+      margin-left: 8px;
+      font-weight: bold;
+      vertical-align: middle;
+      font-size: 0.95rem;
+      animation: checkmark-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes checkmark-pop {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* =========================================================================
+       Get In Touch Contact Cards Redesign
+       ========================================================================= */
+    .contact-channels-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 24px;
+      margin-bottom: 24px;
+    }
+
+    .contact-channel-card {
+      display: flex;
+      align-items: center;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      padding: 16px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit !important;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Light Theme (default) styling */
+    .contact-channel-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 24px rgba(220, 100, 40, 0.12), 0 2px 4px rgba(220, 100, 40, 0.04);
+      border-color: rgba(220, 100, 40, 0.4);
+      background: rgba(220, 100, 40, 0.02);
+    }
+
+    /* Dark Theme styling */
+    html.dark-mode .contact-channel-card:hover {
+      box-shadow: 0 12px 24px rgba(59, 130, 246, 0.15), 0 2px 4px rgba(59, 130, 246, 0.05);
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.02);
+    }
+
+    .contact-channel-card:active {
+      transform: translateY(-2px) scale(0.97);
+      transition: transform 0.1s ease;
+    }
+
+    /* Staggered entrance animation styling */
+    .contact-channel-card.fade-in-up {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.3s ease,
+                  background-color 0.3s ease,
+                  box-shadow 0.3s ease;
+    }
+
+    .contact-channel-card.fade-in-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Click affordance: Arrow "→" slides in from the left on hover */
+    .contact-channel-card .card-arrow {
+      position: absolute;
+      left: -20px;
+      font-size: 1.25rem;
+      color: #dd6b20; /* warm copper accent for light */
+      opacity: 0;
+      transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    html.dark-mode .contact-channel-card .card-arrow {
+      color: #3b82f6; /* blue accent for dark */
+    }
+
+    .contact-channel-card:hover .card-arrow {
+      left: 18px;
+      opacity: 1;
+    }
+
+    .card-content-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .contact-channel-card:hover .card-content-wrapper {
+      transform: translateX(20px);
+    }
+
+    /* Icon container background and glow settings */
+    .contact-channel-card .icon-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(220, 100, 40, 0.1); /* light mode pastel */
+      color: #dd6b20;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                  background-color 0.3s ease,
+                  color 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    html.dark-mode .contact-channel-card .icon-container {
+      background: rgba(59, 130, 246, 0.15); /* dark mode glow */
+      color: #60a5fa;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.1);
+    }
+
+    .contact-channel-card:hover .icon-container {
+      transform: scale(1.1);
+    }
+
+    .contact-channel-card:hover .icon-container svg {
+      animation: icon-bounce-rotate 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes icon-bounce-rotate {
+      0% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-4px) rotate(8deg); }
+      100% { transform: translateY(0) rotate(5deg); }
+    }
+
+    .contact-channel-card .card-text {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .contact-channel-card h3 {
+      font-size: 0.95rem !important;
+      margin: 0 !important;
+      font-weight: 600 !important;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .contact-channel-card .subtext {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .contact-channel-card .value {
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text);
+      opacity: 0.85;
+      margin-top: 2px;
+    }
 
   </style>
 </head>
@@ -1089,7 +2132,10 @@
       <a href="#about">About</a>
       <a href="#contact">Contact</a>
     </div>
-    <a href="#signup" class="nav-cta">Get Early Access</a>
+    <div class="nav-controls">
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">☀️</button>
+      <a href="#signup" class="nav-cta">Get Early Access</a>
+    </div>
   </nav>
 
   <div id="app">
@@ -1290,68 +2336,409 @@
     <div id="how" class="page">
       <section>
         <span class="tag">Protocol Specification</span>
-        <h2 style="font-size: 3rem; margin-bottom: 60px;">Primitives.</h2>
+        <h2 style="font-size: 3rem; margin-bottom: 40px;">Primitives.</h2>
+        <p style="color: var(--muted); font-size: 1.1rem; margin-bottom: 60px; max-width: 700px;">Five foundational concepts that define AITP: cryptographic identity, explicit intent, dynamic trust evaluation, and enforcement at the wire.</p>
 
-        <div class="strip">
-          <div class="strip-text">
-            <h3>Primitive 1 — Identity</h3>
-            <p>Every node generates a unique Ed25519 keypair. The EntityID is the stable identifier used for ACLs and
-              trust scores.</p>
-            <div class="code-block" style="background: #f1f3f5; color: #333; border: 1px solid var(--divider);">
-              <div class="mono" style="color: var(--navy);">EntityID = SHA-256(Ed25519_PublicKey)</div>
+        <!-- Step Tracker (Sticky) -->
+        <div class="step-tracker-container" id="step-tracker">
+          <div class="step-tracker">
+            <div class="step-node" data-step="1">
+              <div class="step-badge">1</div>
+              <div class="step-label">Identity</div>
             </div>
-          </div>
-          <div class="code-block">
-            <div class="mono">
-              <span class="dim">struct</span> <span style="color: #60a5fa;">EntityIdentity</span> {<br>
-              &nbsp;&nbsp;id: [u8; 32], <span class="annotation">// SHA-256 hash</span><br>
-              &nbsp;&nbsp;public_key: Vec&lt;u8&gt;,<br>
-              &nbsp;&nbsp;metadata: HashMap&lt;String, String&gt;,<br>
-              }
+            <div class="step-connector"></div>
+            <div class="step-node" data-step="2">
+              <div class="step-badge">2</div>
+              <div class="step-label">Intent</div>
             </div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="strip flipped">
-          <div class="strip-text">
-            <h3>Primitive 2 — Intent</h3>
-            <p>Clients must explicitly declare what they intend to do before the pipe opens. Unknown or undeclared
-              intents are dropped.</p>
-          </div>
-          <div class="code-block">
-            <div class="mono">
-              <span class="dim">enum</span> <span style="color: #60a5fa;">IntentCode</span> {<br>
-              &nbsp;&nbsp;ModelInference = 0x01,<br>
-              &nbsp;&nbsp;DataSync = 0x02,<br>
-              &nbsp;&nbsp;ControlSignal = 0x03,<br>
-              &nbsp;&nbsp;IdentityEx = 0x04,<br>
-              &nbsp;&nbsp;AuditLog = 0x05,<br>
-              &nbsp;&nbsp;Heartbeat = 0x06,<br>
-              &nbsp;&nbsp;Discovery = 0x07,<br>
-              }
+            <div class="step-connector"></div>
+            <div class="step-node" data-step="3">
+              <div class="step-badge">3</div>
+              <div class="step-label">Trust</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-node" data-step="4">
+              <div class="step-badge">4</div>
+              <div class="step-label">Verdict</div>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step-node" data-step="5">
+              <div class="step-badge">5</div>
+              <div class="step-label">Enforce</div>
             </div>
           </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="strip">
-          <div class="strip-text">
-            <h3>Primitive 3 — Trust</h3>
-            <p>Trust is calculated dynamically. A session is only granted if the merged score exceeds the threshold.</p>
-            <div class="code-block" style="background: #f1f3f5; color: #333; border: 1px solid var(--divider);">
-              <div class="mono" style="color: var(--navy);">S_merged = 0.4 × S_rules + 0.6 × S_AI</div>
+        <!-- PRIMITIVE 1: IDENTITY -->
+        <div class="primitive-section" data-primitive="1">
+          <div class="primitive-timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          
+          <div class="primitive-header">
+            <div class="primitive-badge">01</div>
+            <div>
+              <h3>Cryptographic Identity</h3>
+              <p class="primitive-subtitle">Every node generates a unique Ed25519 keypair. The EntityID is the stable identifier used for ACLs and trust scores.</p>
             </div>
           </div>
-          <div class="code-block">
-            <div class="mono">
-              <span class="annotation success">// Trust Thresholds</span><br>
-              Allow: &ge; 128<br>
-              Monitor: 64 - 127<br>
-              Deny: &lt; 64
+
+          <div class="primitive-content">
+            <div class="primitive-prose">
+              <p>Identity is the foundation. Before any AITP handshake, every participant must have cryptographic proof of who they are. We use Ed25519 — fast, secure, and post-quantum resistant.</p>
+              <p>The <strong>EntityID</strong> is derived as a SHA-256 hash of the public key, creating a deterministic, collision-resistant identifier for ACLs, audit trails, and trust scoring.</p>
             </div>
+
+            <div class="primitive-diagram-container">
+              <svg class="primitive-diagram" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
+                <!-- Client box -->
+                <rect x="20" y="30" width="120" height="80" fill="none" stroke="currentColor" stroke-width="2" rx="8"/>
+                <text x="80" y="65" text-anchor="middle" font-size="14" font-weight="bold">Client</text>
+                <text x="80" y="85" text-anchor="middle" font-size="11" opacity="0.7">Generate</text>
+                <text x="80" y="100" text-anchor="middle" font-size="11" opacity="0.7">Ed25519 Keypair</text>
+                
+                <!-- Arrow -->
+                <defs>
+                  <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="currentColor"/>
+                  </marker>
+                </defs>
+                <line x1="140" y1="70" x2="200" y2="70" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)" class="diagram-line"/>
+                <text x="170" y="60" text-anchor="middle" font-size="11" opacity="0.7">Hash</text>
+                
+                <!-- EntityID box -->
+                <rect x="200" y="30" width="180" height="80" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="2" rx="8"/>
+                <text x="290" y="60" text-anchor="middle" font-size="12" font-weight="bold">EntityID</text>
+                <text x="290" y="80" text-anchor="middle" font-size="10" opacity="0.7" font-family="JetBrains Mono">SHA-256(PubKey)</text>
+                <text x="290" y="100" text-anchor="middle" font-size="9" opacity="0.5" font-family="JetBrains Mono">cf7b...1a02</text>
+              </svg>
+            </div>
+
+            <div class="key-formula-card">
+              <div class="formula-label">Key Derivation</div>
+              <div class="formula-content mono">EntityID = SHA-256(Ed25519_PublicKey)</div>
+            </div>
+
+            <div class="code-block-wrapper">
+              <div class="code-block-header">
+                <span>struct EntityIdentity</span>
+                <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block">
+                <div class="mono" style="white-space: pre;">
+<span class="kw">struct</span> <span class="ty">EntityIdentity</span> {
+  id: [<span class="ty">u8</span>; <span class="num">32</span>],     <span class="cm">// SHA-256 hash</span>
+  public_key: <span class="ty">Vec</span>&lt;<span class="ty">u8</span>&gt;,
+  metadata: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt;,
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRIMITIVE 2: INTENT -->
+        <div class="primitive-section" data-primitive="2">
+          <div class="primitive-timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          
+          <div class="primitive-header">
+            <div class="primitive-badge">02</div>
+            <div>
+              <h3>Explicit Intent Declaration</h3>
+              <p class="primitive-subtitle">Clients must declare their intent before the pipe opens. Unknown intents are dropped at the protocol layer.</p>
+            </div>
+          </div>
+
+          <div class="primitive-content">
+            <div class="primitive-prose">
+              <p>Intent is the "why" of a connection. In legacy protocols, a server sees bytes on a port but has no idea what the client intends to do. AITP changes this.</p>
+              <p>Every client must cryptographically sign and send an explicit <strong>IntentCode</strong> during the handshake. The server validates this signature and only permits intents in its policy ACL. Rogue agents cannot fake intent.</p>
+            </div>
+
+            <div class="primitive-diagram-container">
+              <svg class="primitive-diagram" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
+                <!-- Client -->
+                <rect x="20" y="50" width="100" height="60" fill="none" stroke="currentColor" stroke-width="2" rx="8"/>
+                <text x="70" y="75" text-anchor="middle" font-size="13" font-weight="bold">Client</text>
+                <text x="70" y="100" text-anchor="middle" font-size="10" opacity="0.7">Intent: 0x01</text>
+                
+                <!-- Arrow with signing -->
+                <line x1="120" y1="80" x2="180" y2="80" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="150" y="70" text-anchor="middle" font-size="10" opacity="0.7">Sign</text>
+                
+                <!-- Server -->
+                <rect x="200" y="50" width="100" height="60" fill="none" stroke="currentColor" stroke-width="2" rx="8"/>
+                <text x="250" y="75" text-anchor="middle" font-size="13" font-weight="bold">Server</text>
+                <text x="250" y="100" text-anchor="middle" font-size="10" opacity="0.7">Verify ACL</text>
+                
+                <!-- Response arrow -->
+                <line x1="200" y1="130" x2="120" y2="130" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="160" y="150" text-anchor="middle" font-size="10" opacity="0.7">Allow/Deny</text>
+              </svg>
+            </div>
+
+            <div class="code-block-wrapper">
+              <div class="code-block-header">
+                <span>enum IntentCode</span>
+                <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block">
+                <div class="mono" style="white-space: pre;">
+<span class="kw">enum</span> <span class="ty">IntentCode</span> {
+  ModelInference    = <span class="num">0x01</span>,  <span class="cm">// LLM inference calls</span>
+  DataSync          = <span class="num">0x02</span>,  <span class="cm">// Database replication</span>
+  ControlSignal     = <span class="num">0x03</span>,  <span class="cm">// Management commands</span>
+  IdentityEx        = <span class="num">0x04</span>,  <span class="cm">// Key exchange</span>
+  AuditLog          = <span class="num">0x05</span>,  <span class="cm">// Log ingestion</span>
+  Heartbeat         = <span class="num">0x06</span>,  <span class="cm">// Keep-alive</span>
+  Discovery         = <span class="num">0x07</span>,  <span class="cm">// Service discovery</span>
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRIMITIVE 3: TRUST -->
+        <div class="primitive-section" data-primitive="3">
+          <div class="primitive-timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          
+          <div class="primitive-header">
+            <div class="primitive-badge">03</div>
+            <div>
+              <h3>Dynamic Trust Evaluation</h3>
+              <p class="primitive-subtitle">Trust is computed in real-time from rules and AI analysis. A session is only granted if the merged score exceeds the threshold.</p>
+            </div>
+          </div>
+
+          <div class="primitive-content">
+            <div class="primitive-prose">
+              <p>Trust is not binary. AITP uses a dual-scoring system: <strong>rules-based</strong> (fast, deterministic) and <strong>AI-driven</strong> (behavioral analysis via Ollama).</p>
+              <p>The final trust score is a weighted merge: <code style="color: var(--navy); background: var(--paper-alt); padding: 2px 6px; border-radius: 4px;">S_merged = 0.4 × S_rules + 0.6 × S_AI</code></p>
+              <p>Scores are checked against fixed thresholds: <strong>Allow</strong> (≥128), <strong>Monitor</strong> (64–127), <strong>Deny</strong> (&lt;64).</p>
+            </div>
+
+            <div class="primitive-diagram-container">
+              <svg class="primitive-diagram" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid meet">
+                <!-- Client Request -->
+                <rect x="30" y="10" width="80" height="40" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="70" y="35" text-anchor="middle" font-size="12" font-weight="bold">Session</text>
+                
+                <!-- Split into two evaluators -->
+                <line x1="70" y1="50" x2="50" y2="90" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4"/>
+                <line x1="70" y1="50" x2="150" y2="90" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4"/>
+                
+                <!-- Rules Scorer -->
+                <rect x="10" y="90" width="80" height="50" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="50" y="110" text-anchor="middle" font-size="11" font-weight="bold">Rules</text>
+                <text x="50" y="130" text-anchor="middle" font-size="10" opacity="0.7">S_rules: 100</text>
+                
+                <!-- AI Evaluator -->
+                <rect x="110" y="90" width="80" height="50" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="150" y="110" text-anchor="middle" font-size="11" font-weight="bold">Ollama AI</text>
+                <text x="150" y="130" text-anchor="middle" font-size="10" opacity="0.7">S_ai: 89</text>
+                
+                <!-- Merge -->
+                <line x1="50" y1="140" x2="120" y2="170" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4"/>
+                <line x1="150" y1="140" x2="120" y2="170" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4"/>
+                
+                <!-- Final verdict -->
+                <rect x="85" y="170" width="70" height="40" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="120" y="188" text-anchor="middle" font-size="11" font-weight="bold">S_merged</text>
+                <text x="120" y="205" text-anchor="middle" font-size="9" opacity="0.7">0.4×100 + 0.6×89</text>
+              </svg>
+            </div>
+
+            <div class="key-formula-card">
+              <div class="formula-label">Trust Calculation</div>
+              <div class="formula-content mono">S_merged = 0.4 × S_rules + 0.6 × S_AI</div>
+            </div>
+
+            <div class="trust-thresholds">
+              <div class="threshold-item allow">
+                <span class="threshold-label">Allow</span>
+                <span class="threshold-value">≥ 128</span>
+              </div>
+              <div class="threshold-item monitor">
+                <span class="threshold-label">Monitor</span>
+                <span class="threshold-value">64 – 127</span>
+              </div>
+              <div class="threshold-item deny">
+                <span class="threshold-label">Deny</span>
+                <span class="threshold-value">&lt; 64</span>
+              </div>
+            </div>
+
+            <div class="code-block-wrapper">
+              <div class="code-block-header">
+                <span>Trust Thresholds</span>
+                <button class="code-copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block">
+                <div class="mono" style="white-space: pre;">
+<span class="cm">// Trust Decision Thresholds</span>
+Allow:   score ≥ <span class="num">128</span>   <span class="cm">// Green light</span>
+Monitor: score ∈ [<span class="num">64</span>, <span class="num">127</span>]  <span class="cm">// Yellow flag</span>
+Deny:    score &lt;  <span class="num">64</span>    <span class="cm">// Drop packet</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRIMITIVE 4: VERDICT (NEW) -->
+        <div class="primitive-section" data-primitive="4">
+          <div class="primitive-timeline-marker">
+            <div class="timeline-dot"></div>
+            <div class="timeline-line"></div>
+          </div>
+          
+          <div class="primitive-header">
+            <div class="primitive-badge">04</div>
+            <div>
+              <h3>Session Verdict & Grant</h3>
+              <p class="primitive-subtitle">The server renders a verdict (Allow/Deny/Monitor) and cryptographically binds the session to the EntityID if approved.</p>
+            </div>
+          </div>
+
+          <div class="primitive-content">
+            <div class="primitive-prose">
+              <p>Once trust evaluation is complete, the server issues a verdict and binds it to the session using HMAC-SHA256. This binding is sent to the eBPF enforcement layer.</p>
+              <p>If the verdict is <strong>Allow</strong>, the session is registered with a TTL (time-to-live) and a revocation nonce. If <strong>Deny</strong>, the packet is dropped and the client is added to a transient blocklist.</p>
+            </div>
+
+            <div class="primitive-diagram-container">
+              <svg class="primitive-diagram" viewBox="0 0 400 180" preserveAspectRatio="xMidYMid meet">
+                <!-- Evaluation complete -->
+                <rect x="30" y="20" width="100" height="50" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="80" y="50" text-anchor="middle" font-size="12" font-weight="bold">Evaluation</text>
+                
+                <!-- Arrow -->
+                <line x1="130" y1="45" x2="190" y2="45" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)"/>
+                
+                <!-- Three verdicts -->
+                <rect x="190" y="10" width="80" height="25" fill="none" stroke="var(--success)" stroke-width="2" rx="4"/>
+                <text x="230" y="28" text-anchor="middle" font-size="11" font-weight="bold" fill="var(--success)">✓ Allow</text>
+                
+                <rect x="190" y="45" width="80" height="25" fill="none" stroke="var(--warn)" stroke-width="2" rx="4"/>
+                <text x="230" y="63" text-anchor="middle" font-size="11" font-weight="bold" fill="var(--warn)">⊙ Monitor</text>
+                
+                <rect x="190" y="80" width="80" height="25" fill="none" stroke="var(--error)" stroke-width="2" rx="4"/>
+                <text x="230" y="98" text-anchor="middle" font-size="11" font-weight="bold" fill="var(--error)">✗ Deny</text>
+                
+                <!-- Session binding -->
+                <line x1="270" y1="22" x2="320" y2="80" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4"/>
+                <rect x="310" y="80" width="80" height="50" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="350" y="100" text-anchor="middle" font-size="11" font-weight="bold">Session</text>
+                <text x="350" y="120" text-anchor="middle" font-size="9" opacity="0.7" font-family="JetBrains Mono">HMAC(EntityID)</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRIMITIVE 5: ENFORCEMENT -->
+        <div class="primitive-section" data-primitive="5">
+          <div class="primitive-timeline-marker">
+            <div class="timeline-dot"></div>
+            <!-- No line after the last primitive -->
+          </div>
+          
+          <div class="primitive-header">
+            <div class="primitive-badge">05</div>
+            <div>
+              <h3>eBPF Wire-Speed Enforcement</h3>
+              <p class="primitive-subtitle">Verdicts are enforced at the kernel layer via eBPF/XDP. Denied packets are dropped in &lt;1μs, with sub-millisecond revocation.</p>
+            </div>
+          </div>
+
+          <div class="primitive-content">
+            <div class="primitive-prose">
+              <p>The final primitive is enforcement. AITP doesn't just evaluate trust—it *implements* it at the network layer using eBPF (extended Berkeley Packet Filter).</p>
+              <p>Every packet is checked against the active session map. If the packet matches a denied session or an unknown entity, it is dropped at XDP (eXpress Data Path) — before it even reaches user-space code. This is why AITP achieves &lt;1μs revocation latency.</p>
+              <p>Session revocation is also instant: the control plane sends a single command to remove the entry from the eBPF map, and all matching packets are immediately dropped.</p>
+            </div>
+
+            <div class="primitive-diagram-container">
+              <svg class="primitive-diagram" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
+                <!-- Packet arrival -->
+                <rect x="30" y="20" width="80" height="40" fill="none" stroke="currentColor" stroke-width="2" rx="6"/>
+                <text x="70" y="45" text-anchor="middle" font-size="11" font-weight="bold">Packet</text>
+                
+                <!-- Arrow to kernel -->
+                <line x1="110" y1="40" x2="170" y2="40" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <text x="140" y="30" text-anchor="middle" font-size="9" opacity="0.7">XDP Layer</text>
+                
+                <!-- XDP/eBPF check -->
+                <rect x="170" y="10" width="100" height="60" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="2" rx="6" stroke-dasharray="4"/>
+                <text x="220" y="35" text-anchor="middle" font-size="11" font-weight="bold">eBPF Map</text>
+                <text x="220" y="55" text-anchor="middle" font-size="9" opacity="0.7">Lookup Session</text>
+                
+                <!-- Two outcomes -->
+                <!-- Allow path -->
+                <line x1="170" y1="50" x2="120" y2="120" stroke="var(--success)" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <rect x="60" y="120" width="60" height="40" fill="none" stroke="var(--success)" stroke-width="2" rx="6"/>
+                <text x="90" y="145" text-anchor="middle" font-size="11" font-weight="bold" fill="var(--success)">Forward</text>
+                
+                <!-- Deny path -->
+                <line x1="270" y1="50" x2="310" y2="120" stroke="var(--error)" stroke-width="2" marker-end="url(#arrowhead)"/>
+                <rect x="280" y="120" width="60" height="40" fill="none" stroke="var(--error)" stroke-width="2" rx="6"/>
+                <text x="310" y="145" text-anchor="middle" font-size="11" font-weight="bold" fill="var(--error)">DROP</text>
+                
+                <!-- Latency note -->
+                <text x="220" y="180" text-anchor="middle" font-size="10" opacity="0.7" font-weight="bold">&lt;1μs decision</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- END-OF-PAGE FULL FLOW DIAGRAM -->
+        <div style="margin-top: 100px; padding: 60px 0 40px;">
+          <h3 style="text-align: center; margin-bottom: 20px;">Complete AITP Handshake Sequence</h3>
+          <p style="text-align: center; color: var(--muted); margin-bottom: 40px;">All five primitives working together in a single session.</p>
+          
+          <div class="full-flow-diagram">
+            <svg viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet" style="width: 100%; max-width: 900px; margin: 0 auto;">
+              <!-- Client box -->
+              <rect x="50" y="30" width="120" height="340" fill="none" stroke="currentColor" stroke-width="2" rx="8"/>
+              <text x="110" y="55" text-anchor="middle" font-size="14" font-weight="bold">Client</text>
+              
+              <!-- Server box -->
+              <rect x="830" y="30" width="120" height="340" fill="none" stroke="currentColor" stroke-width="2" rx="8"/>
+              <text x="890" y="55" text-anchor="middle" font-size="14" font-weight="bold">Server</text>
+              
+              <!-- Step 1: Send Identity -->
+              <text x="110" y="100" text-anchor="middle" font-size="10" opacity="0.6">01. HELLO</text>
+              <line x1="170" y1="110" x2="830" y2="110" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5"/>
+              <text x="500" y="100" text-anchor="middle" font-size="10" opacity="0.7">[EntityID, PubKey]</text>
+              
+              <!-- Step 2: Challenge -->
+              <text x="890" y="160" text-anchor="middle" font-size="10" opacity="0.6">02. EXCHANGE</text>
+              <line x1="830" y1="170" x2="170" y2="170" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5"/>
+              <text x="500" y="160" text-anchor="middle" font-size="10" opacity="0.7">[Challenge Nonce]</text>
+              
+              <!-- Step 3: Intent + Signature -->
+              <text x="110" y="230" text-anchor="middle" font-size="10" opacity="0.6">03. DECLARE</text>
+              <line x1="170" y1="240" x2="830" y2="240" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5"/>
+              <text x="500" y="230" text-anchor="middle" font-size="10" opacity="0.7">[Intent, Sig(EntityID, Nonce)]</text>
+              
+              <!-- Step 4: AI Evaluation -->
+              <text x="890" y="290" text-anchor="middle" font-size="10" opacity="0.6">04. EVAL</text>
+              <rect x="750" y="300" width="140" height="50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3" rx="6"/>
+              <text x="820" y="320" text-anchor="middle" font-size="10">Run Ollama</text>
+              <text x="820" y="340" text-anchor="middle" font-size="9" opacity="0.7">Compute S_merged</text>
+              
+              <!-- Step 5: Verdict + Session Binding -->
+              <text x="890" y="360" text-anchor="middle" font-size="10" opacity="0.6">05. GRANT</text>
+              <line x1="830" y1="310" x2="170" y2="310" stroke="currentColor" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5"/>
+              <text x="500" y="300" text-anchor="middle" font-size="10" opacity="0.7">[Verdict, SessionID, TTL]</text>
+              
+              <!-- Final note -->
+              <text x="500" y="380" text-anchor="middle" font-size="11" font-weight="bold" opacity="0.8">eBPF enforces verdict at wire speed (&lt;1μs)</text>
+            </svg>
           </div>
         </div>
       </section>
@@ -1364,6 +2751,7 @@
         <h2 style="margin-bottom: 40px;">AITP Live Terminal.</h2>
 
         <div class="terminal-window">
+          <div class="term-crt-overlay"></div>
           <div class="term-header">
             <div style="display: flex; gap: 8px;">
               <div class="code-dot red"></div>
@@ -1383,6 +2771,9 @@
             <button class="term-btn" onclick="runScenario('govt')">▶ Govt Workstation</button>
             <button class="term-btn" onclick="runScenario('ddos')">▶ DDoS Detection</button>
           </div>
+        </div>
+      </section>
+    </div>
 
           <!-- PRICING -->
           <div id="pricing" class="page">
@@ -1608,13 +2999,66 @@
                   <p style="color: var(--muted); margin-bottom: 40px;">Professional advisory, partnership inquiries, or
                     early-adopter access requests.</p>
 
-                  <div class="p-card" style="margin-bottom: 12px;">
-                    <h3>Email</h3>
-                    <p>hello@aitp.dev</p>
-                  </div>
-                  <div class="p-card" style="margin-bottom: 12px;">
-                    <h3>Headquarters</h3>
-                    <p>Distributed / Global Standard</p>
+                  <div class="contact-channels-grid">
+                    <!-- EMAIL -->
+                    <a href="mailto:hello@aitp.dev" class="contact-channel-card">
+                      <span class="card-arrow">→</span>
+                      <div class="card-content-wrapper">
+                        <div class="icon-container">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path></svg>
+                        </div>
+                        <div class="card-text">
+                          <h3>Email</h3>
+                          <p class="subtext">Drop us a line</p>
+                          <span class="value">hello@aitp.dev</span>
+                        </div>
+                      </div>
+                    </a>
+
+                    <!-- GITHUB -->
+                    <a href="https://github.com/kelan-security/kelan-core" target="_blank" rel="noopener noreferrer" class="contact-channel-card">
+                      <span class="card-arrow">→</span>
+                      <div class="card-content-wrapper">
+                        <div class="icon-container">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg>
+                        </div>
+                        <div class="card-text">
+                          <h3>GitHub</h3>
+                          <p class="subtext">Star & contribute</p>
+                          <span class="value">kelan-security/kelan-core</span>
+                        </div>
+                      </div>
+                    </a>
+
+                    <!-- DISCORD -->
+                    <a href="https://discord.gg/aitp" target="_blank" rel="noopener noreferrer" class="contact-channel-card">
+                      <span class="card-arrow">→</span>
+                      <div class="card-content-wrapper">
+                        <div class="icon-container">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle><path d="M10 4a8.4 8.4 0 0 0-3.8-.9c-.19.45-.4 1.25-.53 1.8A12.2 12.2 0 0 0 2 10.4c.1 1.7.55 3.33 1.3 4.8a9.4 9.4 0 0 0 5.3 2.7c.39-.53.73-1.11 1-1.74a7.2 7.2 0 0 1-3.3-1.6c.15-.1.3-.22.44-.33a11.5 11.5 0 0 0 10.5 0c.14.11.29.23.44.33a7.2 7.2 0 0 1-3.3 1.6c.27.63.61 1.21 1 1.74a9.4 9.4 0 0 0 5.3-2.7c.75-1.47 1.2-3.1 1.3-4.8a12.2 12.2 0 0 0-3.67-5.5c-.13-.55-.34-1.35-.53-1.8a8.4 8.4 0 0 0-3.8.9"></path></svg>
+                        </div>
+                        <div class="card-text">
+                          <h3>Discord</h3>
+                          <p class="subtext">Join the conversation</p>
+                          <span class="value">Join Community</span>
+                        </div>
+                      </div>
+                    </a>
+
+                    <!-- TWITTER / X -->
+                    <a href="https://x.com/aitp_dev" target="_blank" rel="noopener noreferrer" class="contact-channel-card">
+                      <span class="card-arrow">→</span>
+                      <div class="card-content-wrapper">
+                        <div class="icon-container">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"></path><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"></path></svg>
+                        </div>
+                        <div class="card-text">
+                          <h3>Twitter / X</h3>
+                          <p class="subtext">Follow our updates</p>
+                          <span class="value">@aitp_dev</span>
+                        </div>
+                      </div>
+                    </a>
                   </div>
                 </div>
                 <div class="contact-card">
@@ -1652,7 +3096,6 @@
               </div>
             </section>
           </div>
-        </div>
 
         <!-- EMAIL CAPTURE (Formspree) -->
         <div class="email-capture" id="signup">
@@ -1724,6 +3167,114 @@
         </footer>
 
         <script>
+          // ═════════════════════════════════════════════════════════════════
+          // THEME MANAGEMENT
+          // ═════════════════════════════════════════════════════════════════
+          
+          let isDarkMode = false;
+          
+          function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            applyTheme();
+          }
+          
+          function applyTheme() {
+            const html = document.documentElement;
+            const toggle = document.getElementById('theme-toggle');
+            
+            if (isDarkMode) {
+              html.classList.add('dark-mode');
+              toggle.textContent = '🌙';
+              toggle.style.transform = 'rotate(180deg)';
+            } else {
+              html.classList.remove('dark-mode');
+              toggle.textContent = '☀️';
+              toggle.style.transform = 'rotate(0deg)';
+            }
+          }
+          
+          // Initialize theme on page load
+          window.addEventListener('load', () => {
+            applyTheme();
+            initializeHowItWorksPage();
+          });
+
+          // ═════════════════════════════════════════════════════════════════
+          // HOW IT WORKS PAGE INITIALIZATION
+          // ═════════════════════════════════════════════════════════════════
+          
+          function initializeHowItWorksPage() {
+            // Step tracker scroll detection
+            const primitiveObserver = new IntersectionObserver((entries) => {
+              entries.forEach(entry => {
+                const primitive = entry.target;
+                const primitiveNum = primitive.getAttribute('data-primitive');
+                
+                if (entry.isIntersecting) {
+                  // Highlight the step in tracker
+                  document.querySelectorAll('.step-node').forEach((node, idx) => {
+                    node.classList.remove('active');
+                    const connector = node.nextElementSibling;
+                    if (connector && connector.classList.contains('step-connector')) {
+                      connector.classList.remove('active');
+                    }
+                  });
+                  
+                  const activeStep = document.querySelector(`.step-node[data-step="${primitiveNum}"]`);
+                  if (activeStep) {
+                    activeStep.classList.add('active');
+                    const connector = activeStep.nextElementSibling;
+                    if (connector && connector.classList.contains('step-connector')) {
+                      connector.classList.add('active');
+                    }
+                  }
+                  
+                  // Animate the primitive section
+                  primitive.classList.add('in-view');
+                }
+              });
+            }, { threshold: 0.3 });
+
+            document.querySelectorAll('.primitive-section').forEach(section => {
+              primitiveObserver.observe(section);
+            });
+          }
+
+          // Copy code to clipboard
+          function copyCode(button) {
+            const codeBlock = button.closest('.code-block-wrapper').querySelector('.code-block');
+            const text = codeBlock.innerText;
+            
+            navigator.clipboard.writeText(text).then(() => {
+              const originalText = button.textContent;
+              button.textContent = '✓ Copied';
+              button.classList.add('copied');
+              
+              setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove('copied');
+              }, 2000);
+            }).catch(() => {
+              // Fallback
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              button.textContent = '✓ Copied';
+              button.classList.add('copied');
+              setTimeout(() => {
+                button.textContent = 'Copy';
+                button.classList.remove('copied');
+              }, 2000);
+            });
+          }
+
+          // ═════════════════════════════════════════════════════════════════
+          // EXISTING ROUTER & FUNCTIONALITY (PRESERVED)
+          // ═════════════════════════════════════════════════════════════════
+          
           // Router Logic
           function goto(hash) {
             const id = hash.replace('#', '') || 'home';
@@ -1748,11 +3299,148 @@
           window.addEventListener('load', () => goto(window.location.hash));
 
           // Terminal Scenarios
+          // Terminal Scenarios
           let terminalBusy = false;
+
+          async function typeGeneralLine(div, text, cursorSpan, container) {
+            let textNode = document.createTextNode('');
+            div.insertBefore(textNode, cursorSpan);
+            
+            const speed = 25; // 25ms per character
+            for (let i = 0; i < text.length; i++) {
+              textNode.textContent += text[i];
+              container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+              await new Promise(r => setTimeout(r, speed));
+            }
+          }
+
+          async function typeOllamaLine(div, text, cursorSpan, container) {
+            let textNode = document.createTextNode('');
+            div.insertBefore(textNode, cursorSpan);
+            
+            const speed = 25;
+            for (let i = 0; i < text.length; i++) {
+              textNode.textContent += text[i];
+              container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+              await new Promise(r => setTimeout(r, speed));
+            }
+
+            const spinner = document.createElement('span');
+            spinner.className = 'term-spinner';
+            div.insertBefore(spinner, cursorSpan);
+            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+            
+            // Keep spinning to simulate Ollama running
+            await new Promise(r => setTimeout(r, 800));
+            
+            spinner.remove();
+            const checkmark = document.createElement('span');
+            checkmark.className = 'term-checkmark';
+            checkmark.innerText = ' ✓';
+            div.insertBefore(checkmark, cursorSpan);
+            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+          }
+
+          async function typeScorerLine(div, text, cursorSpan, container) {
+            // text: ">>> SCORER: rule_match=100, behavior=89, score=189"
+            const prefix = ">>> SCORER: rule_match=";
+            let textNode1 = document.createTextNode('');
+            div.insertBefore(textNode1, cursorSpan);
+            for (let i = 0; i < prefix.length; i++) {
+              textNode1.textContent += prefix[i];
+              container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+              await new Promise(r => setTimeout(r, 20));
+            }
+            
+            const spanRule = document.createElement('span');
+            spanRule.innerText = '0';
+            div.insertBefore(spanRule, cursorSpan);
+            
+            const mid1 = ", behavior=";
+            let textNode2 = document.createTextNode('');
+            div.insertBefore(textNode2, cursorSpan);
+            for (let i = 0; i < mid1.length; i++) {
+              textNode2.textContent += mid1[i];
+              container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+              await new Promise(r => setTimeout(r, 20));
+            }
+
+            const spanBehavior = document.createElement('span');
+            spanBehavior.innerText = '0';
+            div.insertBefore(spanBehavior, cursorSpan);
+
+            const mid2 = ", score=";
+            let textNode3 = document.createTextNode('');
+            div.insertBefore(textNode3, cursorSpan);
+            for (let i = 0; i < mid2.length; i++) {
+              textNode3.textContent += mid2[i];
+              container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+              await new Promise(r => setTimeout(r, 20));
+            }
+
+            const spanScore = document.createElement('span');
+            spanScore.innerText = '0';
+            div.insertBefore(spanScore, cursorSpan);
+
+            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+
+            // Animate values over 600ms
+            const duration = 600;
+            const startTime = performance.now();
+            const targetRule = 100;
+            const targetBehavior = 89;
+            const targetScore = 189;
+
+            await new Promise(resolve => {
+              function step(timestamp) {
+                const progress = Math.min((timestamp - startTime) / duration, 1);
+                spanRule.innerText = Math.floor(progress * targetRule);
+                spanBehavior.innerText = Math.floor(progress * targetBehavior);
+                spanScore.innerText = Math.floor(progress * targetScore);
+                container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+                
+                if (progress < 1) {
+                  requestAnimationFrame(step);
+                } else {
+                  spanRule.innerText = targetRule;
+                  spanBehavior.innerText = targetBehavior;
+                  spanScore.innerText = targetScore;
+                  resolve();
+                }
+              }
+              requestAnimationFrame(step);
+            });
+          }
+
           async function runScenario(type) {
             if (terminalBusy) return;
             terminalBusy = true;
+            
+            // Set active button state
+            const buttons = document.querySelectorAll('.term-btn');
+            let activeBtn = null;
+            buttons.forEach(btn => {
+              btn.classList.remove('active-streaming', 'completed');
+              if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(`'${type}'`)) {
+                activeBtn = btn;
+                btn.classList.add('active-streaming');
+              }
+            });
+
             const output = document.getElementById('term-output');
+
+            // Fade out existing lines first
+            const existingLines = output.querySelectorAll('.term-line');
+            if (existingLines.length > 0) {
+              existingLines.forEach(line => line.classList.add('fade-out-exit'));
+              await new Promise(r => setTimeout(r, 250));
+            }
+            output.innerHTML = ''; // Clear terminal
+
+            // Blinking cursor element
+            const cursorSpan = document.createElement('span');
+            cursorSpan.className = 'streaming-cursor';
+            cursorSpan.innerText = '▊';
 
             const scenarios = {
               allow: [
@@ -1768,10 +3456,10 @@
               deny: [
                 { t: '$ node attack_bot.js --spoof', c: 'prompt' },
                 { t: 'PHASE 1: HELLO... received.', c: 'info' },
-                { t: 'PHASE 2: EXCHANGE... signature mismatch!', c: 'error' },
-                { t: '>>> ALERT: Identity falsification detected.', c: 'warn' },
-                { t: '>>> ENFORCEMENT: Triggering eBPF block for 192.168.1.4', c: 'error' },
-                { t: 'DENIED: Connection closed. Audit log: event_id=8842', c: 'error' }
+                { t: 'PHASE 2: EXCHANGE... signature mismatch!', c: 'deny' },
+                { t: '>>> ALERT: Identity falsification detected.', c: 'revoke' },
+                { t: '>>> ENFORCEMENT: Triggering eBPF block for 192.168.1.4', c: 'deny' },
+                { t: 'DENY: Connection closed. Audit log: event_id=8842', c: 'deny' }
               ],
               govt: [
                 { t: '$ aitp-client sync --classified', c: 'prompt' },
@@ -1781,36 +3469,85 @@
                 { t: 'PHASE 5: GRANT... access to CLASSIFIED_DB approved.', c: 'success' }
               ],
               ddos: [
-                { t: '>>> MONITOR: SYN flood detected on Port 9999', c: 'warn' },
-                { t: '>>> RATE: 1,847 conn/sec exceeded threshold.', c: 'warn' },
-                { t: '>>> ENFORCEMENT: XDP_DROP engaged.', c: 'error' },
-                { t: 'STATUS: 9,841 packets dropped. CPU overhead: 0.3%', c: 'info' }
+                { t: '>>> MONITOR: SYN flood detected on Port 9999', c: 'revoke' },
+                { t: '>>> RATE: 1,847 conn/sec exceeded threshold.', c: 'revoke' },
+                { t: '>>> ENFORCEMENT: XDP_DROP engaged.', c: 'deny' },
+                { t: 'DENY: 9,841 packets dropped. CPU overhead: 0.3%', c: 'deny' }
               ],
               revoke: [
-                { t: '>>> SENTINEL: Lateral movement detected from node 4a21', c: 'warn' },
+                { t: '>>> SENTINEL: Lateral movement detected from node 4a21', c: 'revoke' },
                 { t: '>>> COMMAND: session_revoke --all target=4a21', c: 'prompt' },
-                { t: 'SUCCESS: 12 sessions killed via eBPF in 2.1ms', c: 'error' },
-                { t: 'REPORT: Node 4a21 quarantined until re-attestation.', c: 'info' }
+                { t: 'SUCCESS: 12 sessions killed via eBPF in 2.1ms', c: 'deny' },
+                { t: 'REVOKED: Node 4a21 quarantined until re-attestation.', c: 'revoke' }
               ]
             };
 
             const lines = scenarios[type];
-            for (const line of lines) {
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i];
               const div = document.createElement('div');
               div.className = 'term-line ' + line.c;
-              div.innerText = line.t;
               output.appendChild(div);
-              output.scrollTop = output.scrollHeight;
-              await new Promise(r => setTimeout(r, 400 + Math.random() * 800));
+              
+              // Append blinking cursor at the end
+              div.appendChild(cursorSpan);
+              output.scrollTo({ top: output.scrollHeight, behavior: 'auto' });
+
+              // Route based on special animations
+              if (line.t.startsWith('>>> SCORER:')) {
+                await typeScorerLine(div, line.t, cursorSpan, output);
+              } else if (line.t.includes('running Ollama')) {
+                await typeOllamaLine(div, line.t, cursorSpan, output);
+              } else {
+                await typeGeneralLine(div, line.t, cursorSpan, output);
+              }
+
+              // Remove cursor from this line
+              cursorSpan.remove();
+
+              // Brief pause between lines
+              await new Promise(r => setTimeout(r, 120));
+            }
+
+            // Remove busy state and highlight completed
+            if (activeBtn) {
+              activeBtn.classList.remove('active-streaming');
+              activeBtn.classList.add('completed');
             }
             terminalBusy = false;
           }
 
           function clearTerm() {
             const output = document.getElementById('term-output');
-            output.innerHTML = '<div class="term-line prompt">$ aitp-node version 0.2.0 initialized.</div><div class="term-line prompt">$ Waiting for incoming connections...<span class="cursor"></span></div>';
+            output.innerHTML = '<div class="term-line prompt">$ aitp-node version 0.2.0 initialized.</div><div class="term-line prompt">$ Waiting for incoming connections...</div>';
+            const buttons = document.querySelectorAll('.term-btn');
+            buttons.forEach(btn => btn.classList.remove('active-streaming', 'completed'));
             terminalBusy = false;
           }
+
+          // Staggered contact cards fade-in-up on scroll
+          window.addEventListener('load', () => {
+            const cards = document.querySelectorAll('.contact-channel-card');
+            const observer = new IntersectionObserver((entries) => {
+              let delay = 0;
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  const card = entry.target;
+                  if (!card.classList.contains('visible')) {
+                    setTimeout(() => {
+                      card.classList.add('visible');
+                    }, delay);
+                    delay += 90; // 90ms stagger delay
+                  }
+                }
+              });
+            }, { threshold: 0.1 });
+
+            cards.forEach(card => {
+              card.classList.add('fade-in-up');
+              observer.observe(card);
+            });
+          });
 
           // Form Logic
           function toggleTag(el) {

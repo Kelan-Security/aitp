@@ -124,9 +124,10 @@ class OllamaClient:
 
     async def _client(self) -> httpx.AsyncClient:
         if self._http is None or self._http.is_closed:
+            timeout_val = httpx.Timeout(self.timeout) if self.timeout and self.timeout > 0 else None
             self._http = httpx.AsyncClient(
                 base_url=self.endpoint,
-                timeout=httpx.Timeout(self.timeout),
+                timeout=timeout_val,
             )
         return self._http
 
@@ -173,6 +174,7 @@ class OllamaClient:
     def _cache_key(self, session: dict) -> str:
         import hashlib, json
         key_data = {
+            "entity_id": session.get("entity_id", ""),
             "anomalies": session.get("anomalies", {}),
             "intent":    session.get("intent", ""),
         }
@@ -199,11 +201,10 @@ class OllamaClient:
             verdict = _parse(raw)
             verdict.latency_ms = (time.monotonic() - t0) * 1000
 
-            # Cache DENY patterns (they repeat)
-            if verdict.verdict == Verdict.DENY and verdict.confidence >= 0.7:
-                if len(self._cache) > 500:
-                    self._cache.pop(next(iter(self._cache)))
-                self._cache[ck] = verdict
+            # Cache all patterns (ALLOW, DENY, MONITOR) so repeated requests from same entity short-circuit
+            if len(self._cache) > 500:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[ck] = verdict
 
             log.info(
                 "ollama_verdict",

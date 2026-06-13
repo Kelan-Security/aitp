@@ -105,3 +105,20 @@ class TestHybridEngine:
         await engine.evaluate({"entity_id": "e1", "anomalies": {}})
         assert len(received) >= 1
         assert received[-1]["verdict"] == "ALLOW"
+
+    @pytest.mark.asyncio
+    async def test_slow_successful_verdict_does_not_open_circuit(self):
+        mock_ollama = AsyncMock(spec=OllamaClient)
+        mock_ollama.evaluate.return_value = TrustVerdict(
+            Verdict.DENY, 0.95, "slow response but ok", latency_ms=65000.0
+        )
+        engine = HybridTrustEngine(mock_ollama, threshold=3)
+        
+        # Call evaluate
+        v = await engine.evaluate({"entity_id": "test", "anomalies": {}})
+        
+        # Verify circuit is CLOSED, success was called, and verdict is returned (not fallback)
+        assert engine.cb.state == CBState.CLOSED
+        assert v.verdict == Verdict.DENY
+        assert v.reason == "slow response but ok"
+

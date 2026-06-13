@@ -131,7 +131,12 @@ class HybridTrustEngine:
                 t0 = time.monotonic()
                 verdict = await self.ollama.evaluate(session)
                 via_ollama = True
-                self.cb.success()
+                if verdict.reason.startswith("ollama_error:"):
+                    self.cb.failure()
+                    verdict = _fallback(session)
+                    self._counts["fallbacks"] += 1
+                else:
+                    self.cb.success()
                 OLLAMA_LATENCY.observe(time.monotonic() - t0)
             except Exception as exc:
                 self.cb.failure()

@@ -151,5 +151,25 @@ async def test_handshake_pq_downgrade_rejected(client):
         })
         # With require_pq and no kem_public_key in phase 1, should fail with 403
         assert r.status_code == 403
+        assert r.json()["detail"]["error"] == "pq_downgrade_denied"
     finally:
         s.cfg.require_pq = old_pq
+
+
+@pytest.mark.asyncio
+async def test_enroll_pq_downgrade_rejected(client):
+    import kelan.api.server as s
+    old_pq = s.cfg.require_pq
+    s.cfg.require_pq = True
+    try:
+        r = await client.post("/api/enroll", json={
+            "entity_id": "downgrade-enroll-test",
+            "intent":    "INIT_ENROL",
+        })
+        assert r.status_code == 403
+        data = r.json()
+        assert data["detail"]["error"] == "pq_downgrade_denied"
+        assert "Post-quantum key exchange required" in data["detail"]["reason"]
+    finally:
+        s.cfg.require_pq = old_pq
+

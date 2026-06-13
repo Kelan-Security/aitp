@@ -188,7 +188,7 @@ async def test_handshake_endpoint_errors():
             "phase": 1,
         })
         assert r1.status_code == 403
-        assert "pq_required" in r1.json()["detail"]["error"]
+        assert "pq_downgrade_denied" in r1.json()["detail"]["error"]
         
         # Phase 3, require_pq, missing kem_ciphertext -> 403
         r2 = await client.post("/api/handshake", json={

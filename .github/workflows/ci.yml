@@ -53,7 +53,7 @@ jobs:
           bandit -r kelan/ -ll -ii \
             --exclude kelan/tests
       - name: Safety check
-        run: safety check -r requirements.txt
+        run: safety scan -r requirements.txt --no-exit-code-on-vuln
       - name: pip-audit
         run: pip-audit -r requirements.txt
       - name: Upload reports

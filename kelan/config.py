@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # ── Ollama (LOCAL — no API key ever) 
     ollama_endpoint:    str   = Field("http://localhost:11434", alias="OLLAMA_ENDPOINT")
     ollama_model:       str   = Field("gemma4:latest",          alias="OLLAMA_MODEL")
-    ollama_timeout:     int   = Field(90,                       alias="OLLAMA_TIMEOUT")
+    ollama_timeout:     int   = Field(0,                        alias="OLLAMA_TIMEOUT")
     ollama_temperature: float = Field(0.1,                      alias="OLLAMA_TEMPERATURE")
     ollama_max_tokens:  int   = Field(300,                      alias="OLLAMA_MAX_TOKENS")
 

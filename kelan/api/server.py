@@ -273,11 +273,12 @@ async def enroll(req: EnrollReq, request: Request):
             )
             
     # post-quantum enforcement
-    if cfg.require_pq and req.kem_public_key is None:
-        raise HTTPException(
-            status_code=403,
-            detail={"error": "pq_required", "reason": "ML-KEM-768 public key required"},
-        )
+    if cfg.require_pq:
+        if not req.kem_public_key or len(req.kem_public_key) != 2368:
+            raise HTTPException(
+                status_code=403,
+                detail={"error": "pq_downgrade_denied", "reason": "Post-quantum key exchange required"},
+            )
         
     source_ip = request.client.host if request.client else ""
     
@@ -335,10 +336,18 @@ async def handshake(req: HandshakeReq, request: Request):
         
     # Enforce PQ checks
     if cfg.require_pq:
-        if req.phase == 1 and not req.kem_public_key:
-            raise HTTPException(status_code=403, detail={"error": "pq_required", "reason": "ML-KEM public key required (require_pq=true)"})
-        if req.phase > 1 and not req.kem_ciphertext:
-            raise HTTPException(status_code=403, detail={"error": "pq_downgrade_denied", "reason": "ML-KEM-768 ciphertext required — classical-only sessions rejected"})
+        if req.phase == 1:
+            if not req.kem_public_key or len(req.kem_public_key) != 2368:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"error": "pq_downgrade_denied", "reason": "Post-quantum key exchange required"},
+                )
+        else:
+            if not req.kem_ciphertext or len(req.kem_ciphertext) != 2176:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"error": "pq_downgrade_denied", "reason": "Post-quantum key exchange required"},
+                )
         
     try:
         if req.phase == 1:
