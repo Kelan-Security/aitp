@@ -27,6 +27,20 @@ class Session(Base):
     anomalies   = Column(Text, default="{}")
     created_at  = Column(Float, default=_now)
     updated_at  = Column(Float, default=_now)
+    
+    org_id           = Column(String, nullable=True)
+    source_entity_id = Column(String, nullable=True)
+    dest_entity_id   = Column(String, nullable=True)
+    trust_score      = Column(Integer, default=128)
+    ai_reasoning     = Column(Text, nullable=True)
+    ai_latency_ms    = Column(Float, nullable=True)
+    status           = Column(String, default="Active")
+    bytes_tx         = Column(Integer, default=0)
+    bytes_rx         = Column(Integer, default=0)
+    anomaly_flags    = Column(Text, default="")
+    started_at       = Column(Float, default=_now)
+    ended_at         = Column(Float, nullable=True)
+    close_reason     = Column(String, nullable=True)
 
 
 class Entity(Base):
@@ -38,6 +52,17 @@ class Entity(Base):
     is_banned        = Column(Boolean, default=False)
     last_seen        = Column(Float)
     created_at       = Column(Float, default=_now)
+    
+    org_id           = Column(String, nullable=True)
+    entity_type      = Column(String, nullable=True)
+    department       = Column(String, nullable=True)
+    clearance_level  = Column(Integer, default=0)
+    allowed_intents  = Column(Text, default="[]")
+    trust_score_avg  = Column(Float, default=128.0)
+    session_count    = Column(Integer, default=0)
+    blocked_count    = Column(Integer, default=0)
+    quarantined      = Column(Integer, default=0)
+    enrolled_at      = Column(Float, default=_now)
 
 
 class VerdictLog(Base):

@@ -31,6 +31,63 @@ async def init_db():
         async with _engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             from sqlalchemy import text
+            
+            # Self-healing migrations for Entity columns
+            entities_cols = [
+                ("name", "VARCHAR"),
+                ("public_key", "TEXT"),
+                ("enrollment_count", "INTEGER DEFAULT 0"),
+                ("is_banned", "BOOLEAN DEFAULT 0"),
+                ("last_seen", "FLOAT"),
+                ("created_at", "FLOAT"),
+                ("org_id", "VARCHAR"),
+                ("entity_type", "VARCHAR"),
+                ("department", "VARCHAR"),
+                ("clearance_level", "INTEGER DEFAULT 0"),
+                ("allowed_intents", "TEXT DEFAULT '[]'"),
+                ("trust_score_avg", "FLOAT DEFAULT 128.0"),
+                ("session_count", "INTEGER DEFAULT 0"),
+                ("blocked_count", "INTEGER DEFAULT 0"),
+                ("quarantined", "INTEGER DEFAULT 0"),
+                ("enrolled_at", "FLOAT"),
+            ]
+            for col_name, col_type in entities_cols:
+                try:
+                    await conn.execute(text(f"ALTER TABLE entities ADD COLUMN {col_name} {col_type};"))
+                except Exception:
+                    pass
+            
+            # Self-healing migrations for Session columns
+            sessions_cols = [
+                ("entity_id", "VARCHAR"),
+                ("phase", "INTEGER DEFAULT 0"),
+                ("verdict", "VARCHAR"),
+                ("confidence", "FLOAT DEFAULT 0.0"),
+                ("reason", "TEXT"),
+                ("intent", "VARCHAR"),
+                ("anomalies", "TEXT DEFAULT '{}'"),
+                ("created_at", "FLOAT"),
+                ("updated_at", "FLOAT"),
+                ("org_id", "VARCHAR"),
+                ("source_entity_id", "VARCHAR"),
+                ("dest_entity_id", "VARCHAR"),
+                ("trust_score", "INTEGER DEFAULT 128"),
+                ("ai_reasoning", "TEXT"),
+                ("ai_latency_ms", "FLOAT"),
+                ("status", "VARCHAR DEFAULT 'Active'"),
+                ("bytes_tx", "INTEGER DEFAULT 0"),
+                ("bytes_rx", "INTEGER DEFAULT 0"),
+                ("anomaly_flags", "TEXT DEFAULT ''"),
+                ("started_at", "FLOAT"),
+                ("ended_at", "FLOAT"),
+                ("close_reason", "VARCHAR"),
+            ]
+            for col_name, col_type in sessions_cols:
+                try:
+                    await conn.execute(text(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_type};"))
+                except Exception:
+                    pass
+
             try:
                 await conn.execute(text("CREATE VIEW IF NOT EXISTS verdicts AS SELECT * FROM verdict_log;"))
             except Exception:

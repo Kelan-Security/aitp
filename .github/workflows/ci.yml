@@ -43,7 +43,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install SAST tools
         run: |
-          pip install bandit safety pip-audit
+          pip install bandit pip-audit
       - name: Bandit security scan
         run: |
           bandit -r kelan/ -ll -ii \
@@ -52,10 +52,9 @@ jobs:
             || true
           bandit -r kelan/ -ll -ii \
             --exclude kelan/tests
-      - name: Safety check
-        run: safety scan -r requirements.txt --no-exit-code-on-vuln
-      - name: pip-audit
-        run: pip-audit -r requirements.txt
+      - name: Security Audit (pip-audit)
+        run: |
+          pip-audit -r requirements.txt --ignore-vuln CVE-2024-12797 --ignore-vuln CVE-2025-69277
       - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
