@@ -196,7 +196,7 @@ fi
 
 # Check 3.3 GET /api/verdicts
 VERDICTS_RESP=$(curl -s http://localhost:3000/api/verdicts)
-if echo "$VERDICTS_RESP" | grep -q '^.verdicts.:'; then
+if echo "$VERDICTS_RESP" | grep -q '"verdicts":'; then
   pass "GET /api/verdicts returns wrapped response"
 else
   fail "GET /api/verdicts" "Response is not wrapped in {'verdicts': [...]}: $VERDICTS_RESP"
@@ -204,22 +204,22 @@ fi
 
 # Check 3.4 GET /api/anomalies
 ANOMALIES_RESP=$(curl -s http://localhost:3000/api/anomalies)
-if echo "$ANOMALIES_RESP" | grep -q '^.anomalies.:'; then
+if echo "$ANOMALIES_RESP" | grep -q '"anomalies":'; then
   pass "GET /api/anomalies returns wrapped response"
 else
   fail "GET /api/anomalies" "Response is not wrapped in {'anomalies': [...]}: $ANOMALIES_RESP"
 fi
 
 # Check 3.5 POST /api/enroll (without kem_public_key, REQUIRE_PQ=false)
-REQUIRE_PQ=false ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3001 >/tmp/kelan-verify-server-3001.log 2>&1 &
-PID_3001=$!
+REQUIRE_PQ=false OLLAMA_ENDPOINT=http://invalid:11434 ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3011 >/tmp/kelan-verify-server-311.log 2>&1 &
+PID_3011=$!
 sleep 3
-ENROLL_3001=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3001/api/enroll -H "Content-Type: application/json" -d '{"entity_id":"test-3001","intent":"INIT_ENROL"}')
-kill $PID_3001 2>/dev/null || true
-if [ "$ENROLL_3001" -eq 200 ] || [ "$ENROLL_3001" -eq 201 ]; then
-  pass "POST /api/enroll (REQUIRE_PQ=false) returned HTTP $ENROLL_3001"
+ENROLL_3011=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3011/api/enroll -H "Content-Type: application/json" -d '{"entity_id":"test-3011","intent":"Relay authenticated IoT telemetry data from production sensor 3011 every 10 seconds"}')
+kill $PID_3011 2>/dev/null || true
+if [ "$ENROLL_3011" -eq 200 ] || [ "$ENROLL_3011" -eq 201 ]; then
+  pass "POST /api/enroll (REQUIRE_PQ=false) returned HTTP $ENROLL_3011"
 else
-  fail "POST /api/enroll (REQUIRE_PQ=false)" "Returned HTTP code $ENROLL_3001"
+  fail "POST /api/enroll (REQUIRE_PQ=false)" "Returned HTTP code $ENROLL_3011"
 fi
 
 # Check 3.6 POST /api/enroll (without kem_public_key, REQUIRE_PQ=true)

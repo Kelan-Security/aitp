@@ -1,6 +1,6 @@
 """Central configuration — reads .env only, zero hardcoded secrets."""
 from functools import lru_cache
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,8 +18,9 @@ class Settings(BaseSettings):
     debug:     bool         = Field(False,             alias="AITP_DEBUG")
 
     # ── Database 
+    DATA_DIR: str = Field("data", alias="DATA_DIR")
     database_url: str       = Field(
-        "sqlite+aiosqlite:///data/kelan.db", alias="DATABASE_URL"
+        "sqlite+aiosqlite:///data/aitp.db", alias="DATABASE_URL"
     )
 
     # ── Ollama (LOCAL — no API key ever) 
@@ -48,6 +49,12 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @model_validator(mode="after")
+    def ensure_sqlite_db_url_uses_data_dir(self) -> 'Settings':
+        if self.database_url and "sqlite" in self.database_url and ":memory:" not in self.database_url:
+            self.database_url = f"sqlite+aiosqlite:///{self.DATA_DIR}/aitp.db"
+        return self
 
 
 @lru_cache()

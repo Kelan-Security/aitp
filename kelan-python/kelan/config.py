@@ -4,7 +4,7 @@ All settings loaded from .env — NO secrets hardcoded in source.
 Generate secrets with: openssl rand -hex 32
 """
 from functools import lru_cache
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     mode: str = Field(default="hybrid", alias="KELAN_MODE")
 
     # ── Database ───────────────────────────────────────────────
+    DATA_DIR: str = Field("data", alias="DATA_DIR")
     database_url: str = Field(
         default="sqlite+aiosqlite:///data/aitp.db",
         alias="DATABASE_URL"
@@ -56,6 +57,12 @@ class Settings(BaseSettings):
     # ── Circuit Breaker ────────────────────────────────────────
     cb_failure_threshold: int = Field(default=3, alias="CB_FAILURE_THRESHOLD")
     cb_recovery_timeout: int = Field(default=30, alias="CB_RECOVERY_TIMEOUT")
+
+    @model_validator(mode="after")
+    def ensure_sqlite_db_url_uses_data_dir(self) -> 'Settings':
+        if self.database_url and "sqlite" in self.database_url and ":memory:" not in self.database_url:
+            self.database_url = f"sqlite+aiosqlite:///{self.DATA_DIR}/aitp.db"
+        return self
 
     model_config = {
         "env_file": ".env",

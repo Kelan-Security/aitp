@@ -27,6 +27,8 @@ def print_banner(settings):
     print(banner)
 
 if __name__ == "__main__":
+    import os
     settings = get_settings()
+    os.makedirs(getattr(settings, "DATA_DIR", "data"), exist_ok=True)
     print_banner(settings)
     uvicorn.run("kelan.api.server:app", host=settings.host, port=settings.http_port, reload=False)

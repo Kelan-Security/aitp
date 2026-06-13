@@ -17,6 +17,6 @@ if [ -f .kelan.pid ]; then
 fi
 
 # Stop docker
-docker compose down --remove-orphans
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans
 
 echo -e "✓ All services stopped"

@@ -65,6 +65,9 @@ async def lifespan(app: FastAPI):
     """Startup → run → shutdown."""
     global ollama, engine, sentinel, sessions, ebpf, simulation
 
+    import os
+    os.makedirs(getattr(settings, "DATA_DIR", "data"), exist_ok=True)
+
     # FIX 7: Memory monitor background task
     async def _memory_monitor():
         log = structlog.get_logger()

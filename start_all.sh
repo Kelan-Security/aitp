@@ -37,7 +37,7 @@ if [ "$1" == "--docker" ] || [ "$AITP_USE_DOCKER" == "true" ]; then
 
     if docker compose version >/dev/null 2>&1; then
         echo -e "  Starting containers..."
-        docker compose up -d --build || {
+        docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build || {
             echo -e "${RED}⚠️ Docker connection failed.${NC}"
             echo -e "It looks like your Docker CLI can't talk to Docker Desktop."
             echo -e "Please ${BOLD}Manually Stop${NC} the 'aitp' containers in Docker Desktop UI to free up port 3000."

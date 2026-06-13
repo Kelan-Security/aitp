@@ -1,5 +1,6 @@
 """Async database engine and session factory."""
 import json
+import os
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from .models import Base, VerdictLog, AnomalyLog
 from ..config import get_settings
@@ -10,21 +11,40 @@ _session_factory = None
 
 async def init_db():
     global _engine, _session_factory
+    os.makedirs("data", exist_ok=True)
     cfg = get_settings()
+    
+    # Ensure the connection string is: "sqlite+aiosqlite:///data/aitp.db"
+    db_url = cfg.database_url
+    if not db_url or ("sqlite" in db_url and ":memory:" not in db_url):
+        db_url = "sqlite+aiosqlite:///data/aitp.db"
+
     _engine = create_async_engine(
-        cfg.database_url,
+        db_url,
         echo=cfg.debug,
         pool_pre_ping=True,
     )
     _session_factory = async_sessionmaker(
         _engine, expire_on_commit=False, class_=AsyncSession
     )
-    async with _engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        from sqlalchemy import text
-        await conn.execute(text("CREATE VIEW IF NOT EXISTS verdicts AS SELECT * FROM verdict_log;"))
-        await conn.execute(text("CREATE VIEW IF NOT EXISTS anomalies AS SELECT * FROM anomaly_log;"))
-        await conn.execute(text("CREATE TABLE IF NOT EXISTS audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT, timestamp REAL);"))
+    try:
+        async with _engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            from sqlalchemy import text
+            try:
+                await conn.execute(text("CREATE VIEW IF NOT EXISTS verdicts AS SELECT * FROM verdict_log;"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("CREATE VIEW IF NOT EXISTS anomalies AS SELECT * FROM anomaly_log;"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("CREATE TABLE IF NOT EXISTS audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event TEXT, timestamp REAL);"))
+            except Exception:
+                pass
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize database: {e}") from e
 
 
 def get_session() -> AsyncSession:
