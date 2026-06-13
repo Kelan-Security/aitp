@@ -7,6 +7,7 @@ pkill -f aitp-server 2>/dev/null || true
 pkill -f start_server.py 2>/dev/null || true
 pkill -f uvicorn 2>/dev/null || true
 pkill -f ttyd 2>/dev/null || true
+pkill -f dashboard_server.py 2>/dev/null || true
 
 # Kill by PID file
 if [ -f .kelan.pid ]; then

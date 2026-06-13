@@ -195,9 +195,8 @@ if ! command -v ttyd &> /dev/null; then
     fi
 fi
 
-# Tab 1: Server logs (port 7681)
-ttyd --port 7681 \
-    bash -c "tail -f logs/kelan-server.log" &
+# Tab 1: Command Center Dashboard (port 7681)
+"$PYTHON_BIN" scripts/dashboard_server.py &
 TTYD_PID1=$!
 echo $TTYD_PID1 >> .kelan.pid
 
@@ -227,7 +226,7 @@ ttyd --port 7683 --writable \
 TTYD_PID3=$!
 echo $TTYD_PID3 >> .kelan.pid
 
-echo -e "${GREEN}✓ Web terminal at http://localhost:7681${NC}"
+echo -e "${GREEN}✓ Command Center Dashboard at http://localhost:7681${NC}"
 
 # ── Start Dashboard ──────────────────────────
 if [ -d "../kelan-web" ] || [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "aitp-dashboard" ]; then
@@ -269,7 +268,7 @@ echo -e "${GREEN}  KELAN SECURITY IS RUNNING        ${NC}"
 echo -e "${GREEN}═══════════════════════════════════${NC}"
 echo ""
 echo "  🌐 Dashboard:     http://localhost:3000"
-echo "  📺 Live Logs:     http://localhost:7681"
+echo "  📺 Command Center: http://localhost:7681"
 echo "  📊 Grafana:       http://localhost:3003"
 echo "  📈 Prometheus:    http://localhost:9090"
 echo ""
