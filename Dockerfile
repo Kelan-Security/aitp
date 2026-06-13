@@ -43,10 +43,4 @@ HEALTHCHECK --interval=30s \
   CMD curl -sf \
     http://localhost:3000/api/health || exit 1
 
-CMD ["uvicorn","kelan.server:app",
-     "--host","0.0.0.0",
-     "--port","3000",
-     "--workers","1",
-     "--loop","asyncio",
-     "--limit-max-requests","10000",
-     "--log-level","info"]
+CMD ["uvicorn", "kelan.server:app", "--host", "0.0.0.0", "--port", "3000", "--workers", "1", "--loop", "asyncio", "--limit-max-requests", "10000", "--log-level", "info"]
