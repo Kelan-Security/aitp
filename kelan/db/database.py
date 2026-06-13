@@ -28,6 +28,10 @@ async def init_db():
 
 
 def get_session() -> AsyncSession:
+    assert _session_factory is not None, (
+        "Database not initialised. "
+        "Call await init_db() first."
+    )
     return _session_factory()
 
 
@@ -97,7 +101,7 @@ async def fetch_anomalies(limit: int = 50) -> list[dict]:
                 "source":    r.source,
                 "kind":      r.kind,
                 "severity":  r.severity,
-                "details":   json.loads(r.details_json or "{}"),
+                "details":   json.loads(str(r.details_json or "{}")),
                 "created_at":r.created_at,
             }
             for r in rows.scalars().all()

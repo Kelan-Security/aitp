@@ -1,83 +1,62 @@
-# ══════════════════════════════════════════════════
-# KELAN SECURITY — .gitignore
-# ══════════════════════════════════════════════════
-
-# ── Rust ──────────────────────────────────────────
-/target/
-Cargo.lock.bak
-
-# ── SECRETS — NEVER COMMIT ────────────────────────
+# Virtual Environments
+venv/
 .env
-.env.*
-!.env.example
-!.env.template
-*.prod
-*.staging
-*.local.env
-secrets/
-credentials/
-google_credentials.json
-service_account*.json
+.venv/
+venv-*/
+env/
+ENV/
 
-# ── Keys & Certificates ───────────────────────────
-*.key
-*.pem
-*.p12
-*.pfx
-*.crt
-*.cer
-agent-identity.key
-certs/server.crt
-certs/server.key
-
-# ── Kelan-specific config secrets ─────────────────
-config/.env
-config/.env.local
-config/.env.production
-!config/.env.example
-
-# ── Python ────────────────────────────────────────
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-kelan-python/venv/
-kelan-python/.venv/
-kelan-python/.env
-kelan-python/*.egg-info/
-kelan-python/dist/
-kelan-python/build/
-.pytest_cache/
-.ruff_cache/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# ── IDE ───────────────────────────────────────────
-.idea/
+# IDE / Editor
 .vscode/
+.idea/
 *.swp
 *.swo
-.DS_Store
 
-# ── Logs & Runtime ────────────────────────────────
+# Logs
 *.log
 logs/
-.kelan.pid
-:memory:
 
-# ── Fuzzing ───────────────────────────────────────
-fuzz/corpus/
-fuzz/artifacts/
+# Database
+data/aitp.db
+*.db
 
-# ── Terraform ─────────────────────────────────────
-deploy/oracle-cloud/terraform/terraform.tfvars
-deploy/oracle-cloud/terraform/.terraform/
-deploy/oracle-cloud/terraform/*.tfstate
-deploy/oracle-cloud/terraform/*.tfstate.backup
-deploy/oracle-cloud/terraform/.terraform.lock.hcl
+# OS
+.DS_Store
+Thumbs.db
 
-# ── Build artifacts ───────────────────────────────
-coverage/
-reports/
-*.profraw
-*.profdata
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Rust build target
+target/
+
+# Pytest and coverage
+.pytest_cache/
+.coverage
+htmlcov/

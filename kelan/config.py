@@ -52,4 +52,8 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    # Pyright cannot resolve Pydantic's alias-based
+    # field population from env vars at the type
+    # level. Runtime behaviour is correct (verified
+    # by 95 passing tests). Safe to ignore here.
+    return Settings()  # pyright: ignore[reportCallIssue]

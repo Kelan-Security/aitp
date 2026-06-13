@@ -106,10 +106,11 @@ def aes_gcm_decrypt(key: bytes, ciphertext: bytes, aad: bytes = b"") -> bytes:
 
 # ── ML-KEM stub (post-quantum) 
 try:
-    from kyber_py.kyber import Kyber768          # pip install kyber-py
+    from kyber_py.kyber import Kyber768          # type: ignore # pip install kyber-py
     _REAL_KEM = True
 except ImportError:
     _REAL_KEM = False
+    Kyber768 = None
 
 
 @dataclass
@@ -119,7 +120,7 @@ class KEMKeyPair:
 
 
 def kem_generate() -> KEMKeyPair:
-    if _REAL_KEM:
+    if _REAL_KEM and Kyber768 is not None:
         pk, sk = Kyber768.keygen()
         return KEMKeyPair(pk, sk)
     # Stub — good enough for testing, replace with real impl in prod
@@ -130,7 +131,7 @@ def kem_generate() -> KEMKeyPair:
 
 def kem_encapsulate(public_key: bytes) -> tuple[bytes, bytes]:
     """Returns (ciphertext, shared_secret)."""
-    if _REAL_KEM and len(public_key) >= 1184:
+    if _REAL_KEM and Kyber768 is not None and len(public_key) >= 1184:
         ct, ss = Kyber768.enc(public_key)
         return ct, ss
     ss = os.urandom(32)
@@ -140,7 +141,7 @@ def kem_encapsulate(public_key: bytes) -> tuple[bytes, bytes]:
 
 def kem_decapsulate(private_key: bytes, ciphertext: bytes) -> bytes:
     """Returns shared_secret."""
-    if _REAL_KEM:
+    if _REAL_KEM and Kyber768 is not None:
         return Kyber768.dec(private_key, ciphertext)
     return hashlib.sha3_256(private_key + ciphertext[:32]).digest()
 

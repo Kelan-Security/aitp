@@ -13,6 +13,7 @@ class TestSentinel:
         assert a == {}
 
     def test_sybil_detected_after_burst(self):
+        a = {}
         for i in range(15):
             a = self.s.analyze(f"sybil-{i}", "INIT_ENROL", source_ip="10.0.0.10")
         assert "rapid_enrollment_burst" in a
@@ -22,6 +23,7 @@ class TestSentinel:
     def test_flood_detected_high_rate(self):
         import time
         # Simulate 60 connections in < 1 second
+        a = {}
         for _ in range(60):
             a = self.s.analyze("flooder", "NETWORK_PACKET", source_ip="10.0.0.99")
         assert "syn_rate_per_second" in a
@@ -38,6 +40,7 @@ class TestSentinel:
         assert isinstance(self.s.recent(), list)
 
     def test_brute_force_detected(self):
+        a = {}
         for _ in range(25):
             a = self.s.analyze("bruteforce", "AUTH_ATTEMPT", source_ip="1.2.3.4")
         assert "failed_auth_attempts" in a

@@ -141,7 +141,8 @@ class HybridTrustEngine:
 
         k = verdict.verdict.value.lower()
         self._counts["total"]  += 1
-        self._counts.get(k) is not None and self._counts.update({k: self._counts[k] + 1})
+        if self._counts.get(k) is not None:
+            self._counts.update({k: self._counts[k] + 1})
 
         # Record prometheus metrics
         VERDICTS.labels(

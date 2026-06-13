@@ -89,3 +89,7 @@ async def test_save_and_fetch_anomaly():
     assert saved["kind"] == kind
     assert saved["severity"] == severity
     assert saved["details"] == details
+
+def test_database_facade_wrapper():
+    import kelan.database as db_facade
+    assert db_facade.init_db is not None
