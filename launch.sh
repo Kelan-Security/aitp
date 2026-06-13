@@ -15,8 +15,19 @@ LOG_LEVEL="${RUST_LOG:-aitp_web=info,tower_http=warn}"
 MODE="${1:---dev}"
 PID_FILE="./.aitp.pid"
 LOG_FILE="./logs/aitp.log"
-BINARY="./target/release/aitp_web"
-BINARY_DEV="./target/debug/aitp_web"
+# Find correct python interpreter
+if [ -f "../venv/bin/python" ]; then
+    PYTHON_BIN="../venv/bin/python"
+elif [ -f "./venv/bin/python" ]; then
+    PYTHON_BIN="./venv/bin/python"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
+else
+    PYTHON_BIN="python3"
+fi
+
+BINARY="scripts/start_server.py"
+BINARY_DEV="scripts/start_server.py"
 
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -120,26 +131,9 @@ ENV
 
 # ── Build ─────────────────────────────────────────────────────────
 build_backend() {
-  echo -e "  ${BLUE}→${NC} Building AITP backend..."
-  if [ "$MODE" = "--dev" ]; then
-    echo -e "  ${DIM}  cargo build --bin aitp_web (debug)${NC}"
-    CARGO_TERM_COLOR=always cargo build --bin aitp_web 2>&1 | \
-      grep -E "(error|warning\[|Compiling aitp-web|Finished)" | \
-      sed "s/^/    /" || {
-      echo -e "\n  ${RED}✗ Build failed. Run: cargo build --bin aitp_web${NC}"
-      exit 1
-    }
-    BINARY="$BINARY_DEV"
-  else
-    echo -e "  ${DIM}  cargo build --release --bin aitp_web${NC}"
-    CARGO_TERM_COLOR=always cargo build --release --bin aitp_web 2>&1 | \
-      grep -E "(error|warning\[|Compiling aitp-web|Finished)" | \
-      sed "s/^/    /" || {
-      echo -e "\n  ${RED}✗ Build failed. Run: cargo build --release --bin aitp_web${NC}"
-      exit 1
-    }
-  fi
-  echo -e "  ${GREEN}✓${NC} Build complete"
+  echo -e "  ${BLUE}→${NC} Verifying AITP backend environment..."
+  echo -e "  Using Python interpreter: ${CYAN}$PYTHON_BIN${NC}"
+  echo -e "  ${GREEN}✓${NC} Environment ready"
 }
 
 # ── Copy frontend ─────────────────────────────────────────────────
@@ -216,9 +210,9 @@ start_backend() {
         (sleep 2 && open_browser "http://localhost:5173") &
 
         # Start Vite frontend
-        if [ -d "aitp-web" ] && [ -f "aitp-web/package.json" ]; then
+        if [ -d "../kelan-web" ] && [ -f "../kelan-web/package.json" ]; then
           echo -e "  ${YELLOW}→${NC} Starting frontend dev server in background..."
-          (cd aitp-web && npm run dev) &
+          (cd ../kelan-web && npm run dev) &
           FRONTEND_PID=$!
           # Add trap to kill frontend when backend is stopped
           trap 'kill $FRONTEND_PID 2>/dev/null' EXIT
@@ -230,7 +224,7 @@ start_backend() {
     AITP_HTTP_PORT="$HTTP_PORT" \
     AITP_UDP_PORT="$UDP_PORT" \
     AITP_DB_PATH="$DB_PATH" \
-    "$BINARY"
+    "$PYTHON_BIN" "$BINARY"
 
   else
     # Production mode: run in background
@@ -238,7 +232,7 @@ start_backend() {
     AITP_HTTP_PORT="$HTTP_PORT" \
     AITP_UDP_PORT="$UDP_PORT" \
     AITP_DB_PATH="$DB_PATH" \
-    nohup "$BINARY" > "$LOG_FILE" 2>&1 &
+    nohup "$PYTHON_BIN" "$BINARY" > "$LOG_FILE" 2>&1 &
 
     BACKEND_PID=$!
     echo "$BACKEND_PID" > "$PID_FILE"

@@ -8,6 +8,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Pre-flight: check Ollama is reachable
 OLLAMA_EP=${OLLAMA_ENDPOINT:-http://localhost:11434}
 echo "Checking Ollama AI engine at $OLLAMA_EP..."
@@ -112,22 +114,22 @@ echo -e "${YELLOW}[4/6] Starting Kelan AITP server...${NC}"
 
 mkdir -p logs
 
-# Find correct binary (underscore or hyphen)
-if [ -f "./target/release/aitp_server" ]; then
-    SERVER_BIN="./target/release/aitp_server"
-elif [ -f "./target/release/aitp-server" ]; then
-    SERVER_BIN="./target/release/aitp-server"
+# Find correct python interpreter
+if [ -f "../venv/bin/python" ]; then
+    PYTHON_BIN="../venv/bin/python"
+elif [ -f "./venv/bin/python" ]; then
+    PYTHON_BIN="./venv/bin/python"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
 else
-    echo -e "${RED}✗ Server binary not found${NC}"
-    echo "Run: cargo build --release"
-    exit 1
+    PYTHON_BIN="python3"
 fi
 
-echo "Binary: $SERVER_BIN"
+echo "Using Python: $PYTHON_BIN"
 
 # Start server
 RUST_LOG=info,aitp_server=debug,kelan=debug \
-    $SERVER_BIN \
+    "$PYTHON_BIN" scripts/start_server.py \
     > logs/kelan-server.log 2>&1 &
 
 SERVER_PID=$!
@@ -228,20 +230,28 @@ echo $TTYD_PID3 >> .kelan.pid
 echo -e "${GREEN}✓ Web terminal at http://localhost:7681${NC}"
 
 # ── Start Dashboard ──────────────────────────
-if [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "aitp-dashboard" ]; then
+if [ -d "../kelan-web" ] || [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "aitp-dashboard" ]; then
     echo -e "${YELLOW}Starting dashboard...${NC}"
     
-    DASH_DIR=$([ -d "aitp-dashboard" ] && echo "aitp-dashboard" || ([ -d "dashboard" ] && echo "dashboard" || echo "frontend"))
+    if [ -d "../kelan-web" ]; then
+        DASH_DIR="../kelan-web"
+    else
+        DASH_DIR=$([ -d "aitp-dashboard" ] && echo "aitp-dashboard" || ([ -d "dashboard" ] && echo "dashboard" || echo "frontend"))
+    fi
     
-    cd $DASH_DIR
-    npm install --silent
-    npm run dev > ../logs/dashboard.log 2>&1 &
-    DASH_PID=$!
-    echo $DASH_PID >> ../.kelan.pid
-    cd ..
-    
-    sleep 3
-    echo -e "${GREEN}✓ Dashboard starting...${NC}"
+    if [ -f "$DASH_DIR/package.json" ]; then
+        cd "$DASH_DIR"
+        npm install --silent
+        npm run dev > "$SCRIPT_DIR/logs/dashboard.log" 2>&1 &
+        DASH_PID=$!
+        echo $DASH_PID >> "$SCRIPT_DIR/.kelan.pid"
+        cd - >/dev/null
+        
+        sleep 3
+        echo -e "${GREEN}✓ Dashboard starting...${NC}"
+    else
+        echo -e "${YELLOW}⚠ Dashboard directory found, but package.json is missing in $DASH_DIR. Skipping...${NC}"
+    fi
 fi
 
 # ── Run Verification Tests ───────────────────
@@ -251,7 +261,7 @@ echo ""
 # Small delay to ensure everything is up
 sleep 2
 
-./scripts/verify.sh
+./scripts/verify_python.sh
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════${NC}"

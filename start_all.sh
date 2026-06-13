@@ -24,7 +24,7 @@ if [ -n "$FE_PID" ]; then
 fi
 
 # Kill backend via its own script
-./start.sh stop > /dev/null 2>&1 || true
+./stop.sh > /dev/null 2>&1 || true
 
 # 2. Infrastructure (Docker)
 if [ "$1" == "--docker" ] || [ "$AITP_USE_DOCKER" == "true" ]; then
@@ -62,11 +62,11 @@ echo -e "${AMBER}Starting Intelligence Core (Backend)...${NC}"
 
 # 4. Frontend (Admin Dashboard)
 echo -e "${AMBER}Starting Admin Dashboard (Frontend)...${NC}"
-cd aitp-web
+cd ../kelan-web
 # Run in background, redirect logs
-npm run dev -- --port 5173 > ../.aitp_frontend.log 2>&1 &
+npm run dev -- --port 5173 > ../kelan-core/.aitp_frontend.log 2>&1 &
 echo -e "${GREEN}✓ Frontend starting at http://localhost:5173${NC}"
-cd ..
+cd ../kelan-core
 
 # 5. Final Status
 echo ""

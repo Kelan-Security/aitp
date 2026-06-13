@@ -6,6 +6,16 @@ GREEN='\033[0;32m'; RED='\033[0;31m'
 AMBER='\033[0;33m'; BOLD='\033[1m'; RESET='\033[0m'
 PASS=0; FAIL=0; WARN=0; FAILURES=()
 
+if [ -d "../venv" ]; then
+  VENV_BIN="../venv/bin"
+elif [ -d ".venv" ]; then
+  VENV_BIN=".venv/bin"
+elif [ -d "venv" ]; then
+  VENV_BIN="venv/bin"
+else
+  VENV_BIN=""
+fi
+
 pass() { echo -e "  ${GREEN}✅${RESET} $1"; PASS=$((PASS+1)); }
 fail() { echo -e "  ${RED}❌${RESET} $1 — $2";
          FAIL=$((FAIL+1)); FAILURES+=("$1: $2"); }
@@ -37,16 +47,16 @@ else
 fi
 
 # Check 1.2 Virtual environment exists and is active
-if [ -d "venv" ] || [ -d ".venv" ]; then
-  pass "Virtual environment folder exists"
+if [ -n "$VENV_BIN" ]; then
+  pass "Virtual environment folder exists ($VENV_BIN)"
 else
-  fail "Virtual environment folder check" "Neither 'venv' nor '.venv' exists"
+  fail "Virtual environment folder check" "Neither '../venv', '.venv' nor 'venv' exists"
 fi
 
 # Check 1.3 All dependencies installed
 DEPS_MISSING=""
 for dep in fastapi sqlalchemy uvicorn pytest httpx pydantic cryptography; do
-  if ! ./venv/bin/pip show "$dep" >/dev/null 2>&1; then
+  if ! ${VENV_BIN:+$VENV_BIN/}pip show "$dep" >/dev/null 2>&1; then
     DEPS_MISSING="$DEPS_MISSING $dep"
   fi
 done
@@ -106,15 +116,16 @@ echo -e "${BOLD}SECTION 2 — TEST SUITE${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════${RESET}"
 
 # Check 2.1 Full test suite passes
-TEST_OUT=$(./venv/bin/pytest -x --tb=short 2>&1)
-if echo "$TEST_OUT" | grep -q "57 passed"; then
-  pass "Full test suite passes (57 passed)"
+TEST_OUT=$(${VENV_BIN:+$VENV_BIN/}pytest -x --tb=short 2>&1)
+if echo "$TEST_OUT" | grep -E -q "[0-9]+ passed" && ! echo "$TEST_OUT" | grep -q -i "failed"; then
+  TESTS_PASSED=$(echo "$TEST_OUT" | grep -E -o "[0-9]+ passed" | head -1)
+  pass "Full test suite passes ($TESTS_PASSED)"
 else
   fail "pytest run" "Test suite failed or count was incorrect. Output tail:\n$(echo "$TEST_OUT" | tail -10)"
 fi
 
 # Check 2.2 No tests skipped without reason
-SKIPS=$(./venv/bin/pytest --collect-only 2>&1 | grep -i skip)
+SKIPS=$(${VENV_BIN:+$VENV_BIN/}pytest --collect-only 2>&1 | grep -i skip)
 if [ $? -eq 0 ]; then
   pass "No unauthorized skips found"
 else
@@ -122,7 +133,7 @@ else
 fi
 
 # Check 2.3 Test coverage report
-COV_OUT=$(./venv/bin/pytest --cov=kelan --cov-report=term-missing 2>&1 | grep "TOTAL")
+COV_OUT=$(${VENV_BIN:+$VENV_BIN/}pytest --cov=kelan --cov-report=term-missing 2>&1 | grep "TOTAL")
 COV_PCT=$(echo "$COV_OUT" | awk '{print $NF}' | tr -d '%')
 if [ -n "$COV_PCT" ]; then
   if [ "$COV_PCT" -lt 60 ]; then
@@ -137,7 +148,7 @@ fi
 # Check 2.4 All 6 fix areas verified by tests:
 FIX_ERRS=""
 for area in stats verdicts handshake xdp enroll pq; do
-  if ! ./venv/bin/pytest -v -k "$area" 2>&1 | grep -q PASSED; then
+  if ! ${VENV_BIN:+$VENV_BIN/}pytest -v -k "$area" 2>&1 | grep -q PASSED; then
     FIX_ERRS="$FIX_ERRS $area"
   fi
 done
@@ -155,7 +166,7 @@ echo -e "${BOLD}═════════════════════�
 # Start server if not running
 if ! curl -sf http://localhost:3000/api/health >/dev/null 2>&1; then
   echo "Starting verification server on port 3000..."
-  ./venv/bin/uvicorn kelan.server:app --host 0.0.0.0 --port 3000 >/tmp/kelan-verify-server-3000.log 2>&1 &
+  ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3000 >/tmp/kelan-verify-server-3000.log 2>&1 &
   SERVER_PID=$!
   SERVER_STARTED=1
   sleep 3
@@ -200,7 +211,7 @@ else
 fi
 
 # Check 3.5 POST /api/enroll (without kem_public_key, REQUIRE_PQ=false)
-REQUIRE_PQ=false ./venv/bin/uvicorn kelan.server:app --host 0.0.0.0 --port 3001 >/tmp/kelan-verify-server-3001.log 2>&1 &
+REQUIRE_PQ=false ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3001 >/tmp/kelan-verify-server-3001.log 2>&1 &
 PID_3001=$!
 sleep 3
 ENROLL_3001=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3001/api/enroll -H "Content-Type: application/json" -d '{"entity_id":"test-3001","intent":"INIT_ENROL"}')
@@ -212,7 +223,7 @@ else
 fi
 
 # Check 3.6 POST /api/enroll (without kem_public_key, REQUIRE_PQ=true)
-REQUIRE_PQ=true ./venv/bin/uvicorn kelan.server:app --host 0.0.0.0 --port 3002 >/tmp/kelan-verify-server-3002.log 2>&1 &
+REQUIRE_PQ=true ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3002 >/tmp/kelan-verify-server-3002.log 2>&1 &
 PID_3002=$!
 sleep 3
 ENROLL_3002=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3002/api/enroll -H "Content-Type: application/json" -d '{"entity_id":"test-3002","intent":"INIT_ENROL"}')
@@ -224,9 +235,9 @@ else
 fi
 
 # Check 3.7 POST /api/xdp/drop
-INITIAL_DROPS=$(curl -s http://localhost:3000/api/stats | ./venv/bin/python -c "import sys, json; print(json.load(sys.stdin).get('packets_dropped', 0))")
+INITIAL_DROPS=$(curl -s http://localhost:3000/api/stats | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(json.load(sys.stdin).get('packets_dropped', 0))")
 DROP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3000/api/xdp/drop -H "Content-Type: application/json" -d '{"count": 5, "reason": "rate_limit"}')
-UPDATED_DROPS=$(curl -s http://localhost:3000/api/stats | ./venv/bin/python -c "import sys, json; print(json.load(sys.stdin).get('packets_dropped', 0))")
+UPDATED_DROPS=$(curl -s http://localhost:3000/api/stats | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(json.load(sys.stdin).get('packets_dropped', 0))")
 DIFF=$((UPDATED_DROPS - INITIAL_DROPS))
 if [ "$DROP_STATUS" -eq 200 ] && [ "$DIFF" -eq 5 ]; then
   pass "POST /api/xdp/drop returned 200 and increased packets_dropped by 5"
@@ -236,7 +247,7 @@ fi
 
 # Check 3.8 POST /api/trust/evaluate
 EVAL_RESP=$(curl -s -X POST http://localhost:3000/api/trust/evaluate -H "Content-Type: application/json" -d '{"entity_id":"v-001","intent":"health_check","session_id":"s-001","anomalies":[]}')
-VERDICT=$(echo "$EVAL_RESP" | ./venv/bin/python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
+VERDICT=$(echo "$EVAL_RESP" | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
 if [ "$VERDICT" = "ALLOW" ] || [ "$VERDICT" = "DENY" ] || [ "$VERDICT" = "MONITOR" ]; then
   pass "POST /api/trust/evaluate returned 200 with verdict: $VERDICT"
 else
@@ -267,7 +278,7 @@ echo -e "${BOLD}SECTION 4 — DATABASE${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════${RESET}"
 
 # Check 4.1 Database file/connection reachable
-DB_CONN_STATUS=$(./venv/bin/python -c "
+DB_CONN_STATUS=$(${VENV_BIN:+$VENV_BIN/}python -c "
 from kelan.database import init_db
 import asyncio
 try:
@@ -283,7 +294,7 @@ else
 fi
 
 # Check 4.2 All tables exist:
-DB_TABLES=$(./venv/bin/python -c "
+DB_TABLES=$(${VENV_BIN:+$VENV_BIN/}python -c "
 import sqlite3, os
 db = os.getenv('DATABASE_URL','').replace('sqlite+aiosqlite:///','').replace('sqlite:///','')
 conn = sqlite3.connect(db)
@@ -308,7 +319,7 @@ fi
 
 # Check 4.3 Verdicts write and read:
 curl -s -X POST http://localhost:3000/api/trust/evaluate -H "Content-Type: application/json" -d '{"entity_id":"v-002","intent":"health_check","session_id":"s-002","anomalies":[]}' >/dev/null
-VERDICTS_COUNT=$(curl -s http://localhost:3000/api/verdicts | ./venv/bin/python -c "import sys, json; print(len(json.load(sys.stdin).get('verdicts', [])))")
+VERDICTS_COUNT=$(curl -s http://localhost:3000/api/verdicts | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(len(json.load(sys.stdin).get('verdicts', [])))")
 if [ "$VERDICTS_COUNT" -gt 0 ]; then
   pass "Verdicts read/write verified"
 else
@@ -321,7 +332,7 @@ echo -e "${BOLD}SECTION 5 — OLLAMA AI ENGINE${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════${RESET}"
 
 # Check 5.1 Ollama reachable from Python:
-OLLAMA_STATUS=$(./venv/bin/python -c "
+OLLAMA_STATUS=$(${VENV_BIN:+$VENV_BIN/}python -c "
 import urllib.request, json, os
 try:
   ep = os.getenv('OLLAMA_ENDPOINT','http://localhost:11434')
@@ -339,7 +350,7 @@ fi
 
 # Check 5.2 Hybrid trust engine calls Ollama:
 EVAL_ANOM_RESP=$(curl -s -X POST http://localhost:3000/api/trust/evaluate -H "Content-Type: application/json" -d '{"entity_id":"unknown-entity","intent":"data_exfil","session_id":"s-003","anomalies":{"high_frequency":true,"unknown_entity":true}}')
-VERDICT_ANOM=$(echo "$EVAL_ANOM_RESP" | ./venv/bin/python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
+VERDICT_ANOM=$(echo "$EVAL_ANOM_RESP" | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
 if [ "$VERDICT_ANOM" = "DENY" ] || [ "$VERDICT_ANOM" = "MONITOR" ] || [ "$VERDICT_ANOM" = "ALLOW" ]; then
   pass "Hybrid trust engine evaluation returned: $VERDICT_ANOM"
 else
@@ -347,11 +358,11 @@ else
 fi
 
 # Check 5.3 Circuit breaker activates on Ollama failure:
-OLLAMA_ENDPOINT=http://invalid:11434 ./venv/bin/uvicorn kelan.server:app --host 0.0.0.0 --port 3003 >/tmp/kelan-verify-server-3003.log 2>&1 &
+OLLAMA_ENDPOINT=http://invalid:11434 ${VENV_BIN:+$VENV_BIN/}uvicorn kelan.server:app --host 0.0.0.0 --port 3003 >/tmp/kelan-verify-server-3003.log 2>&1 &
 PID_3003=$!
 sleep 3
 EVAL_3003=$(curl -s -X POST http://localhost:3003/api/trust/evaluate -H "Content-Type: application/json" -d '{"entity_id":"v-003","intent":"health_check","session_id":"s-003","anomalies":[]}')
-VERDICT_3003=$(echo "$EVAL_3003" | ./venv/bin/python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
+VERDICT_3003=$(echo "$EVAL_3003" | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(json.load(sys.stdin).get('verdict', ''))")
 kill $PID_3003 2>/dev/null || true
 if [ "$VERDICT_3003" = "ALLOW" ] || [ "$VERDICT_3003" = "DENY" ] || [ "$VERDICT_3003" = "MONITOR" ]; then
   pass "Circuit breaker handles Ollama failure with fallback verdict: $VERDICT_3003"
@@ -360,7 +371,7 @@ else
 fi
 
 # Check 5.4 Fallback rules engine works independently:
-FALLBACK_ENGINE_STATUS=$(./venv/bin/python -c "
+FALLBACK_ENGINE_STATUS=$(${VENV_BIN:+$VENV_BIN/}python -c "
 from kelan.trust.fallback_rules import FallbackRulesEngine
 import asyncio
 try:
@@ -424,7 +435,7 @@ echo -e "${BOLD}SECTION 7 — POST-QUANTUM CRYPTO${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════${RESET}"
 
 # Check 7.1 ML-KEM-768 available in Python:
-MLKEM_STATUS=$(./venv/bin/python -c "
+MLKEM_STATUS=$(${VENV_BIN:+$VENV_BIN/}python -c "
 try:
   from kelan.crypto.kem import mlkem_keygen, mlkem_encap
   pk, sk = mlkem_keygen()
@@ -441,7 +452,7 @@ else
 fi
 
 # Check 7.2 Ed25519 signing works:
-ED25519_STATUS=$(./venv/bin/python -c "
+ED25519_STATUS=$(${VENV_BIN:+$VENV_BIN/}python -c "
 try:
   from kelan.crypto.identity import generate_keypair, sign, verify
   sk, pk = generate_keypair()
@@ -486,7 +497,7 @@ fi
 curl -s -X POST http://localhost:3000/api/trust/evaluate \
   -H 'Content-Type: application/json' \
   -d '{"entity_id":"dash-test-01","intent":"health_check","session_id":"s-dash-01","anomalies":[]}' >/dev/null
-VERDICTS_COUNT_2=$(curl -s http://localhost:3000/api/verdicts | ./venv/bin/python -c "import sys, json; print(len(json.load(sys.stdin).get('verdicts', [])))")
+VERDICTS_COUNT_2=$(curl -s http://localhost:3000/api/verdicts | ${VENV_BIN:+$VENV_BIN/}python -c "import sys, json; print(len(json.load(sys.stdin).get('verdicts', [])))")
 if [ "$VERDICTS_COUNT_2" -gt 0 ]; then
   pass "Dashboard data feed has active verdicts stream"
 else

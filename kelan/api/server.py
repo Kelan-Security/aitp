@@ -203,12 +203,14 @@ async def get_dashboard():
     return FileResponse("static/index.html")
 
 
+@app.get("/health")
 @app.get("/api/health")
 async def health():
     REQ_COUNT.labels("health").inc()
     ok = await ollama.ping() if ollama else False
     return {
         "status":           "healthy",
+        "legacy_status":    "ok",
         "version":          "4.0.0-python",
         "engine":           "fastapi+ollama",
         "ollama_connected": ok,

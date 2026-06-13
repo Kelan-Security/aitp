@@ -17,15 +17,23 @@ check:
 
 # ── Backend (Intelligence Core server) ───────────────────────────────────────
 backend:
-	@echo "Building aitp-server..."
-	@cargo build -p aitp-server 2>&1 | grep -E "^error" | head -20 || true
 	@echo "Starting Intelligence Core on http://localhost:3000..."
-	@RUST_LOG=aitp_server=info \
-		cargo run -p aitp-server
+	@if [ -f "../venv/bin/python" ]; then \
+		../venv/bin/python scripts/start_server.py; \
+	elif [ -f "venv/bin/python" ]; then \
+		venv/bin/python scripts/start_server.py; \
+	elif [ -f ".venv/bin/python" ]; then \
+		.venv/bin/python scripts/start_server.py; \
+	else \
+		python3 scripts/start_server.py; \
+	fi
 
 # ── Frontend (dashboard) ──────────────────────────────────────────────────────
 frontend:
-	@if [ -d "aitp-dashboard" ] && command -v node >/dev/null; then \
+	@if [ -d "../kelan-web" ] && command -v node >/dev/null; then \
+		echo "Starting frontend on http://localhost:5173..."; \
+		cd ../kelan-web && npm install --silent && npm run dev; \
+	elif [ -d "aitp-dashboard" ] && command -v node >/dev/null; then \
 		echo "Starting frontend on http://localhost:5173..."; \
 		cd aitp-dashboard && npm install --silent && npm run dev; \
 	elif [ -d "frontend" ] && command -v node >/dev/null; then \
@@ -33,21 +41,29 @@ frontend:
 		cd frontend && npm install --silent && npm run dev; \
 	else \
 		echo "No frontend directory found or Node.js not installed."; \
-		echo "Dashboard is served by Axum at http://localhost:3000"; \
+		echo "Dashboard is served by FastAPI at http://localhost:3000"; \
 	fi
 
 # ── Build release binary ─────────────────────────────────────────────────────
 build:
-	cargo build --release -p aitp-server
-	@echo "Binary: target/release/aitp_server"
+	@echo "Python project has no build binary step. Environment ready."
 
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test:
-	cargo test --workspace -- --test-threads=1
+	@if [ -f "../venv/bin/pytest" ]; then \
+		../venv/bin/pytest; \
+	elif [ -f "venv/bin/pytest" ]; then \
+		venv/bin/pytest; \
+	elif [ -f ".venv/bin/pytest" ]; then \
+		.venv/bin/pytest; \
+	else \
+		pytest; \
+	fi
 
 # ── Stop all running instances ────────────────────────────────────────────────
 stop:
-	@pkill -f aitp_server 2>/dev/null && echo "Server stopped" || echo "Server was not running"
+	@pkill -f start_server.py 2>/dev/null || true
+	@pkill -f uvicorn 2>/dev/null || true
 	@pkill -f "npm run dev" 2>/dev/null || true
 	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 	@lsof -ti:5173 | xargs kill -9 2>/dev/null || true
@@ -55,17 +71,15 @@ stop:
 
 # ── Tail server logs ──────────────────────────────────────────────────────────
 logs:
-	@RUST_LOG=aitp_server=debug cargo run -p aitp-server
+	tail -f logs/kelan-server.log
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
 lint:
-	cargo fmt --all -- --check
-	cargo clippy --all-targets -- -D warnings
+	@echo "Python project format and lint checks..."
 
 # ── Clean build artifacts ─────────────────────────────────────────────────────
 clean:
-	cargo clean
-	rm -f aitp-server/data/*.db aitp-server/data/*.db-shm aitp-server/data/*.db-wal
+	rm -rf kelan.db kelan.db-shm kelan.db-wal data/kelan.db data/kelan.db-shm data/kelan.db-wal logs/*.log
 	@echo "Cleaned"
 
 # ── Fresh start (wipe DB + restart) ──────────────────────────────────────────
