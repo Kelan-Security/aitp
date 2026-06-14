@@ -9,6 +9,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Force working directory to repository root
+cd "$SCRIPT_DIR/.."
 
 # Pre-flight: check Ollama is reachable
 OLLAMA_EP=${OLLAMA_ENDPOINT:-http://localhost:11434}
@@ -80,17 +82,17 @@ echo -e "${GREEN}✓ Build complete${NC}"
 echo -e "${YELLOW}[3/6] Starting infrastructure...${NC}"
 
 # Clean up any orphans first
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans 2>/dev/null \
+docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml down --remove-orphans 2>/dev/null \
     || true
 
 # Start all infrastructure including postgres
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres prometheus grafana
+docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml up -d postgres prometheus grafana
 
 # Wait for postgres specifically
 echo "Waiting for PostgreSQL to be ready..."
 POSTGRES_READY=false
 for i in {1..30}; do
-    if docker compose -f docker-compose.yml -f docker-compose.dev.yml exec -T postgres \
+    if docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml exec -T postgres \
         pg_isready -U kelan 2>/dev/null; then
         POSTGRES_READY=true
         break
@@ -101,7 +103,7 @@ done
 
 if [ "$POSTGRES_READY" = false ]; then
     echo -e "${RED}✗ PostgreSQL failed to start${NC}"
-    docker compose -f docker-compose.yml -f docker-compose.dev.yml logs postgres | tail -20
+    docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml logs postgres | tail -20
     exit 1
 fi
 
@@ -112,7 +114,7 @@ echo -e "${GREEN}✓ Infrastructure ready${NC}"
 # ── Start Kelan Server ───────────────────────
 echo -e "${YELLOW}[4/6] Starting Kelan AITP server...${NC}"
 
-mkdir -p logs
+mkdir -p log
 
 # Find correct python interpreter
 if [ -f "../venv/bin/python" ]; then
@@ -130,7 +132,7 @@ echo "Using Python: $PYTHON_BIN"
 # Start server
 RUST_LOG=info,aitp_server=debug,kelan=debug \
     "$PYTHON_BIN" scripts/start_server.py \
-    > logs/kelan-server.log 2>&1 &
+    > log/kelan-server.log 2>&1 &
 
 SERVER_PID=$!
 echo $SERVER_PID > .kelan.pid
@@ -138,7 +140,7 @@ echo $SERVER_PID > .kelan.pid
 # Show initial logs immediately
 sleep 2
 echo "Server startup log:"
-cat logs/kelan-server.log
+cat log/kelan-server.log
 
 # Show bound ports
 echo "Bound ports:"
@@ -161,72 +163,22 @@ for i in {1..60}; do
     
     if [ $((i % 10)) -eq 0 ]; then
         echo "  Still waiting... ($i/60)"
-        echo "  Last log: $(tail -1 logs/kelan-server.log)"
+        echo "  Last log: $(tail -1 log/kelan-server.log)"
     fi
     
     # Check if process died
     if ! kill -0 $SERVER_PID 2>/dev/null; then
         echo -e "${RED}✗ Server process died${NC}"
         echo "Full log:"
-        cat logs/kelan-server.log
+        cat log/kelan-server.log
         exit 1
     fi
     
     sleep 1
 done
 
-# ── Start Web Terminal ───────────────────────
-echo -e "${YELLOW}[5/6] Starting web terminal...${NC}"
-
-# Install ttyd if not present (web terminal)
-if ! command -v ttyd &> /dev/null; then
-    echo "Installing ttyd (web terminal)..."
-    
-    # Linux
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        wget -q https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -O /usr/local/bin/ttyd
-        chmod +x /usr/local/bin/ttyd
-    fi
-    
-    # macOS
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install ttyd 2>/dev/null || \
-        echo "Install ttyd: brew install ttyd"
-    fi
-fi
-
-# Tab 1: Command Center Dashboard (port 7681)
-"$PYTHON_BIN" scripts/dashboard_server.py &
-TTYD_PID1=$!
-echo $TTYD_PID1 >> .kelan.pid
-
-# Tab 2: Attack simulator (port 7682)
-ttyd --port 7682 --writable \
-    bash -c "
-    echo 'KELAN ATTACK SIMULATOR';
-    echo 'Commands:';
-    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode ddos';
-    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode replay';
-    echo '  cargo run --example attack_sim -- --server localhost:9999 --mode lateral-movement';
-    echo '';
-    bash
-    " &
-TTYD_PID2=$!
-echo $TTYD_PID2 >> .kelan.pid
-
-# Tab 3: Client connector (port 7683)
-ttyd --port 7683 --writable \
-    bash -c "
-    echo 'KELAN CLIENT TERMINAL';
-    echo 'Connect to server:';
-    echo '  cargo run --example basic_connect -- --server localhost:9999 --intent ModelInference';
-    echo '';
-    bash
-    " &
-TTYD_PID3=$!
-echo $TTYD_PID3 >> .kelan.pid
-
-echo -e "${GREEN}✓ Command Center Dashboard at http://localhost:7681${NC}"
+# ── Setup Command Center Dashboard ───────────
+echo -e "${GREEN}✓ Command Center Dashboard configured at log/terminal.html${NC}"
 
 # ── Start Dashboard ──────────────────────────
 if [ -d "../kelan-web" ] || [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "aitp-dashboard" ]; then
@@ -239,11 +191,12 @@ if [ -d "../kelan-web" ] || [ -d "dashboard" ] || [ -d "frontend" ] || [ -d "ait
     fi
     
     if [ -f "$DASH_DIR/package.json" ]; then
+        LOGS_DIR="$(pwd)/log"
         cd "$DASH_DIR"
         npm install --silent
-        npm run dev > "$SCRIPT_DIR/logs/dashboard.log" 2>&1 &
+        npm run dev > "$LOGS_DIR/dashboard.log" 2>&1 &
         DASH_PID=$!
-        echo $DASH_PID >> "$SCRIPT_DIR/.kelan.pid"
+        echo $DASH_PID >> "$LOGS_DIR/../.kelan.pid"
         cd - >/dev/null
         
         sleep 3
@@ -267,30 +220,28 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  KELAN SECURITY IS RUNNING        ${NC}"
 echo -e "${GREEN}═══════════════════════════════════${NC}"
 echo ""
-echo "  🌐 Dashboard:     http://localhost:3000"
-echo "  📺 Command Center: http://localhost:7681"
-echo "  📊 Grafana:       http://localhost:3003"
-echo "  📈 Prometheus:    http://localhost:9090"
+echo "  🌐 Dashboard:      http://localhost:3000"
+echo "  📺 Command Center: log/terminal.html"
+echo "  📊 Grafana:        http://localhost:3003"
+echo "  📈 Prometheus:     http://localhost:9090"
 echo ""
-echo "  To stop everything: ./stop.sh"
+echo "  To stop everything: ./scripts/stop.sh"
 echo ""
 
 # Open browser automatically
 sleep 2
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    open http://localhost:7681 &
     open http://localhost:3000 &
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    xdg-open http://localhost:7681 &
     xdg-open http://localhost:3000 &
 fi
 
 # Also open the terminal HTML page
-if [ -f "logs/terminal.html" ]; then
+if [ -f "log/terminal.html" ]; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        open logs/terminal.html
+        open log/terminal.html
     else
-        xdg-open logs/terminal.html
+        xdg-open log/terminal.html
     fi
 fi

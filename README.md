@@ -16,130 +16,50 @@ AITP is a production-grade, zero-trust cybersecurity platform that adds **Identi
 | **Defense** | Static Filters | Agentic Threat Response (ReAct) |
 | **Revocation** | Manual Firewall Ops | Sub-millisecond Autonomous Kill |
 
----
+## Getting Started
 
-## ⚡ Quickstart (Docker-First)
-
-The entire AITP stack (Backend, Frontend, Postgres, and Monitoring) can be started with a single command.
-
-### 1. Prerequisites
-- **Docker Desktop** (macOS, Linux, or Windows)
-- **Gemini API Key** (Get yours at [Google AI Studio](https://aistudio.google.com/app/apikey))
-
-### 2. Launch the Stack
+**1. Clone and install (run once):**
 ```bash
-# 1. Clone & Enter
-git clone https://github.com/Tanush-Jain/AITP.git && cd AITP
-
-# 2. Setup Environment
-# Ensure you have your Gemini API key ready in the root .env file.
-# The following command starts the Postgres DB:
-docker compose -f docker-compose.dev.yml up -d
-
-# 3. Start Everything (Backend + Frontend + Monitoring)
-make dev
+git clone https://github.com/your-org/kelan-core.git
+cd kelan-core
+bash install.sh
 ```
 
-### 3. Access the SOC
-- **Admin Dashboard**: [http://localhost:3000](http://localhost:3000)
-- **Frontend App**: [http://localhost:5173](http://localhost:5173)
-- **Grafana Metrics**: [http://localhost:3001](http://localhost:3001) (Credentials in your `.env`)
+**2. Configure:**
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+**3. Launch:**
+```bash
+bash launch.sh        # development mode
+bash launch.sh --prod # production mode  
+bash launch.sh --stop # stop all services
+```
 
 ---
 
-## 💻 Platform-Specific Startup Guide
+### Repository Structure
 
-You can run Kelan Security on a MacBook (macOS) or a Kali Linux machine. Follow the commands below for your environment.
-
-### 🍎 MacBook (macOS) Startup
-
-Before running the server, make sure **Docker Desktop** is open and running.
-
-1. **Navigate to the core directory**:
-   ```bash
-   cd kelan-core
-   ```
-2. **Setup and activate the Python virtual environment**:
-   ```bash
-   # Create the virtual environment if it doesn't exist
-   python3 -m venv .venv
-   
-   # Activate the virtual environment
-   source .venv/bin/activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   ```
-3. **Set Docker Host Environment Variable** *(Optional — run if Docker CLI has socket permission issues)*:
-   ```bash
-   export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
-   ```
-4. **Start the Stack**:
-   * **Option A: Orchestrated Full Stack** (Clean cleanup + Backend + Node.js Frontend + optional monitoring):
-     ```bash
-     ./start_all.sh
-     ```
-     To include Prometheus/Grafana infrastructure:
-     ```bash
-     ./start_all.sh --docker
-     ```
-   * **Option B: Local Dev Stack** (Concurrently starts Backend & Frontend):
-     ```bash
-     make dev
-     ```
-5. **Stop all services**:
-   ```bash
-   make stop
-   # or
-   ./stop.sh
-   ```
-
----
-
-### 🐉 Kali Linux (Debian/Ubuntu-based) Startup
-
-On Kali Linux, ensure system dependencies and kernel headers are installed to support optional native eBPF/XDP hooks.
-
-1. **Install Prerequisites**:
-   ```bash
-   sudo apt-get update && sudo apt-get install -y \
-     build-essential pkg-config libssl-dev iproute2 curl jq \
-     python3-pip python3-venv llvm clang libbpf-dev bpftool \
-     docker.io docker-compose-v2
-   ```
-2. **Start & Configure Docker**:
-   ```bash
-   sudo systemctl enable --now docker
-   sudo usermod -aG docker $USER
-   # Note: Log out and back in, or run `newgrp docker` to apply docker permissions.
-   ```
-3. **Navigate to the core directory**:
-   ```bash
-   cd kelan-core
-   ```
-4. **Setup and activate the virtual environment**:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-5. **Start the Stack**:
-   * **Option A: Standard Development Stack** (Without Kernel hooks):
-     ```bash
-     ./start_all.sh --docker
-     ```
-   * **Option B: Kernel-level eBPF Stack** (Requires root to attach XDP/eBPF filters):
-     ```bash
-     sudo env PATH=$PATH ./start.sh
-     ```
-6. **Stop all services**:
-   ```bash
-   make stop
-   # or
-   ./stop.sh
-   ```
-
----
+```
+kelan-core/
+├── install.sh          ← Run once on fresh clone
+├── launch.sh           ← Daily driver: start/stop everything
+├── scripts/            ← Internal shell scripts (don't call directly)
+│   ├── start.sh
+│   ├── stop.sh
+│   ├── start_all.sh
+│   ├── simulate_attacks.sh
+│   └── simulate_attacks_throttled.sh
+├── docs/               ← All documentation
+│   ├── kelan_documentation.md
+│   ├── CONTRIBUTING.md
+│   └── ...
+├── .env.example        ← Copy to .env and fill in
+├── .env                ← Your local config (gitignored)
+└── README.md
+```
 
 ## 🧪 Testing & Validation
 
@@ -152,7 +72,7 @@ make test
 ### Attack Simulation
 Verify the AI engine's ability to detect and block real attacks:
 ```bash
-./simulate_attacks.sh
+./scripts/simulate_attacks.sh
 ```
 
 ---
@@ -263,6 +183,15 @@ docker compose -f docker-compose.prod.yml up -d
 - [x] v0.5: Post-Quantum Identity & Session Keys
 - [ ] v0.6: Distributed eBPF Enforcement Plane
 - [ ] v1.0: Multi-Cloud Intelligence Mesh
+
+---
+
+## 🤝 Contributing, Conduct & Licensing
+
+We welcome community involvement and support:
+*   **[Contributing Guide](docs/CONTRIBUTING.md)**: Guidelines on code standards, pull requests, and testing.
+*   **[Code of Conduct](docs/CODE_OF_CONDUCT.md)**: Standards of behavior we expect from participants.
+*   **[Commercial Terms](docs/COMMERCIAL.md)**: Details on dual-licensing, commercial usage, and enterprise support.
 
 ---
 © 2026 AITP Contributors. Licensed under BSL 1.1.

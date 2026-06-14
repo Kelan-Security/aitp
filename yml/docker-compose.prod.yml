@@ -17,8 +17,8 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./scripts/security_db.sql:/docker-entrypoint-initdb.d/02_security.sql:ro
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ../scripts/security_db.sql:/docker-entrypoint-initdb.d/02_security.sql:ro
     networks:
       - kelan-backend
     healthcheck:
@@ -65,7 +65,7 @@ services:
   # KELAN Intelligence Core
   kelan-server:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       args:
         RUST_VERSION: 1.75
@@ -137,7 +137,7 @@ services:
       - "8443:8443" # Main API (HTTPS)
       - "9090:9090" # Metrics (internal only via nginx)
     volumes:
-      - ./certs:/etc/kelan/certs:ro
+      - ../certs:/etc/kelan/certs:ro
       - kelan_logs:/var/log/kelan
       - /sys/kernel/debug:/sys/kernel/debug:ro # For eBPF
     networks:
@@ -173,10 +173,10 @@ services:
       - "80:80" # HTTP (redirects to HTTPS)
       - "443:443" # HTTPS
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./static:/usr/share/nginx/html:ro
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../nginx/ssl:/etc/nginx/ssl:ro
+      - ../static:/usr/share/nginx/html:ro
       - nginx_logs:/var/log/nginx
       - nginx_cache:/var/cache/nginx
     networks:
@@ -214,8 +214,8 @@ services:
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus_rules.yml:/etc/prometheus/rules.yml:ro
+      - ../yml/monitoring-prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../yml/monitoring-alerts-kelan.yml:/etc/prometheus/rules.yml:ro
       - prometheus_data:/prometheus
     networks:
       - kelan-backend
@@ -254,8 +254,9 @@ services:
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-piechart-panel
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../yml/monitoring-grafana-provisioning-dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro
+      - ../yml/monitoring-grafana-provisioning-datasource-prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yaml:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - kelan-backend
       - kelan-frontend
@@ -279,7 +280,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     volumes:
-      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ../yml/monitoring-alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     networks:
       - kelan-backend

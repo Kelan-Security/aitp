@@ -21,7 +21,7 @@ app.add_middleware(
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DASHBOARD_HTML_PATH = PROJECT_ROOT / "static" / "dashboard.html"
-LOG_FILE_PATH = PROJECT_ROOT / "logs" / "kelan-server.log"
+LOG_FILE_PATH = PROJECT_ROOT / "log" / "kelan-server.log"
 
 @app.get("/")
 async def get_dashboard():

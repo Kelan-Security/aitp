@@ -185,7 +185,7 @@ if echo $ANOMALIES | grep -qi "ddos\|anomaly\|detected"; then
 else
     # Check logs as fallback
     if grep -qi "ddos\|anomaly\|detected" \
-        logs/kelan-server.log 2>/dev/null; then
+        log/kelan-server.log 2>/dev/null; then
         pass "DDoS detection visible in server logs"
     else
         fail "DDoS detection" \
@@ -213,7 +213,7 @@ fi
 
 # Check software enforcer is working
 if grep -q "enforcer\|enforcement\|permit\|deny" \
-    logs/kelan-server.log 2>/dev/null; then
+    log/kelan-server.log 2>/dev/null; then
     pass "Enforcement engine active in logs"
 else
     fail "Enforcement engine" \
@@ -288,7 +288,7 @@ fi
 echo ""
 
 # Write report to file
-cat > logs/verification_report.txt << EOF
+cat > log/verification_report.txt << EOF
 KELAN SECURITY VERIFICATION REPORT
 Date: $(date)
 Score: $PCT% ($PASS/$FAIL passed/failed)

@@ -10,7 +10,7 @@ services:
 
   kelan:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       target: runtime
     container_name: kelan
@@ -34,7 +34,7 @@ services:
       - AGENTIC_ENABLED=${AGENTIC_ENABLED:-true}
     volumes:
       - kelan_data:/app/data
-      - kelan_logs:/app/logs
+      - kelan_logs:/app/log
     networks:
       - kelan_net
     extra_hosts:
@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
     ports: ["9090:9090"]
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../yml/monitoring-prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     networks:
       - kelan_net

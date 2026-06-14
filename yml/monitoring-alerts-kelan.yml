@@ -1,6 +1,6 @@
-// Prometheus Alert Rules for Kelan Security Intelligence Core
-// Mount at: /etc/prometheus/alerts/kelan.yml  (Docker)
-// or: monitoring/alerts/kelan.yml  (local)
+# Prometheus Alert Rules for Kelan Security Intelligence Core
+# Mount at: /etc/prometheus/alerts/kelan.yml  (Docker)
+# or: monitoring/alerts/kelan.yml  (local)
 
 groups:
   # ── Security Alerts ─────────────────────────────────────────────────────

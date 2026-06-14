@@ -3,6 +3,10 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Force working directory to repository root
+cd "$SCRIPT_DIR/.."
+
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 AMBER='\033[0;33m'
@@ -24,7 +28,7 @@ if [ -n "$FE_PID" ]; then
 fi
 
 # Kill backend via its own script
-./stop.sh > /dev/null 2>&1 || true
+./scripts/stop.sh > /dev/null 2>&1 || true
 
 # 2. Infrastructure (Docker)
 if [ "$1" == "--docker" ] || [ "$AITP_USE_DOCKER" == "true" ]; then
@@ -37,7 +41,7 @@ if [ "$1" == "--docker" ] || [ "$AITP_USE_DOCKER" == "true" ]; then
 
     if docker compose version >/dev/null 2>&1; then
         echo -e "  Starting containers..."
-        docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build || {
+        docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml up -d --build || {
             echo -e "${RED}⚠️ Docker connection failed.${NC}"
             echo -e "It looks like your Docker CLI can't talk to Docker Desktop."
             echo -e "Please ${BOLD}Manually Stop${NC} the 'aitp' containers in Docker Desktop UI to free up port 3000."
@@ -51,7 +55,7 @@ fi
 # 3. Backend (Intelligence Core)
 echo -e "${AMBER}Starting Intelligence Core (Backend)...${NC}"
 # We don't exit on error here because we want to see the "Address already in use" if it happens
-./start.sh start || {
+./scripts/start.sh start || {
     echo -e "${RED}❌ Backend failed to start.${NC}"
     if lsof -i :3000 >/dev/null 2>&1; then
         echo -e "${RED}Reason: Port 3000 is still occupied.${NC}"
@@ -64,7 +68,7 @@ echo -e "${AMBER}Starting Intelligence Core (Backend)...${NC}"
 echo -e "${AMBER}Starting Admin Dashboard (Frontend)...${NC}"
 cd ../kelan-web
 # Run in background, redirect logs
-npm run dev -- --port 5173 > ../kelan-core/.aitp_frontend.log 2>&1 &
+npm run dev -- --port 5173 > ../kelan-core/log/aitp_frontend.log 2>&1 &
 echo -e "${GREEN}✓ Frontend starting at http://localhost:5173${NC}"
 cd ../kelan-core
 
@@ -80,8 +84,8 @@ if [ "$1" == "--docker" ]; then
 fi
 echo ""
 echo -e "${BLUE}Logs:${NC}"
-echo "  Backend:  tail -f .aitp_server.log"
-echo "  Frontend: tail -f .aitp_frontend.log"
+echo "  Backend:  tail -f log/kelan-server.log"
+echo "  Frontend: tail -f log/aitp_frontend.log"
 echo ""
-echo -e "${AMBER}Run simulations:${NC} ./simulate_attacks.sh"
+echo -e "${AMBER}Run simulations:${NC} ./scripts/simulate_attacks.sh"
 echo ""

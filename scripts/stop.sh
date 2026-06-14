@@ -1,4 +1,6 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 echo "Stopping Kelan Security..."
 
 # Kill server processes by name
@@ -18,6 +20,6 @@ if [ -f .kelan.pid ]; then
 fi
 
 # Stop docker
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down --remove-orphans
+docker compose -f yml/docker-compose.yml -f yml/docker-compose.dev.yml down --remove-orphans
 
 echo -e "✓ All services stopped"

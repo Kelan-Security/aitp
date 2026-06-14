@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
 # Source .env to get OLLAMA_ENDPOINT
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)

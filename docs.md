@@ -228,14 +228,14 @@ Use the included `attack_sim` program to fire high-throughput connection attempt
 cargo run --example attack_sim -- --server localhost:9999 --mode ddos
 
 # Run throttled attack suite simulating anomalous patterns
-./simulate_attacks_throttled.sh
+./scripts/simulate_attacks_throttled.sh
 ```
 
 ### C. Injecting Malicious Intent / Intent Deviation
 Execute the attack suite simulator script to test behavioral detection of anomalous intent sequences:
 ```bash
-chmod +x simulate_attacks.sh
-./simulate_attacks.sh
+chmod +x scripts/simulate_attacks.sh
+./scripts/simulate_attacks.sh
 ```
 
 ---

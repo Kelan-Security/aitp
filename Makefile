@@ -71,7 +71,7 @@ stop:
 
 # ── Tail server logs ──────────────────────────────────────────────────────────
 logs:
-	tail -f logs/kelan-server.log
+	tail -f log/kelan-server.log
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
 lint:
@@ -79,7 +79,7 @@ lint:
 
 # ── Clean build artifacts ─────────────────────────────────────────────────────
 clean:
-	rm -rf kelan.db kelan.db-shm kelan.db-wal data/kelan.db data/kelan.db-shm data/kelan.db-wal logs/*.log
+	rm -rf kelan.db kelan.db-shm kelan.db-wal data/kelan.db data/kelan.db-shm data/kelan.db-wal log/*.log
 	@echo "Cleaned"
 
 # ── Fresh start (wipe DB + restart) ──────────────────────────────────────────

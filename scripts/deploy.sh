@@ -165,8 +165,8 @@ fi
 echo ""
 echo -e "${YELLOW}[4/9] Building Docker image...${NC}"
 
-COMPOSE_FILE="docker-compose.prod.yml"
-[[ "$DEPLOYMENT_MODE" == "dev" ]] && COMPOSE_FILE="docker-compose.yml"
+COMPOSE_FILE="yml/docker-compose.prod.yml"
+[[ "$DEPLOYMENT_MODE" == "dev" ]] && COMPOSE_FILE="yml/docker-compose.yml"
 
 if [[ -f "$COMPOSE_FILE" ]]; then
     docker compose -f "$COMPOSE_FILE" build --quiet kelan-server 2>&1 | tail -3
@@ -215,8 +215,8 @@ if [[ -f "$COMPOSE_FILE" ]]; then
     echo -e "${GREEN}✓ Services started${NC}"
     
     # Also start monitoring stack if available
-    if [[ -f "docker-compose.monitoring.yml" ]]; then
-        docker compose -f "docker-compose.monitoring.yml" up -d 2>/dev/null || true
+    if [[ -f "yml/docker-compose.monitoring.yml" ]]; then
+        docker compose -f "yml/docker-compose.monitoring.yml" up -d 2>/dev/null || true
         echo -e "${GREEN}✓ Monitoring stack started${NC}"
     fi
 fi
@@ -309,9 +309,9 @@ if [[ "$DEPLOYMENT_MODE" == "production" ]]; then
   <key>KeepAlive</key>
   <false/>
   <key>StandardOutPath</key>
-  <string>$HOME/kelan/logs/launchd.log</string>
+  <string>$HOME/kelan/log/launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>$HOME/kelan/logs/launchd-error.log</string>
+  <string>$HOME/kelan/log/launchd-error.log</string>
 </dict>
 </plist>
 PLIST_EOF

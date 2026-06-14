@@ -1,111 +1,203 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# AITP Attack Simulation Suite
+# ─────────────────────────────────────────────────────────────────────────────
 
-SERVER_IP="${1:-127.0.0.1}"
-SERVER_PORT="${2:-9999}"
-API_URL="http://${SERVER_IP}:3000"
-IFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -1)
+set -euo pipefail
 
-echo "╔══════════════════════════════════════════╗"
-echo "║  Kelan Security — Attack Simulation      ║"
-echo "║  Target: $SERVER_IP:$SERVER_PORT         ║"
-echo "╚══════════════════════════════════════════╝"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
+# Source .env to get OLLAMA_ENDPOINT
+if [ -f .env ]; then
+  # Use a simpler way to source that handles potential spaces/comments
+  export $(grep -v '^#' .env | xargs)
+fi
+
+BASE="http://localhost:3000/api"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+AMBER='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║        AITP Attack Simulation Suite v0.3            ║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Baseline stats before attack
-echo "📊 Baseline stats:"
-curl -s $API_URL/api/stats | python3 -m json.tool 2>/dev/null || \
-  echo "(server not running — start aitp-server first)"
+# ── Auth (Create account and get token) ──────────────────────────────────────
+UNIQUE_ID=$(date +%s)
+EMAIL="sim_${UNIQUE_ID}@kelan.io"
+PASS="SimPass123!"
+
+echo -e "${BLUE}[AUTH]${NC} Registering as $EMAIL..."
+RESPONSE=$(curl -s -X POST $BASE/auth/signup \
+  -H 'Content-Type: application/json' \
+  -d "{\"org_name\":\"Simulation Org\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+
+TOKEN=$(echo $RESPONSE | jq -r '.token')
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo -e "${RED}ERROR: Could not register user. check server logs.${NC}"
+  echo "DEBUG Response: $RESPONSE"
+  exit 1
+fi
+
+echo -e "${BLUE}[AUTH]${NC} Authenticated successfully."
+
+auth() { curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$@"; }
+
+# ── Setup test entities ───────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}=== SETUP: Creating test entities ===${NC}"
+
+# Legitimate workstation
+ENTITY_A=$(auth -X POST $BASE/entities \
+  -d '{"name":"workstation-engineering-01","entity_type":"workstation",
+       "department":"Engineering","clearance_level":1}' | jq -r '.entity_id')
+
+# Legitimate internal service
+ENTITY_B=$(auth -X POST $BASE/entities \
+  -d '{"name":"ml-inference-service-03","entity_type":"service",
+       "department":"AI","clearance_level":1}' | jq -r '.entity_id')
+
+# Sensitive database
+ENTITY_C=$(auth -X POST $BASE/entities \
+  -d '{"name":"finance-database-prod","entity_type":"server",
+       "department":"Finance","clearance_level":3}' | jq -r '.entity_id')
+
+if [ "$ENTITY_A" = "null" ] || [ -z "$ENTITY_A" ]; then
+  echo -e "${RED}ERROR: Entity creation failed. Check server logs.${NC}"
+  exit 1
+fi
+
+echo -e "  Created workstation: ${ENTITY_A:0:16}..."
+echo -e "  Created service:     ${ENTITY_B:0:16}..."
+echo -e "  Created database:    ${ENTITY_C:0:16}..."
+
+sleep 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 1 — Legitimate Session (baseline)             ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: Engineering workstation → ModelInference → ml-inference-service"
 echo ""
 
-# --- ATTACK 1: UDP SYN Flood ---
-echo "🔥 ATTACK 1: UDP SYN Flood (10,000 packets)"
-echo "   Sending via hping3..."
-hping3 --udp -p $SERVER_PORT -c 10000 --faster \
-  --rand-source $SERVER_IP 2>/dev/null &
-FLOOD_PID=$!
-sleep 4
-kill $FLOOD_PID 2>/dev/null || true
+RESULT=$(auth -X POST $BASE/entities/$ENTITY_A/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_B\",\"intent\":\"ModelInference\"}")
 
-echo "   Checking dropped packet count..."
-DROPS=$(curl -s $API_URL/api/stats | \
-  python3 -c "import sys,json; \
-  d=json.load(sys.stdin); \
-  print(d.get('packets_dropped',0))" 2>/dev/null || echo "N/A")
-echo "   Packets dropped by eBPF/software: $DROPS"
+echo "$RESULT" | jq '.'
 echo ""
 
-# --- ATTACK 2: TCP SYN Flood ---
-echo "🔥 ATTACK 2: TCP SYN Flood (5,000 packets)"
-hping3 -S -p 3000 -c 5000 --faster \
-  --rand-source $SERVER_IP 2>/dev/null &
-SYN_PID=$!
-sleep 3
-kill $SYN_PID 2>/dev/null || true
-echo "   Watching sentinel anomalies..."
-curl -s $API_URL/api/sentinel/events 2>/dev/null | \
-  python3 -c "
-import sys, json
-try:
-    events = json.load(sys.stdin)
-    print(f'   Anomalies detected: {len(events.get(\"events\",[]))}')
-except:
-    print('   (auth required or no events yet)')
-"
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 2 — Unknown/Unregistered Entity               ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: Unregistered device tries to connect"
 echo ""
 
-# --- ATTACK 3: Identity spoofing ---
-echo "🔥 ATTACK 3: Identity Spoofing attempt"
-python3 - << 'PYEOF'
-import socket, struct, os, random
+FAKE_ID="deadbeef$(openssl rand -hex 28)"
+RESULT=$(auth -X POST $BASE/entities/$FAKE_ID/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_C\",\"intent\":\"DataSync\"}")
 
-# Build a fake AITP SYN packet with random bytes as signature
-# (will fail Ed25519 verification)
-fake_entity_id = b"SPOOF-" + os.urandom(8)
-fake_payload = struct.pack(
-    ">BBHIQ32s",
-    4,           # version
-    0x01,        # SYN flag
-    len(fake_entity_id) + 32,
-    random.randint(1, 999999),   # session_id
-    random.randint(0, 2**63),    # timestamp
-    fake_entity_id[:32].ljust(32, b'\x00')
-) + os.urandom(64)  # fake Ed25519 signature
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(2.0)
-try:
-    sock.sendto(fake_payload, ("127.0.0.1", 9999))
-    print("   Spoofed SYN sent — server should reject it")
-    resp = sock.recv(1024)
-    print(f"   Got response ({len(resp)} bytes) — checking verdict...")
-except socket.timeout:
-    print("   No response (packet silently dropped — ✅ PROTECTED)")
-except Exception as e:
-    print(f"   Error: {e}")
-finally:
-    sock.close()
-PYEOF
+echo "$RESULT" | jq '.'
 echo ""
 
-# --- ATTACK 4: Port scan ---
-echo "🔥 ATTACK 4: Port scan (nmap)"
-nmap -sS -T4 --top-ports 100 $SERVER_IP -oG - 2>/dev/null | \
-  grep "open" | head -5 || echo "   (run as root for SYN scan)"
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 3 — Clearance Violation                       ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: Clearance-1 workstation → clearance-3 finance database"
 echo ""
 
-# --- RESULTS ---
-echo "═══════════════════════════════════════════"
-echo "📊 POST-ATTACK SUMMARY"
-echo "═══════════════════════════════════════════"
-curl -s $API_URL/api/stats | python3 -m json.tool 2>/dev/null || \
-  echo "(unable to reach API)"
+RESULT=$(auth -X POST $BASE/entities/$ENTITY_A/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_C\",\"intent\":\"DataSync\"}")
+
+echo "$RESULT" | jq '.'
 echo ""
-echo "Check trust verdicts in Ollama logs:"
-echo "  curl -s http://localhost:3000/api/sessions"
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 4 — ControlSignal Abuse                       ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: AI inference service declares ControlSignal intent"
 echo ""
-echo "Check eBPF maps:"
-echo "  bpftool map list"
-echo "  bpftool prog list"
+
+RESULT=$(auth -X POST $BASE/entities/$ENTITY_B/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_C\",\"intent\":\"ControlSignal\"}")
+
+echo "$RESULT" | jq '.'
 echo ""
-echo "✅ Simulation complete. Check tmux monitor window for live stats."
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 5 — Lateral Movement (Compromised Service)    ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: ml-inference-service (compromised) → finance-database"
+echo ""
+
+RESULT=$(auth -X POST $BASE/entities/$ENTITY_B/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_C\",\"intent\":\"DataSync\", \"simulate_lateral_movement\":true}")
+
+echo "$RESULT" | jq '.'
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 6 — Data Exfiltration Pattern                 ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo "Scenario: Massive data transfer"
+echo ""
+
+RESULT=$(auth -X POST $BASE/entities/$ENTITY_A/test-session \
+  -d "{\"dest_entity_id\":\"$ENTITY_B\",\"intent\":\"FileTransfer\", \"bytes_tx\":100000000}")
+
+echo "$RESULT" | jq '.'
+
+echo "Checking sentinel anomalies..."
+auth GET "$BASE/sentinel/anomalies" | jq '.' | head -10
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD} ATTACK 7 — DDoS Flood Simulation                     ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+echo "Sending 10 rapid sessions..."
+for i in $(seq 1 10); do
+  auth -X POST $BASE/entities/$ENTITY_A/test-session \
+    -d "{\"dest_entity_id\":\"$ENTITY_B\",\"intent\":\"Heartbeat\"}" > /dev/null &
+done
+wait
+echo "Flood complete."
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}                   FINAL REPORT                       ${NC}"
+echo -e "${BOLD}═══════════════════════════════════════════════════════${NC}"
+echo ""
+
+FINAL=$(auth $BASE/stats)
+echo "Total Evaluated:  $(echo $FINAL | jq '.ai_calls // 0')"
+echo "Total Blocked:    $(echo $FINAL | jq '.blocked_today // 0')"
+echo ""
+
+echo -e "${BLUE}[AI CHECK]${NC} Verifying Ollama reasoning..."
+# Use OLLAMA_ENDPOINT from .env
+VERIFY=$(auth -X POST $BASE/config/verify-key \
+  -d "{\"provider\":\"ollama\",\"model\":\"${OLLAMA_MODEL:-gemma3:9b}\",\"api_key\":\"${OLLAMA_ENDPOINT:-}\"}" \
+  2>/dev/null || echo '{"test_evaluation":{"reasoning":"API call failed"}}')
+
+REASONING=$(echo $VERIFY | jq -r '.test_evaluation.reasoning // "not available"')
+echo "  Ollama says:  $REASONING"
+
+echo ""
+echo -e "${BOLD}Simulation complete.${NC}"
+echo ""

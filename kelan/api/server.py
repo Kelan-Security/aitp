@@ -6,6 +6,9 @@ Endpoints: health, stats, verdicts, anomalies,
 """
 import time
 import uuid
+import asyncio
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional, Any, cast
 
@@ -313,6 +316,15 @@ async def get_dashboard():
     return FileResponse("static/index.html")
 
 
+@app.get("/terminal")
+@app.get("/logs/terminal.html")
+@app.get("/log/terminal.html")
+async def get_terminal_dashboard():
+    if os.path.exists("log/terminal.html"):
+        return FileResponse("log/terminal.html")
+    return FileResponse("static/index.html")
+
+
 @app.get("/health")
 @app.get("/api/health")
 async def health():
@@ -576,6 +588,99 @@ async def record_xdp_drop(report: XdpDropReport):
     log.info("xdp_drops_reported", count=report.count, iface=report.interface,
              total=_xdp_drops)
     return {"ok": True, "total_xdp_drops": _xdp_drops}
+
+
+@app.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    log_file_path = Path("log/kelan-server.log")
+    
+    # Send existing logs first
+    if log_file_path.exists():
+        try:
+            with open(log_file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                # Send the last 150 lines
+                for line in lines[-150:]:
+                    await websocket.send_text(line.strip())
+        except Exception as e:
+            await websocket.send_text(f"2026-06-13 12:00:00 [error] Error reading initial logs: {e}")
+
+    # Tail the log file
+    try:
+        with open(log_file_path, "r", encoding="utf-8") as f:
+            f.seek(0, os.SEEK_END)
+            while True:
+                line = f.readline()
+                if not line:
+                    await asyncio.sleep(0.15)
+                    continue
+                await websocket.send_text(line.strip())
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_text(f"2026-06-13 12:00:00 [error] Error streaming logs: {e}")
+        except:
+            pass
+
+
+@app.post("/api/trigger-attack")
+async def trigger_attack():
+    """Triggers the attack simulation suite in the background."""
+    try:
+        import sys, subprocess
+        python_bin = sys.executable
+        script_path = "scripts/run_attacks.py"
+        subprocess.Popen(
+            [python_bin, script_path, "--host", "localhost", "--port", "3000"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return JSONResponse({"status": "success", "message": "Attack simulation started successfully."})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/trigger-enroll")
+async def trigger_enroll():
+    """Simulates a normal client enrollment."""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "http://localhost:3000/api/enroll",
+                json={
+                    "entity_id": "normal-sensor-iot",
+                    "intent": "Periodic telemetry reports for IoT device 01",
+                    "name": "IoT-Device-01",
+                    "version": 1
+                },
+                timeout=5.0
+            )
+            return JSONResponse({"status": "success", "data": resp.json()})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@app.post("/api/trigger-xdp")
+async def trigger_xdp():
+    """Simulates an eBPF/XDP drop event."""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "http://localhost:3000/api/xdp/drop",
+                json={
+                    "count": 10,
+                    "interface": "eth0",
+                    "reason": "simulated_anomaly"
+                },
+                timeout=5.0
+            )
+            return JSONResponse({"status": "success", "data": resp.json()})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @app.get("/metrics")

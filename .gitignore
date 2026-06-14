@@ -1,21 +1,18 @@
-# Virtual Environments
-venv/
-.env
+# ── Python ────────────────────────────────────────────────────────────────────
 .venv/
+venv/
 venv-*/
 env/
 ENV/
-
-# Python cache
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+*.pyd
 *.so
 .Python
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
 lib/
@@ -26,37 +23,42 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
-
-# IDE / Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Logs
-*.log
-logs/
-
-# Database
-data/aitp.db
-*.db
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary
-tmp/
-temp/
-*.tmp
-
-# Rust build target
-target/
-
-# Pytest and coverage
+.installed.cfg
 .pytest_cache/
 .coverage
 htmlcov/
+
+# ── Rust ──────────────────────────────────────────────────────────────────────
+target/
+Cargo.lock
+
+# ── Environment / Secrets ─────────────────────────────────────────────────────
+.env
+*.env.local
+.kelan.pid
+kelan.db
+data/aitp.db
+*.db
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+log/
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.antigravitycli/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── Temporary ─────────────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp

@@ -15,8 +15,8 @@ services:
       - '--web.enable-lifecycle'               # hot-reload config
       - '--web.enable-admin-api'
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - ../yml/monitoring-prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../yml/monitoring-alerts-kelan.yml:/etc/prometheus/alerts/kelan.yml:ro
       - prometheus_data:/prometheus
     networks:
       - kelan_internal
@@ -42,8 +42,9 @@ services:
       GF_UNIFIED_ALERTING_ENABLED:  "true"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../yml/monitoring-grafana-provisioning-dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yaml:ro
+      - ../yml/monitoring-grafana-provisioning-datasource-prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yaml:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - monitoring
       - kelan_web
@@ -59,7 +60,7 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ../yml/monitoring-alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     networks:
       - monitoring

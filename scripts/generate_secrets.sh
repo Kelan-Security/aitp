@@ -131,7 +131,7 @@ LOG_LEVEL=info
 AITP_LOG_LEVEL=info
 LOG_FORMAT=json
 # macOS log path (not /var/log which requires sudo):
-AUDIT_LOG_PATH=$HOME/kelan/logs/audit.log
+AUDIT_LOG_PATH=$HOME/kelan/log/audit.log
 RUST_LOG=aitp_server=info
 
 # ============================================================================
@@ -202,7 +202,7 @@ HSTS_ENABLED=true
 CSP_ENABLED=true
 
 LOG_LEVEL=info
-AUDIT_LOG_PATH=~/kelan/logs/audit.log
+AUDIT_LOG_PATH=~/kelan/log/audit.log
 
 GRAFANA_PASSWORD=GENERATE_SECURE_PASSWORD
 POSTGRES_PASSWORD=GENERATE_SECURE_PASSWORD
@@ -248,8 +248,8 @@ add_if_missing "agent-identity.key"
 echo "✅ Updated .gitignore"
 
 # ── Create log directory (macOS uses ~/kelan not /var/log/kelan) ──────────────
-mkdir -p "$HOME/kelan/logs" "$HOME/kelan/backups"
-echo "✅ Created ~/kelan/logs and ~/kelan/backups"
+mkdir -p "$HOME/kelan/log" "$HOME/kelan/backups"
+echo "✅ Created ~/kelan/log and ~/kelan/backups"
 
 echo ""
 echo "======================================"

@@ -31,7 +31,7 @@ section() { echo -e "\n${BOLD}━━━ $1 ━━━━━━━━━━━━�
 
 # ── Pre-flight: server must be reachable ─────────────────────────────────────
 if ! curl -s --max-time 5 "$KELAN_URL/api/stats" > /dev/null 2>&1; then
-    echo -e "${RED}❌ Server not reachable at $KELAN_URL — start with: ./start.sh${NC}"
+    echo -e "${RED}❌ Server not reachable at $KELAN_URL — start with: ./scripts/start.sh${NC}"
     exit 1
 fi
 
@@ -355,16 +355,16 @@ else
     pass "/metrics not on main port (likely separate port 9090 — good)"
 fi
 
-# macOS: check ~/kelan/logs instead of /var/log/kelan
-if [[ -d "$HOME/kelan/logs" ]]; then
-    LOG_COUNT=$(find "$HOME/kelan/logs" -name "*.log" -mmin -60 2>/dev/null | wc -l | tr -d ' ')
+# macOS: check ~/kelan/log instead of /var/log/kelan
+if [[ -d "$HOME/kelan/log" ]]; then
+    LOG_COUNT=$(find "$HOME/kelan/log" -name "*.log" -mmin -60 2>/dev/null | wc -l | tr -d ' ')
     if [[ $LOG_COUNT -gt 0 ]]; then
-        pass "Recent log files found in ~/kelan/logs"
+        pass "Recent log files found in ~/kelan/log"
     else
-        warn "No recent log files in ~/kelan/logs (server logs go to stdout in dev mode)"
+        warn "No recent log files in ~/kelan/log (server logs go to stdout in dev mode)"
     fi
 else
-    warn "~/kelan/logs not found (run ./scripts/generate_secrets.sh to create)"
+    warn "~/kelan/log not found (run ./scripts/generate_secrets.sh to create)"
 fi
 
 # ── Cargo audit ───────────────────────────────────────────────────────────────

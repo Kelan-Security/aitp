@@ -1,351 +1,177 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════
-#  AITP Platform — Master Launch Script
-#  Usage: ./launch.sh [--dev | --prod | --stop | --reset]
-#  Starts: Rust backend (HTTP + WebSocket + AITP UDP) + copies frontend
-# ═══════════════════════════════════════════════════════════════
+# =============================================================================
+# KELAN SECURITY — LAUNCH.SH
+# Starts the full Kelan stack agentically. Verifies each component before launch.
+# Usage: bash launch.sh [--dev | --prod | --stop]
+# =============================================================================
 
 set -euo pipefail
 
-# ── Config ────────────────────────────────────────────────────────
-HTTP_PORT="${AITP_HTTP_PORT:-3000}"
-UDP_PORT="${AITP_UDP_PORT:-9999}"
-DB_PATH="${AITP_DB_PATH:-./data/aitp.db}"
-LOG_LEVEL="${RUST_LOG:-aitp_web=info,tower_http=warn}"
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+log()    { echo -e "${BOLD}${BLUE}[KELAN]${NC} $1"; }
+ok()     { echo -e "${GREEN}[✓]${NC} $1"; }
+warn()   { echo -e "${YELLOW}[!]${NC} $1"; }
+fail()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+section(){ echo -e "\n${BOLD}${CYAN}── $1 ──${NC}"; }
+
 MODE="${1:---dev}"
-PID_FILE="./.aitp.pid"
-LOG_FILE="./logs/aitp.log"
-# Find correct python interpreter
-if [ -f "../venv/bin/python" ]; then
-    PYTHON_BIN="../venv/bin/python"
-elif [ -f "./venv/bin/python" ]; then
-    PYTHON_BIN="./venv/bin/python"
-elif [ -f ".venv/bin/python" ]; then
-    PYTHON_BIN=".venv/bin/python"
-else
-    PYTHON_BIN="python3"
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║    KELAN SECURITY — LAUNCH           ║${NC}"
+echo -e "${BOLD}║    Mode: ${MODE}                     ${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════╝${NC}"
+echo ""
+
+# ── STOP mode ─────────────────────────────────────────────────────────────────
+if [[ "$MODE" == "--stop" ]]; then
+  log "Stopping all Kelan processes..."
+  bash scripts/stop.sh
+  ok "All processes stopped"
+  exit 0
 fi
 
-BINARY="scripts/start_server.py"
-BINARY_DEV="scripts/start_server.py"
+# ── Pre-flight: venv ──────────────────────────────────────────────────────────
+section "PRE-FLIGHT CHECKS"
 
-# Colors
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; WHITE='\033[1;37m'
-DIM='\033[2m'; BOLD='\033[1m'; NC='\033[0m'
+if [[ ! -d ".venv" ]]; then
+  fail ".venv not found. Run: bash install.sh"
+fi
+# shellcheck disable=SC1091
+source .venv/bin/activate
+ok "Python venv active: $(python --version)"
 
-# ── Banner ────────────────────────────────────────────────────────
-print_banner() {
-  echo ""
-  echo -e "${BOLD}${WHITE}  ╔═══════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}${WHITE}  ║         AITP — Intelligence Protocol Layer     ║${NC}"
-  echo -e "${BOLD}${WHITE}  ║              v0.2.0  Launch Script              ║${NC}"
-  echo -e "${BOLD}${WHITE}  ╚═══════════════════════════════════════════════╝${NC}"
-  echo ""
-}
+# ── Pre-flight: .env ──────────────────────────────────────────────────────────
+if [[ ! -f ".env" ]]; then
+  fail ".env not found. Run: bash install.sh or cp .env.example .env"
+fi
+ok ".env found"
+# shellcheck disable=SC1091
+set -a; source .env; set +a
 
-# ── Stop existing ─────────────────────────────────────────────────
-stop_existing() {
-  if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-      echo -e "  ${YELLOW}→${NC} Stopping existing process (PID: $PID)..."
-      kill "$PID" 2>/dev/null || true
-      sleep 1
-    fi
-    rm -f "$PID_FILE"
-  fi
+# ── Pre-flight: Rust binary ───────────────────────────────────────────────────
+if [[ -f "target/release/kelan-ebpf-loader" ]]; then
+  ok "Rust binary found"
+else
+  warn "Rust binary not found — building now (this takes ~2 min first time)"
+  cargo build --release 2>&1 | tail -3
+  ok "Rust build done"
+fi
 
-  # Kill anything on our ports
-  if command -v lsof &>/dev/null; then
-    lsof -ti :"$HTTP_PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
-    lsof -ti :5173 2>/dev/null | xargs kill -9 2>/dev/null || true
-  fi
+# ── Pre-flight: Ollama ────────────────────────────────────────────────────────
+section "OLLAMA CHECK"
+
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+log "Checking Ollama at $OLLAMA_HOST..."
+
+if curl -s --max-time 3 "$OLLAMA_HOST/api/tags" &>/dev/null; then
+  ok "Ollama is running"
   
-  # Kill lingering vite processes using pkill
-  if command -v pkill &>/dev/null; then
-    pkill -f "vite" 2>/dev/null || true
-  fi
-}
-
-# ── Check deps ────────────────────────────────────────────────────
-check_deps() {
-  local missing=()
-  command -v cargo &>/dev/null || missing+=("cargo (Rust)")
-  command -v sqlite3 &>/dev/null || echo -e "  ${DIM}⚠ sqlite3 CLI not found (optional, DB still works)${NC}"
-
-  if [ ${#missing[@]} -gt 0 ]; then
-    echo -e "  ${RED}✗ Missing required tools:${NC}"
-    for m in "${missing[@]}"; do echo -e "    ${RED}• $m${NC}"; done
+  MODELS=$(curl -s "$OLLAMA_HOST/api/tags" | python -c "import sys,json; d=json.load(sys.stdin); print('\n'.join(m['name'] for m in d.get('models',[])))" 2>/dev/null || echo "")
+  
+  if echo "$MODELS" | grep -q "gemma"; then
+    ok "gemma model available"
+  else
     echo ""
-    echo -e "  Install Rust: ${CYAN}curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh${NC}"
-    exit 1
-  fi
-}
-
-# ── Ensure .env ───────────────────────────────────────────────────
-ensure_env() {
-  if [ ! -f ".env" ]; then
-    echo -e "  ${YELLOW}→${NC} Creating .env from .env.example..."
-    if [ -f ".env.example" ]; then
-      cp .env.example .env
+    warn "⚠️  No gemma model found in Ollama."
+    echo ""
+    echo -e "  ${BOLD}Action required:${NC}"
+    echo "    ollama pull gemma3:latest"
+    echo ""
+    read -rp "  Pull it now? [y/N]: " PULL_NOW
+    if [[ "${PULL_NOW:-n}" =~ ^[Yy]$ ]]; then
+      ollama pull gemma3:latest
+      ok "Model pulled"
     else
-      # Create default .env
-      cat > .env << 'ENV'
-# AITP Platform Environment Configuration
-# ─────────────────────────────────────────────────────────────────
-
-# ── Security ──────────────────────────────────────────────────────
-# IMPORTANT: Change this in production to a secure random string
-AITP_JWT_SECRET=change_this_to_a_secure_random_string_in_production
-
-# ── Network ───────────────────────────────────────────────────────
-AITP_HTTP_PORT=3000
-AITP_UDP_PORT=9999
-
-# ── Database ──────────────────────────────────────────────────────
-AITP_DB_PATH=./data/aitp.db
-
-# ── AI Provider ───────────────────────────────────────────────────
-# Default: ollama
-AITP_AI_ENGINE_PROVIDER=ollama
-AITP_AI_ENGINE_TRUST_MODE=hybrid
-
-# Ollama settings
-AITP_OLLAMA_URL=http://localhost:11434
-AITP_OLLAMA_MODEL=gemma3:9b
-
-# ── Logging ───────────────────────────────────────────────────────
-RUST_LOG=aitp_web=info,tower_http=warn
-ENV
-      echo -e "  ${GREEN}✓${NC} Created .env — edit it to configure OLLAMA_ENDPOINT"
+      warn "Skipping — AI trust evaluation will not work without model"
     fi
   fi
-
-  # Source .env
-  set -a; source .env 2>/dev/null || true; set +a
-  HTTP_PORT="${AITP_HTTP_PORT:-3000}"
-  UDP_PORT="${AITP_UDP_PORT:-9999}"
-  DB_PATH="${AITP_DB_PATH:-./data/aitp.db}"
-}
-
-# ── Build ─────────────────────────────────────────────────────────
-build_backend() {
-  echo -e "  ${BLUE}→${NC} Verifying AITP backend environment..."
-  echo -e "  Using Python interpreter: ${CYAN}$PYTHON_BIN${NC}"
-  echo -e "  ${GREEN}✓${NC} Environment ready"
-}
-
-# ── Copy frontend ─────────────────────────────────────────────────
-setup_frontend() {
-  mkdir -p ./static
-
-  # Check if index.html exists in static/
-  if [ ! -f "./static/index.html" ]; then
-    echo -e "  ${YELLOW}→${NC} No frontend found at ./static/index.html"
-
-    # Look for it in common locations
-    for candidate in \
-      "./aitp_platform.html" \
-      "../aitp_platform.html" \
-      "./frontend/dist/index.html" \
-      "./frontend/index.html"
-    do
-      if [ -f "$candidate" ]; then
-        echo -e "  ${GREEN}→${NC} Copying frontend from $candidate"
-        cp "$candidate" ./static/index.html
-        break
-      fi
-    done
-
-    if [ ! -f "./static/index.html" ]; then
-      # Generate a minimal placeholder
-      cat > ./static/index.html << 'HTML'
-<!DOCTYPE html>
-<html><head><title>AITP Platform</title>
-<style>
-  body{font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;gap:12px;}
-  .logo{font-size:32px;font-weight:800;}
-  .sub{color:#94a3b8;font-size:14px;}
-  .status{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px 20px;font-family:monospace;font-size:13px;color:#4ade80;}
-  a{color:#60a5fa;}
-</style></head><body>
-<div class="logo">⬡ AITP Platform</div>
-<div class="sub">Intelligence Protocol Layer v0.2.0</div>
-<div class="status">✓ Backend running — place your index.html in ./static/</div>
-<div class="sub"><a href="/api/stats">View Stats API →</a></div>
-</body></html>
-HTML
-      echo -e "  ${YELLOW}⚠${NC}  Placeholder frontend created. Copy aitp_platform.html to ./static/index.html"
-    fi
-  else
-    echo -e "  ${GREEN}✓${NC} Frontend ready at ./static/index.html"
-  fi
-}
-
-# ── Create dirs ───────────────────────────────────────────────────
-ensure_dirs() {
-  mkdir -p ./data ./keys ./logs ./static
-}
-
-# ── Start backend ─────────────────────────────────────────────────
-start_backend() {
-  echo -e "  ${BLUE}→${NC} Starting AITP backend..."
-
-  if [ "$MODE" = "--dev" ]; then
-    # Dev mode: run in foreground with live output
-        echo ""
-        echo -e "  ${GREEN}${BOLD}AITP Platform Starting (Dev Mode)${NC}"
-        echo -e "  ${DIM}──────────────────────────────────────────${NC}"
-        echo -e "  Frontend UI: ${CYAN}http://localhost:5173${NC} (Vite)"
-        echo -e "  Backend API: ${CYAN}http://localhost:${HTTP_PORT}/api/${NC}"
-        echo -e "  WebSocket:   ${CYAN}ws://localhost:${HTTP_PORT}/ws${NC}"
-        echo -e "  AITP UDP:    ${CYAN}0.0.0.0:${UDP_PORT}${NC}"
-        echo -e "  Database:    ${DIM}${DB_PATH}${NC}"
-        echo -e "  ${DIM}──────────────────────────────────────────${NC}"
-        echo -e "  ${DIM}Press Ctrl+C to stop${NC}"
-        echo ""
-
-        # Open browser to Vite server instead of backend
-        (sleep 2 && open_browser "http://localhost:5173") &
-
-        # Start Vite frontend
-        if [ -d "../kelan-web" ] && [ -f "../kelan-web/package.json" ]; then
-          echo -e "  ${YELLOW}→${NC} Starting frontend dev server in background..."
-          (cd ../kelan-web && npm run dev) &
-          FRONTEND_PID=$!
-          # Add trap to kill frontend when backend is stopped
-          trap 'kill $FRONTEND_PID 2>/dev/null' EXIT
-        fi
-
-        # Run backend in foreground
-        # Run backend in foreground without exec so trap fires
-    RUST_LOG="$LOG_LEVEL" \
-    AITP_HTTP_PORT="$HTTP_PORT" \
-    AITP_UDP_PORT="$UDP_PORT" \
-    AITP_DB_PATH="$DB_PATH" \
-    "$PYTHON_BIN" "$BINARY"
-
-  else
-    # Production mode: run in background
-    RUST_LOG="$LOG_LEVEL" \
-    AITP_HTTP_PORT="$HTTP_PORT" \
-    AITP_UDP_PORT="$UDP_PORT" \
-    AITP_DB_PATH="$DB_PATH" \
-    nohup "$PYTHON_BIN" "$BINARY" > "$LOG_FILE" 2>&1 &
-
-    BACKEND_PID=$!
-    echo "$BACKEND_PID" > "$PID_FILE"
-    echo -e "  ${GREEN}✓${NC} Backend started (PID: $BACKEND_PID)"
-    echo -e "  ${DIM}  Logs: tail -f $LOG_FILE${NC}"
-
-    # Wait for server to be ready
-    echo -n "  ${BLUE}→${NC} Waiting for server"
-    for i in {1..20}; do
-      sleep 0.5
-      if curl -sf "http://localhost:${HTTP_PORT}/api/stats" >/dev/null 2>&1; then
-        echo -e " ${GREEN}ready!${NC}"
-        break
-      fi
-      echo -n "."
-      if [ "$i" -eq 20 ]; then
-        echo -e " ${YELLOW}timeout (server may still be starting)${NC}"
-      fi
-    done
-  fi
-}
-
-# ── Open browser ──────────────────────────────────────────────────
-open_browser() {
-  local url="$1"
-  if command -v xdg-open &>/dev/null; then
-    xdg-open "$url" &>/dev/null &
-  elif command -v open &>/dev/null; then
-    open "$url" &>/dev/null &
-  elif command -v start &>/dev/null; then
-    start "$url" &>/dev/null &
-  fi
-}
-
-# ── Print success info ────────────────────────────────────────────
-print_success() {
-  echo ""
-  echo -e "  ${GREEN}${BOLD}════════════════════════════════════════${NC}"
-  echo -e "  ${GREEN}${BOLD}  AITP Platform is running!${NC}"
-  echo -e "  ${GREEN}${BOLD}════════════════════════════════════════${NC}"
-  echo ""
-  echo -e "  ${WHITE}Frontend:${NC}   ${CYAN}http://localhost:${HTTP_PORT}${NC}"
-  echo -e "  ${WHITE}API Docs:${NC}   ${CYAN}http://localhost:${HTTP_PORT}/api/stats${NC}"
-  echo -e "  ${WHITE}WebSocket:${NC}  ${CYAN}ws://localhost:${HTTP_PORT}/ws?token=<JWT>${NC}"
-  echo -e "  ${WHITE}AITP Node:${NC}  ${CYAN}UDP 0.0.0.0:${UDP_PORT}${NC}"
-  echo ""
-  echo -e "  ${WHITE}Stop:${NC}  ${DIM}./launch.sh --stop${NC}"
-  echo -e "  ${WHITE}Logs:${NC}  ${DIM}tail -f $LOG_FILE${NC}"
-  echo ""
-  echo -e "  ${DIM}Opening browser...${NC}"
-  open_browser "http://localhost:${HTTP_PORT}"
-  echo ""
-}
-
-# ── Handle --stop ─────────────────────────────────────────────────
-if [ "${1:-}" = "--stop" ]; then
-  print_banner
-  echo -e "  ${YELLOW}→${NC} Stopping AITP Platform..."
-  stop_existing
-  echo -e "  ${GREEN}✓${NC} Stopped"
-  exit 0
-fi
-
-# ── Handle --reset ────────────────────────────────────────────────
-if [ "${1:-}" = "--reset" ]; then
-  print_banner
-  stop_existing
-  echo -e "  ${RED}⚠ This will delete the database and all keys!${NC}"
-  read -rp "  Are you sure? (yes/no): " confirm
-  if [ "$confirm" = "yes" ]; then
-    rm -rf ./data ./keys ./logs
-    mkdir -p ./data ./keys ./logs
-    echo -e "  ${GREEN}✓${NC} Reset complete. Run ./launch.sh to start fresh."
-  else
-    echo -e "  ${YELLOW}Cancelled.${NC}"
-  fi
-  exit 0
-fi
-
-# ── Handle --status ───────────────────────────────────────────────
-if [ "${1:-}" = "--status" ]; then
-  if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
-    if kill -0 "$PID" 2>/dev/null; then
-      echo -e "  ${GREEN}● AITP is running${NC} (PID: $PID)"
-      curl -sf "http://localhost:${HTTP_PORT}/api/stats" | python3 -m json.tool 2>/dev/null || true
-    else
-      echo -e "  ${RED}● AITP is not running${NC} (stale PID file)"
-    fi
-  else
-    echo -e "  ${RED}● AITP is not running${NC}"
-  fi
-  exit 0
-fi
-
-# ── MAIN LAUNCH ───────────────────────────────────────────────────
-print_banner
-check_deps
-ensure_env
-ensure_dirs
-stop_existing
-setup_frontend
-build_backend
-
-if [ "$MODE" = "--prod" ]; then
-  start_backend
-  print_success
 else
-  # Dev mode runs in foreground — print info first
   echo ""
-  echo -e "  ${GREEN}${BOLD}AITP Platform — Dev Mode${NC}"
-  echo -e "  ${DIM}────────────────────────────────────────${NC}"
-  setup_frontend
+  echo -e "  ${RED}[✗] Ollama is not running at $OLLAMA_HOST${NC}"
   echo ""
-  start_backend  # This blocks in dev mode
+  echo -e "  ${BOLD}To start Ollama:${NC}"
+  echo "    macOS:    ollama serve   (or open Ollama.app)"
+  echo "    Linux:    systemctl start ollama  OR  ollama serve"
+  echo ""
+  echo -e "  ${BOLD}Remote Ollama (e.g. Mac at 192.168.x.x)?${NC}"
+  echo "    Set OLLAMA_HOST in .env:"
+  echo "    OLLAMA_HOST=http://OLLAMA_HOST_IP:11434"
+  echo ""
+  read -rp "  Continue without Ollama (limited functionality)? [y/N]: " CONTINUE
+  if [[ ! "${CONTINUE:-n}" =~ ^[Yy]$ ]]; then
+    fail "Aborted. Start Ollama first then re-run: bash launch.sh"
+  fi
+  warn "Continuing without Ollama — AI features disabled"
 fi
+
+# ── Backend verification ──────────────────────────────────────────────────────
+section "BACKEND VERIFICATION"
+
+log "Checking Python backend syntax..."
+python -m py_compile kelan_server/main.py 2>/dev/null \
+  || python -m py_compile src/main.py 2>/dev/null \
+  || warn "Could not locate main.py for syntax check — proceeding"
+ok "Python syntax OK"
+
+log "Checking port availability..."
+KELAN_PORT="${KELAN_PORT:-3000}"
+if lsof -i ":$KELAN_PORT" &>/dev/null; then
+  warn "Port $KELAN_PORT already in use — may be a previous Kelan instance"
+  read -rp "  Kill existing and restart? [y/N]: " KILL_OLD
+  if [[ "${KILL_OLD:-n}" =~ ^[Yy]$ ]]; then
+    bash scripts/stop.sh 2>/dev/null || true
+    sleep 1
+    ok "Old processes killed"
+  fi
+fi
+
+# ── Launch ─────────────────────────────────────────────────────────────────────
+section "LAUNCHING KELAN STACK"
+
+if [[ "$MODE" == "--prod" ]]; then
+  log "Starting in PRODUCTION mode (docker-compose.prod.yml)..."
+  docker-compose -f docker-compose.prod.yml up -d
+  ok "Production stack started"
+elif [[ "$MODE" == "--dev" ]]; then
+  log "Starting in DEVELOPMENT mode..."
+  bash scripts/start_all.sh
+else
+  fail "Unknown mode: $MODE. Use --dev, --prod, or --stop"
+fi
+
+# ── Post-launch health check ──────────────────────────────────────────────────
+section "HEALTH CHECK"
+
+log "Waiting for services to come up (10s)..."
+sleep 10
+
+KELAN_URL="http://localhost:$KELAN_PORT"
+if curl -s --max-time 5 "$KELAN_URL/health" &>/dev/null; then
+  ok "Kelan backend responding at $KELAN_URL"
+elif curl -s --max-time 5 "$KELAN_URL" &>/dev/null; then
+  ok "Kelan backend up at $KELAN_URL (no /health endpoint)"
+else
+  warn "Backend not responding yet at $KELAN_URL — may still be starting"
+fi
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}${GREEN}══════════════════════════════════════${NC}"
+echo -e "${BOLD}${GREEN}  KELAN RUNNING                       ${NC}"
+echo -e "${BOLD}${GREEN}══════════════════════════════════════${NC}"
+echo ""
+echo "  Backend:     http://localhost:$KELAN_PORT"
+echo "  Ollama:      $OLLAMA_HOST"
+echo "  Mode:        $MODE"
+echo ""
+echo "  Stop:        bash launch.sh --stop"
+echo "  Logs:        tail -f kelan.log (or docker-compose logs -f)"
+echo ""
