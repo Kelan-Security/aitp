@@ -40,6 +40,7 @@ class TrustVerdict:
             "verdict":    self.verdict.value,
             "confidence": round(self.confidence, 3),
             "reason":     self.reason,
+            "reasoning":  self.reason,
             "latency_ms": round(self.latency_ms, 1),
         }
 
@@ -58,8 +59,18 @@ def _parse(raw: str) -> TrustVerdict:
             d = json.loads(candidate)
             v = str(d.get("verdict", "MONITOR")).upper()
             c = float(d.get("confidence", 0.5))
-            r = str(d.get("reason", ""))[:120]
+            r = str(d.get("reason", d.get("reasoning", "")))[:120]
             verdict = Verdict(v) if v in Verdict.__members__ else Verdict.MONITOR
+            
+            # Fallback if reason is empty
+            if not r:
+                if verdict == Verdict.ALLOW:
+                    r = "clean session, no anomalies detected"
+                elif verdict == Verdict.MONITOR:
+                    r = "suspicious pattern detected"
+                else:
+                    r = "malicious pattern detected"
+            
             return TrustVerdict(
                 verdict    = Verdict.MONITOR if c < 0.5 else verdict,
                 confidence = max(0.0, min(1.0, c)),
@@ -71,7 +82,7 @@ def _parse(raw: str) -> TrustVerdict:
 
     # ── Strategy 2: regex JSON extraction ────────────────────
     for pat in [
-        r'\{[^{}]*?"verdict"\s*:\s*"[^"]*"[^{}]*?"confidence"\s*:\s*[\d.]+[^{}]*?\}',
+        r'\{[^{}]*?"verdict"\s*:\s*"[^"]*"[^{}]*?"confidence"\s*:\s*[\d.]+[^{}]*\}',
         r'\{[^{}]*?"confidence"\s*:\s*[\d.]+[^{}]*?"verdict"\s*:\s*"[^"]*"[^{}]*?\}',
         r'\{.*?"verdict".*?\}',
     ]:
@@ -81,8 +92,18 @@ def _parse(raw: str) -> TrustVerdict:
                 d = json.loads(m.group())
                 v = str(d.get("verdict", "MONITOR")).upper()
                 c = float(d.get("confidence", 0.5))
-                r = str(d.get("reason", ""))[:120]
+                r = str(d.get("reason", d.get("reasoning", "")))[:120]
                 verdict = Verdict(v) if v in Verdict.__members__ else Verdict.MONITOR
+                
+                # Fallback if reason is empty
+                if not r:
+                    if verdict == Verdict.ALLOW:
+                        r = "clean session, no anomalies detected"
+                    elif verdict == Verdict.MONITOR:
+                        r = "suspicious pattern detected"
+                    else:
+                        r = "malicious pattern detected"
+                
                 return TrustVerdict(
                     verdict    = Verdict.MONITOR if c < 0.5 else verdict,
                     confidence = max(0.0, min(1.0, c)),
@@ -94,11 +115,11 @@ def _parse(raw: str) -> TrustVerdict:
 
     # ── Strategy 3: keyword 
     upper = text.upper()
-    if "DENY"    in upper: return TrustVerdict(Verdict.DENY,    0.70, "kw:DENY",    raw=raw)
-    if "ALLOW"   in upper: return TrustVerdict(Verdict.ALLOW,   0.70, "kw:ALLOW",   raw=raw)
-    if "MONITOR" in upper: return TrustVerdict(Verdict.MONITOR, 0.60, "kw:MONITOR", raw=raw)
+    if "DENY"    in upper: return TrustVerdict(Verdict.DENY,    0.70, "malicious pattern detected",    raw=raw)
+    if "ALLOW"   in upper: return TrustVerdict(Verdict.ALLOW,   0.70, "clean session, no anomalies detected",   raw=raw)
+    if "MONITOR" in upper: return TrustVerdict(Verdict.MONITOR, 0.60, "suspicious pattern detected", raw=raw)
 
-    return TrustVerdict(Verdict.MONITOR, 0.50, "parse_failed:safe_default", raw=raw)
+    return TrustVerdict(Verdict.MONITOR, 0.50, "suspicious pattern detected", raw=raw)
 
 
 class OllamaClient:
@@ -124,10 +145,10 @@ class OllamaClient:
 
     async def _client(self) -> httpx.AsyncClient:
         if self._http is None or self._http.is_closed:
-            timeout_val = httpx.Timeout(self.timeout) if self.timeout and self.timeout > 0 else None
             self._http = httpx.AsyncClient(
                 base_url=self.endpoint,
-                timeout=timeout_val,
+                timeout=httpx.Timeout(None),   # no timeout
+                transport=httpx.AsyncHTTPTransport(retries=0)  # no retries — fail fast and let circuit breaker handle it
             )
         return self._http
 
@@ -197,6 +218,7 @@ class OllamaClient:
 
         t0 = time.monotonic()
         try:
+            log.info("ollama_evaluating_session", session=session)
             raw     = await self._raw_generate(build_prompt(session))
             verdict = _parse(raw)
             verdict.latency_ms = (time.monotonic() - t0) * 1000

@@ -969,6 +969,21 @@ async def test_session(id: str, req: TestSessionReq, current_org = Depends(get_c
         behavioral_flags.append("ExfiltrationPattern")
         anomalies["exfiltration"] = True
         
+    # Detect clearance violation
+    if source.clearance_level < dest.clearance_level:
+        behavioral_flags.append("ClearanceViolation")
+        anomalies["clearance_violation"] = True
+        
+    # Detect control signal abuse
+    if req.intent == "ControlSignal":
+        behavioral_flags.append("ControlSignalAbuse")
+        anomalies["control_signal_abuse"] = True
+        
+    if ("CONTROL" in req.intent.upper() or "ADMIN" in req.intent.upper()) and source.clearance_level < 3:
+        anomalies["control_signal_abuse"] = True
+        if "ControlSignalAbuse" not in behavioral_flags:
+            behavioral_flags.append("ControlSignalAbuse")
+        
     session_ctx = {
         "session_id": session_id,
         "entity_id": id,
@@ -985,6 +1000,8 @@ async def test_session(id: str, req: TestSessionReq, current_org = Depends(get_c
         "session_count_24h": source.session_count,
         "avg_trust_score": source.trust_score_avg,
         "known_peer": True,
+        "clearance_violation": anomalies.get("clearance_violation", False),
+        "control_signal_abuse": anomalies.get("control_signal_abuse", False),
         "behavioral_flags": behavioral_flags,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
@@ -1070,13 +1087,12 @@ async def list_sessions(current_org = Depends(get_current_org)):
 
 @app.post("/api/config/verify-key")
 async def verify_key(req: VerifyKeyReq, current_org = Depends(get_current_org)):
-    endpoint = req.api_key if req.api_key.startswith("http") else cfg.ollama_endpoint
-    test_client = OllamaClient(
-        endpoint=endpoint,
-        model=req.model,
-        timeout=10,
-    )
-    
+    if not engine or not engine.ollama:
+        return JSONResponse(status_code=503, content={
+            "error": "ollama_unavailable",
+            "detail": "Engine or Ollama client not initialized"
+        })
+        
     test_ctx = {
         "entity_id": "test_entity_abc123",
         "intent": "ModelInference",
@@ -1087,8 +1103,12 @@ async def verify_key(req: VerifyKeyReq, current_org = Depends(get_current_org)):
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     
+    old_model = engine.ollama.model
+    if req.model:
+        engine.ollama.model = req.model
+        
     try:
-        verdict = await test_client.evaluate(test_ctx)
+        verdict = await engine.ollama.evaluate(test_ctx)
         if verdict.reason.startswith("ollama_error:"):
             raise Exception(verdict.reason)
             
@@ -1104,9 +1124,11 @@ async def verify_key(req: VerifyKeyReq, current_org = Depends(get_current_org)):
                 "evaluation_ms": verdict.latency_ms,
             }
         }
-    except Exception as e:
-        log.error("ollama_verification_failed", error=str(e))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ollama verification failed: {e}"
-        )
+    except Exception as exc:
+        log.error("ollama_verification_failed", error=str(exc))
+        return JSONResponse(status_code=503, content={
+            "error": "ollama_unavailable",
+            "detail": str(exc)[:120]
+        })
+    finally:
+        engine.ollama.model = old_model

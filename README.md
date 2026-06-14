@@ -202,36 +202,46 @@ To set up and run the Ollama server locally using the configuration files in thi
    ```bash
    ipconfig getifaddr en0
    ```
-   *(Example output: `OLLAMA_HOST_IP`)*
+   *(Example output: `<MAC_IP>`)*
 
 ---
 
 ### 2. Client (Kali Linux) Remote Connection
 
-To connect your Kali Linux machine or any AITP client to the dedicated macOS Ollama server over the local network:
+To connect your Kali Linux machine (or any other client) to the Ollama server running on your MacBook:
 
-1. **Configure Environment Variables**:
-   Export the endpoint and model details to direct the trust engine to the remote host:
-   ```bash
-   export OLLAMA_ENDPOINT="http://<MAC_IP>:11434"
-   export OLLAMA_MODEL="gemma4:latest"
-   ```
+#### Step A: Verify Network Access from the Kali Machine
+Ensure you can reach the MacBook's Ollama API:
+```bash
+# 1. Fetch the list of available models from the MacBook
+curl http://<MAC_IP>:11434/api/tags | jq .
 
-2. **Verify Connectivity**:
-   Test communication with the remote server's API:
-   ```bash
-   # 1. Fetch available models from the remote endpoint
-   curl http://<MAC_IP>:11434/api/tags
+# 2. Run a test inference call to verify response
+curl -X POST http://<MAC_IP>:11434/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen2.5:3b",
+    "prompt": "Respond ONLY with valid JSON: {\"verdict\":\"ALLOW\",\"confidence\":0.95,\"reason\":\"test\"}",
+    "stream": false
+  }' | jq .
+```
 
-   # 2. Perform a remote test inference call (JSON mode verification)
-   curl -X POST http://<MAC_IP>:11434/api/generate \
-     -H "Content-Type: application/json" \
-     -d '{
-       "model": "gemma4:latest",
-       "prompt": "Respond ONLY with valid JSON: {\"verdict\":\"ALLOW\",\"confidence\":0.95,\"reason\":\"test\"}",
-       "stream": false
-     }' | python3 -m json.tool
-   ```
+#### Step B: Configure the Kelan Server on Kali
+Open your `.env` file in the root of `kelan-core` on the Kali machine and configure the AI trust engine settings to point to the MacBook's local network IP:
+```ini
+# AI Engine Configuration on Kali Linux
+OLLAMA_ENDPOINT=http://<MAC_IP>:11434
+OLLAMA_MODEL=qwen2.5:3b  # or gemma4:latest
+OLLAMA_TIMEOUT_SECS=8.0
+```
+
+#### Step C: Start the Kelan Server on Kali Linux
+Once the `.env` file is updated, start the Kelan server. It will automatically route all AI-based packet evaluation requests to the MacBook's Ollama engine:
+```bash
+# Run with the environment loaded
+source .venv/bin/activate
+make dev
+```
 
 ---
 
