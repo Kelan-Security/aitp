@@ -47,6 +47,93 @@ make dev
 
 ---
 
+## 💻 Platform-Specific Startup Guide
+
+You can run Kelan Security on a MacBook (macOS) or a Kali Linux machine. Follow the commands below for your environment.
+
+### 🍎 MacBook (macOS) Startup
+
+Before running the server, make sure **Docker Desktop** is open and running.
+
+1. **Navigate to the core directory**:
+   ```bash
+   cd kelan-core
+   ```
+2. **Activate the Python virtual environment**:
+   ```bash
+   source .venv/bin/activate
+   ```
+3. **Set Docker Host Environment Variable** *(Optional — run if Docker CLI has socket permission issues)*:
+   ```bash
+   export DOCKER_HOST="unix://$HOME/.docker/run/docker.sock"
+   ```
+4. **Start the Stack**:
+   * **Option A: Orchestrated Full Stack** (Clean cleanup + Backend + Node.js Frontend + optional monitoring):
+     ```bash
+     ./start_all.sh
+     ```
+     To include Prometheus/Grafana infrastructure:
+     ```bash
+     ./start_all.sh --docker
+     ```
+   * **Option B: Local Dev Stack** (Concurrently starts Backend & Frontend):
+     ```bash
+     make dev
+     ```
+5. **Stop all services**:
+   ```bash
+   make stop
+   # or
+   ./stop.sh
+   ```
+
+---
+
+### 🐉 Kali Linux (Debian/Ubuntu-based) Startup
+
+On Kali Linux, ensure system dependencies and kernel headers are installed to support optional native eBPF/XDP hooks.
+
+1. **Install Prerequisites**:
+   ```bash
+   sudo apt-get update && sudo apt-get install -y \
+     build-essential pkg-config libssl-dev iproute2 curl jq \
+     python3-pip python3-venv llvm clang libbpf-dev bpftool \
+     docker.io docker-compose-v2
+   ```
+2. **Start & Configure Docker**:
+   ```bash
+   sudo systemctl enable --now docker
+   sudo usermod -aG docker $USER
+   # Note: Log out and back in, or run `newgrp docker` to apply docker permissions.
+   ```
+3. **Navigate to the core directory**:
+   ```bash
+   cd kelan-core
+   ```
+4. **Setup and activate the virtual environment**:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+5. **Start the Stack**:
+   * **Option A: Standard Development Stack** (Without Kernel hooks):
+     ```bash
+     ./start_all.sh --docker
+     ```
+   * **Option B: Kernel-level eBPF Stack** (Requires root to attach XDP/eBPF filters):
+     ```bash
+     sudo env PATH=$PATH ./start.sh
+     ```
+6. **Stop all services**:
+   ```bash
+   make stop
+   # or
+   ./stop.sh
+   ```
+
+---
+
 ## 🧪 Testing & Validation
 
 ### Internal Suite
