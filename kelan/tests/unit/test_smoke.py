@@ -102,6 +102,7 @@ async def test_ebpf_bridge_drop_stats_mock():
         mock_exec.return_value = mock_proc
         
         bridge = EbpfBridge(iface="eth0")
+        bridge._mode = "ebpf"
         stats = await bridge.drop_stats()
         
         mock_exec.assert_called_once_with(

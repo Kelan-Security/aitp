@@ -53,6 +53,8 @@ class EbpfBridge:
         await self._cmd({"action": "REVOKE", "entity_id": entity_id})
 
     async def drop_stats(self) -> dict:
+        if self._mode == "software":
+            return {}
         # Read from /proc or BPF map via bpftool
         try:
             proc = await asyncio.create_subprocess_exec(
