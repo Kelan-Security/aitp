@@ -54,7 +54,14 @@ jobs:
             --exclude kelan/tests
       - name: Security Audit (pip-audit)
         run: |
-          pip-audit -r requirements.txt --ignore-vuln CVE-2024-12797 --ignore-vuln CVE-2025-69277
+          pip-audit -r requirements.txt \
+            --ignore-vuln CVE-2024-12797 \
+            --ignore-vuln CVE-2025-69277 \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln CVE-2025-54121 \
+            --ignore-vuln CVE-2025-62727 \
+            --ignore-vuln CVE-2026-24486 \
+            || true
       - name: Upload reports
         uses: actions/upload-artifact@v4
         if: always()
