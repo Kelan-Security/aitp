@@ -59,9 +59,16 @@ Before running the server, make sure **Docker Desktop** is open and running.
    ```bash
    cd kelan-core
    ```
-2. **Activate the Python virtual environment**:
+2. **Setup and activate the Python virtual environment**:
    ```bash
+   # Create the virtual environment if it doesn't exist
+   python3 -m venv .venv
+   
+   # Activate the virtual environment
    source .venv/bin/activate
+   
+   # Install dependencies
+   pip install -r requirements.txt
    ```
 3. **Set Docker Host Environment Variable** *(Optional — run if Docker CLI has socket permission issues)*:
    ```bash
