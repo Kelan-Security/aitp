@@ -65,7 +65,7 @@ async def test_sybil_attack(client, base_url):
     denied_count = 0
     
     for r in responses:
-        if isinstance(r, Exception):
+        if isinstance(r, BaseException):
             continue
         if r.status_code == 200:
             success_count += 1
@@ -97,7 +97,7 @@ async def test_connection_flood(client, base_url):
         tasks.append(client.post(f"{base_url}/api/enroll", json=payload))
         
     responses = await asyncio.gather(*tasks, return_exceptions=True)
-    denied_count = sum(1 for r in responses if not isinstance(r, Exception) and r.status_code == 403)
+    denied_count = sum(1 for r in responses if not isinstance(r, BaseException) and r.status_code == 403)
     console.print(f"[bold]Blocked connections:[/bold] {denied_count} / 55")
     if denied_count > 0:
         console.print("[bold green]✓ Success: Sentinel Engine detected and blocked connection flood![/bold green]")
