@@ -1,53 +1,70 @@
-# =============================================
-# Kelan Security — Production Dockerfile
-# =============================================
+# ── Stage 1: Rust builder ────────────────────────────────────────────────────
+FROM rust:slim AS rust-builder
 
-FROM python:3.12-slim AS builder
+WORKDIR /build
 
-# Install system dependencies
+# Cache dependencies
+COPY Cargo.toml Cargo.lock* ./
+COPY kelan-ebpf/Cargo.toml ./kelan-ebpf/
+COPY kelan-ebpf/kelan-ebpf-loader/Cargo.toml ./kelan-ebpf/kelan-ebpf-loader/
+
+# Build deps only (cache layer)
+RUN mkdir -p kelan-ebpf/kelan-ebpf-loader/src && \
+    echo "fn main() {}" > kelan-ebpf/kelan-ebpf-loader/src/main.rs && \
+    cargo build --release 2>/dev/null || true
+
+# Copy full source and build
+COPY . .
+RUN cargo build --release
+
+# ── Stage 2: Python builder ───────────────────────────────────────────────────
+FROM python:3.12-slim AS python-builder
+
+WORKDIR /build
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
     libssl-dev \
     libffi-dev \
-    cargo \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt --target=/build/deps
 
-# Final lightweight image
-FROM python:3.12-slim
+# ── Stage 3: Runtime ──────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
-WORKDIR /app
-
-# Install runtime dependencies (including curl for HEALTHCHECK and libpq5)
+# Install runtime dependencies (including curl for HEALTHCHECK)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 \
-    libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Security: non-root user
+RUN groupadd -r kelan && useradd -r -g kelan kelan
 
-# Copy application code
-COPY kelan/ ./kelan/
-COPY scripts/ ./scripts/
-COPY .env.example .env
+WORKDIR /app
 
-# Create data and logs directories
-RUN mkdir -p data logs && chmod 777 data logs
+# Copy Python deps
+COPY --from=python-builder /build/deps /app/deps
+ENV PYTHONPATH=/app/deps
+
+# Copy Rust binary
+COPY --from=rust-builder /build/target/release/kelan-ebpf-loader /usr/local/bin/
+RUN chmod +x /usr/local/bin/kelan-ebpf-loader
+
+# Copy application code (exclude secrets)
+COPY --chown=kelan:kelan . .
+
+# Remove any accidentally included secrets
+RUN rm -f .env .env.* *.log
+
+USER kelan
 
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:3000/health || exit 1
 
 CMD ["python", "scripts/start_server.py"]
