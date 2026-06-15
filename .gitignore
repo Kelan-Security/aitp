@@ -29,6 +29,8 @@ MANIFEST
 .pytest_cache/
 .coverage
 htmlcov/
+pip-audit-results.json
+pyright_before.log
 
 # ── Rust ──────────────────────────────────────────────────────────────────────
 target/
@@ -39,9 +41,13 @@ Cargo.lock
 .env.*
 !.env.example
 !.env.template
+*.env.backup
+*.env.local
+*.env.prod
 agent-identity.key
 secrets/
 credentials/
+config/secrets.toml
 
 # ── Certificates & Keys ───────────────────────────────────────────────────────
 certs/
@@ -91,7 +97,10 @@ tmp/
 temp/
 *.tmp
 .git.backup/logs/refs/remotes/origin/main
-.gitignore
 .rust_archive/aitp-server/:memory:
 .git.backup/logs/refs/remotes/origin/feat/ollama-integration
 .git.backup/logs/refs/remotes/origin/HEAD
+
+# ── Tarpaulin coverage ────────────────────────────────────────────────────────
+tarpaulin-report.html
+tarpaulin_output.log
