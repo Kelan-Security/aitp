@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/kelan-sdk.svg)](https://crates.io/crates/kelan-sdk)
 [![build](https://github.com/kelan-security/kelan-sdk/actions/workflows/ci.yml/badge.svg)](...)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![license: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![stars](https://img.shields.io/github/stars/kelan-security/kelan-sdk?style=social)](...)
 
 > Agentic AI security at the transport layer.
@@ -99,6 +99,6 @@ docker run -p 3000:3000 -p 9999:9999/udp \
 
 ## License
 
-kelan-sdk is MIT licensed.
+kelan-sdk is licensed under the Apache License 2.0.
 The Kelan Intelligence Core is licensed under BSL 1.1 (free for dev,
 commercial license for production deployments).

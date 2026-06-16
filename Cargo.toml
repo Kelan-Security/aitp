@@ -11,7 +11,7 @@ exclude = [
 version = "0.1.0"
 edition = "2021"
 authors = ["AITP Contributors"]
-license = "MIT"
+license = "Apache-2.0"
 description = "Adaptive Intent Transport Protocol — identity-first, intent-bound transport for AI systems"
 
 [workspace.dependencies]
