@@ -1,0 +1,21 @@
+[package]
+name = "aitp-identity"
+version.workspace = true
+edition.workspace = true
+description = "AITP identity system — Ed25519 keypairs, entity IDs, permit tokens, and identity resolution"
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+dashmap = { workspace = true }
+pqcrypto-traits = { workspace = true }
+pqcrypto-mldsa = { workspace = true }
+pqcrypto-mlkem = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

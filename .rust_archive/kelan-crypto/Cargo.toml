@@ -1,0 +1,22 @@
+[package]
+name    = "kelan-crypto"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+ed25519-dalek   = { workspace = true }
+pqcrypto-mldsa  = { workspace = true }
+pqcrypto-mlkem  = { workspace = true }
+pqcrypto-traits = { workspace = true }
+x25519-dalek    = { workspace = true }
+sha2            = { workspace = true }
+sha3            = { workspace = true }
+rand            = { workspace = true }
+rand_core       = { version = "0.6", features = ["getrandom"] }
+zeroize         = { workspace = true }
+hex             = "0.4"
+serde           = { version = "1", features = ["derive"] }
+anyhow          = "1"
+thiserror       = "1"
+keyring         = "2"
+tracing         = "0.1"

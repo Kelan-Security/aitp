@@ -1,0 +1,68 @@
+[package]
+name        = "aitp-client"
+version     = "0.3.0"
+edition     = "2021"
+description = "Kelan Security Client Agent — transport-layer security daemon"
+
+[[bin]]
+name = "kelan-agent"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Crypto — identity + encryption
+pqcrypto-mldsa   = { workspace = true }
+pqcrypto-mlkem   = { workspace = true }
+pqcrypto-traits  = { workspace = true }
+ed25519-dalek    = { workspace = true }
+x25519-dalek     = { workspace = true }
+sha2             = { workspace = true }
+sha3             = { workspace = true }
+rand             = { workspace = true }
+zeroize          = { workspace = true }
+aes-gcm       = "0.10"
+hex           = "0.4"
+
+# Serialisation
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+toml         = "0.8"
+
+# HTTP client (talk to Intelligence Core REST API)
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# WebSocket (receive commands from Intelligence Core)
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
+futures-util      = "0.3"
+
+# Daemon / process management
+nix = { version = "0.27", features = ["process", "signal", "user"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Config + paths
+directories  = "5"
+uuid         = { version = "1", features = ["v4"] }
+chrono       = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender    = "0.2"
+
+# Error handling
+anyhow    = "1"
+thiserror = "1"
+
+# Metrics (local only)
+prometheus = { version = "0.13", default-features = false }
+console-subscriber = "0.2"
+local-ip-address = "0.5"
+kelan-crypto = { path = "../kelan-crypto" }
+keyring = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+iptables = "0.5"

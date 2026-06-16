@@ -1,0 +1,21 @@
+[package]
+name    = "kelan-license-tool"
+version = "0.3.0"
+edition = "2021"
+description = "Internal tool to issue Kelan Security license files"
+
+[[bin]]
+name = "kelan-license-tool"
+path = "src/main.rs"
+
+[dependencies]
+ed25519-dalek = { version = "2", features = ["rand_core", "pkcs8", "pem"] }
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+clap          = { version = "4", features = ["derive"] }
+chrono        = { version = "0.4", features = ["serde"] }
+uuid          = { version = "1", features = ["v4"] }
+hex           = "0.4"
+anyhow        = "1"
+rand          = "0.8"
+shellexpand   = "3"

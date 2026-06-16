@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelan AITP — Security Operations Center</title>
+    <meta name="description"
+        content="AITP Intelligence Core — Real-time security operations dashboard for the Adaptive Intent Transport Protocol">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Figtree:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════════
+   AITP Admin Dashboard — Design System
+   Color palette: #F8F7F3 paper, #0F1219 ink, #1B3560 navy, #B07D3A copper
+   ═══════════════════════════════════════════════════════════════════════ */
+        :root {
+            --paper: #F8F7F3;
+            --ink: #0F1219;
+            --navy: #1B3560;
+            --copper: #B07D3A;
+            --bg: #0F1219;
+            --surface: #171D2A;
+            --surface2: #1E2636;
+            --border: #2A3347;
+            --text: #D1D5DB;
+            --text-dim: #6B7280;
+            --text-bright: #F3F4F6;
+            --green: #22C55E;
+            --amber: #F59E0B;
+            --red: #EF4444;
+            --blue: #3B82F6;
+            --green-dim: rgba(34, 197, 94, .12);
+            --amber-dim: rgba(245, 158, 11, .12);
+            --red-dim: rgba(239, 68, 68, .12);
+            --blue-dim: rgba(59, 130, 246, .12);
+            --copper-dim: rgba(176, 125, 58, .15);
+            --font-heading: 'Spectral', Georgia, serif;
+            --font-mono: 'IBM Plex Mono', 'Menlo', monospace;
+            --font-body: 'Figtree', 'Inter', system-ui, sans-serif;
+            --radius: 6px;
+            --radius-lg: 10px;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 14px;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Layout ── */
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 220px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
+        }
+
+        .main {
+            margin-left: 220px;
+            flex: 1;
+            min-height: 100vh;
+        }
+
+        .page {
+            display: none;
+            padding: 28px 32px;
+            max-width: 1400px;
+            animation: fadeIn .2s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Sidebar ── */
+        .sidebar-logo {
+            padding: 20px 18px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-logo h1 {
+            font-family: var(--font-heading);
+            font-size: 20px;
+            color: var(--copper);
+            font-weight: 700;
+            letter-spacing: .5px;
+        }
+
+        .sidebar-logo p {
+            font-size: 10px;
+            color: var(--text-dim);
+            margin-top: 2px;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: var(--radius);
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            color: var(--text);
+            background: var(--surface2);
+        }
+
+        .nav-item.active {
+            color: var(--copper);
+            background: var(--copper-dim);
+            border-color: rgba(176, 125, 58, .25);
+        }
+
+        .nav-item .icon {
+            width: 18px;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        .sidebar-footer {
+            padding: 12px 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .sidebar-footer .conn-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-dim);
+        }
+
+        .conn-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--red);
+            transition: background .3s;
+        }
+
+        .conn-dot.connected {
+            background: var(--green);
+        }
+
+        .sidebar-footer button {
+            margin-top: 8px;
+            width: 100%;
+            padding: 7px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-dim);
+            font-size: 11px;
+            cursor: pointer;
+            font-family: var(--font-body);
+        }
+
+        .sidebar-footer button:hover {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        /* ── Page Header ── */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            font-family: var(--font-heading);
+            font-size: 22px;
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        .page-header p {
+            color: var(--text-dim);
+            font-size: 12.5px;
+            margin-top: 3px;
+        }
+
+        /* ── Stat Bar ── */
+        .stat-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px 18px;
+        }
+
+        .stat-card .label {
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-top: 4px;
+            font-family: var(--font-mono);
+        }
+
+        .stat-card .value.green {
+            color: var(--green);
+        }
+
+        .stat-card .value.amber {
+            color: var(--amber);
+        }
+
+        .stat-card .value.red {
+            color: var(--red);
+        }
+
+        /* ── Cards / Panels ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-header h3 {
+            font-family: var(--font-heading);
+            font-size: 15px;
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 0;
+        }
+
+        .card-body.padded {
+            padding: 18px;
+        }
+
+        /* ── Terminal ── */
+        .terminal {
+            background: #0A0E17;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.7;
+            max-height: 420px;
+            overflow-y: auto;
+            padding: 12px 16px;
+        }
+
+        .terminal::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .terminal::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .term-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .term-line .ts {
+            color: var(--text-dim);
+            margin-right: 8px;
+        }
+
+        .term-line.allow {
+            color: var(--green);
+        }
+
+        .term-line.deny,
+        .term-line.kill {
+            color: var(--red);
+        }
+
+        .term-line.monitor {
+            color: var(--amber);
+        }
+
+        .term-line.info {
+            color: var(--blue);
+        }
+
+        .term-line.critical {
+            color: #F87171;
+            font-weight: 600;
+        }
+
+        /* ── Filter Buttons ── */
+        .filter-bar {
+            display: flex;
+            gap: 6px;
+        }
+
+        .filter-btn {
+            padding: 4px 12px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 99px;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--text-dim);
+            color: var(--text);
+        }
+
+        .filter-btn.active {
+            background: var(--copper-dim);
+            border-color: var(--copper);
+            color: var(--copper);
+        }
+
+        /* ── Tables ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 10px 14px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-dim);
+            font-weight: 600;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+        }
+
+        .data-table td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            vertical-align: middle;
+        }
+
+        .data-table tr:hover td {
+            background: rgba(255, 255, 255, .02);
+        }
+
+        .data-table .mono {
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+        }
+
+        .data-table .truncate {
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .table-wrap {
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .table-wrap::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .table-wrap::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .badge.green,
+        .badge.allow {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .badge.amber,
+        .badge.monitor,
+        .badge.warning {
+            background: var(--amber-dim);
+            color: var(--amber);
+        }
+
+        .badge.red,
+        .badge.deny,
+        .badge.critical {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .badge.blue,
+        .badge.info {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        .badge.navy {
+            background: rgba(27, 53, 96, .3);
+            color: #60A5FA;
+        }
+
+        .badge.quarantined {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .badge.online {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .badge.offline {
+            background: rgba(107, 114, 128, .15);
+            color: var(--text-dim);
+        }
+
+        .badge.learning {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 6px 14px;
+            font-size: 11.5px;
+            font-family: var(--font-body);
+            font-weight: 500;
+            border-radius: var(--radius);
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all .15s;
+        }
+
+        .btn-primary {
+            background: var(--copper);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #C48B42;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border-color: var(--border);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--text-dim);
+        }
+
+        .btn-danger {
+            background: transparent;
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .btn-danger:hover {
+            background: var(--red-dim);
+        }
+
+        .btn-sm {
+            padding: 3px 10px;
+            font-size: 10.5px;
+        }
+
+        /* ── Forms ── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 9px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-bright);
+            font-size: 13px;
+            font-family: var(--font-body);
+            outline: none;
+            transition: border .15s;
+        }
+
+        .form-input:focus {
+            border-color: var(--copper);
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236B7280'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        /* ── Login ── */
+        .login-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg);
+        }
+
+        .login-card {
+            width: 380px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 36px 32px;
+        }
+
+        .login-card h1 {
+            font-family: var(--font-heading);
+            font-size: 24px;
+            color: var(--copper);
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .login-card .subtitle {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 28px;
+        }
+
+        .login-card .error {
+            color: var(--red);
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 12px;
+            min-height: 18px;
+        }
+
+        .login-card .btn-primary {
+            width: 100%;
+            padding: 10px;
+            font-size: 13px;
+        }
+
+        /* ── Threat Incident Cards ── */
+        .incident-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: border-color .15s;
+            cursor: pointer;
+        }
+
+        .incident-card:hover {
+            border-color: var(--text-dim);
+        }
+
+        .incident-header {
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--surface);
+        }
+
+        .incident-header .severity-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .incident-header .severity-dot.critical {
+            background: var(--red);
+            box-shadow: 0 0 8px rgba(239, 68, 68, .4);
+        }
+
+        .incident-header .severity-dot.high {
+            background: var(--amber);
+        }
+
+        .incident-header .severity-dot.medium {
+            background: var(--blue);
+        }
+
+        .incident-header .severity-dot.low {
+            background: var(--green);
+        }
+
+        .incident-header .info {
+            flex: 1;
+        }
+
+        .incident-header .info h4 {
+            font-size: 13.5px;
+            color: var(--text-bright);
+            font-weight: 600;
+        }
+
+        .incident-header .info p {
+            font-size: 11.5px;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .incident-detail {
+            display: none;
+            padding: 16px 18px;
+            background: var(--surface2);
+            border-top: 1px solid var(--border);
+        }
+
+        .incident-detail.open {
+            display: block;
+        }
+
+        .incident-detail h5 {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--copper);
+            margin: 12px 0 6px;
+        }
+
+        .incident-detail h5:first-child {
+            margin-top: 0;
+        }
+
+        .incident-detail ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .incident-detail li {
+            font-size: 12px;
+            color: var(--text);
+            padding: 3px 0;
+            font-family: var(--font-mono);
+        }
+
+        .incident-detail li::before {
+            content: '›';
+            color: var(--copper);
+            margin-right: 8px;
+        }
+
+        /* ── Config page ── */
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .config-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+        }
+
+        .config-section h3 {
+            font-family: var(--font-heading);
+            font-size: 15px;
+            color: var(--text-bright);
+            margin-bottom: 16px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .toggle-row label {
+            font-size: 13px;
+            color: var(--text);
+        }
+
+        .toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 2px;
+            bottom: 2px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: .2s;
+        }
+
+        .toggle input:checked+.toggle-slider {
+            background: var(--copper);
+        }
+
+        .toggle input:checked+.toggle-slider::before {
+            transform: translateX(16px);
+            background: #fff;
+        }
+
+        /* ── Utilities ── */
+        .flex {
+            display: flex;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 8px;
+        }
+
+        .gap-3 {
+            gap: 12px;
+        }
+
+        .mt-3 {
+            margin-top: 12px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+
+        .text-dim {
+            color: var(--text-dim);
+        }
+
+        .text-xs {
+            font-size: 11px;
+        }
+
+        .font-mono {
+            font-family: var(--font-mono);
+        }
+
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        .empty-state .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .sidebar {
+                width: 60px;
+            }
+
+            .sidebar-logo p,
+            .nav-item span,
+            .sidebar-footer .conn-status span {
+                display: none;
+            }
+
+            .sidebar-logo h1 {
+                font-size: 14px;
+            }
+
+            .nav-item {
+                justify-content: center;
+                padding: 10px;
+            }
+
+            .nav-item .icon {
+                margin: 0;
+            }
+
+            .main {
+                margin-left: 60px;
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+     LOGIN PAGE
+     ═══════════════════════════════════════════════════════════════════ -->
+    <div id="login-page" class="login-wrap">
+        <div class="login-card">
+            <h1>AITP</h1>
+            <p class="subtitle">Intelligence Core</p>
+            <div id="login-error" class="error"></div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="login-email" class="form-input" placeholder="admin@acme.com"
+                    autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="login-password" class="form-input" placeholder="••••••••"
+                    autocomplete="current-password">
+            </div>
+            <button class="btn btn-primary" onclick="doLogin()" id="login-btn">Sign In</button>
+            <p style="text-align:center;margin-top:16px;font-size:11px;color:var(--text-dim);">
+                Don't have an account? <a href="#" onclick="showSignup()" style="color:var(--copper)">Create
+                    Organisation</a>
+            </p>
+            <div id="signup-fields"
+                style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                <div class="form-group">
+                    <label>Organisation Name</label>
+                    <input type="text" id="signup-org" class="form-input" placeholder="Acme Corp">
+                </div>
+                <button class="btn btn-primary" onclick="doSignup()" id="signup-btn">Create Account</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+     MAIN APP SHELL
+     ═══════════════════════════════════════════════════════════════════ -->
+    <div id="app-shell" class="app" style="display:none;">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <h1>AITP</h1>
+                <p>Intelligence Core</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a class="nav-item active" data-page="overview" onclick="navigate('overview')">
+                    <span class="icon">◉</span><span>Overview</span>
+                </a>
+                <a class="nav-item" data-page="sessions" onclick="navigate('sessions')">
+                    <span class="icon">⇌</span><span>Sessions</span>
+                </a>
+                <a class="nav-item" data-page="entities" onclick="navigate('entities')">
+                    <span class="icon">◈</span><span>Entities</span>
+                </a>
+                <a class="nav-item" data-page="threats" onclick="navigate('threats')">
+                    <span class="icon">⚠</span><span>Threats</span>
+                </a>
+                <a class="nav-item" data-page="sentinel" onclick="navigate('sentinel')">
+                    <span class="icon">◎</span><span>Sentinel</span>
+                </a>
+                <a class="nav-item" data-page="config" onclick="navigate('config')">
+                    <span class="icon">⚙</span><span>Config</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="conn-status">
+                    <div id="ws-dot" class="conn-dot"></div>
+                    <span id="ws-label">Disconnected</span>
+                </div>
+                <button onclick="doLogout()">Sign Out</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main">
+
+            <!-- ─── OVERVIEW ─── -->
+            <div id="page-overview" class="page active">
+                <div class="page-header">
+                    <h2>Security Operations Center</h2>
+                    <p>Real-time monitoring of the AITP network</p>
+                </div>
+                <div class="stat-bar" id="stat-bar">
+                    <div class="stat-card">
+                        <div class="label">Active Sessions</div>
+                        <div class="value" id="stat-sessions">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Entities Online</div>
+                        <div class="value" id="stat-entities">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Threats Today</div>
+                        <div class="value red" id="stat-threats">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">AI Evaluations</div>
+                        <div class="value" id="stat-ai">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Avg Trust Score</div>
+                        <div class="value green" id="stat-trust">—</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Uptime</div>
+                        <div class="value" id="stat-uptime">—</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Live Event Terminal</h3>
+                        <div class="filter-bar">
+                            <button class="filter-btn active" onclick="setTermFilter('all',this)">All</button>
+                            <button class="filter-btn" onclick="setTermFilter('session',this)">Sessions</button>
+                            <button class="filter-btn" onclick="setTermFilter('alert',this)">Alerts</button>
+                            <button class="filter-btn" onclick="setTermFilter('threat',this)">Threats</button>
+                            <button class="filter-btn" onclick="setTermFilter('anomaly',this)">Anomalies</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="event-terminal" class="terminal"></div>
+                    </div>
+                </div>
+                <div class="card mt-4" id="quarantine-card">
+                    <div class="card-header">
+                        <h3>Active Quarantines & Threats</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="quarantine-list" class="empty-state">
+                            <div class="icon">✦</div>No active threats or quarantines
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── SESSIONS ─── -->
+            <div id="page-sessions" class="page">
+                <div class="page-header flex justify-between items-center">
+                    <div>
+                        <h2>Active Sessions</h2>
+                        <p>Session establishment, monitoring, and management</p>
+                    </div>
+                    <div class="filter-bar">
+                        <button class="filter-btn active" onclick="loadSessions('active',this)">Active</button>
+                        <button class="filter-btn" onclick="loadSessions('closed',this)">Closed</button>
+                        <button class="filter-btn" onclick="loadSessions('denied',this)">Denied</button>
+                        <button class="filter-btn" onclick="loadSessions(null,this)">All</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table class="data-table" id="sessions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Source Entity</th>
+                                        <th>Dest Entity</th>
+                                        <th>Intent</th>
+                                        <th>Trust</th>
+                                        <th>Verdict</th>
+                                        <th>Status</th>
+                                        <th>Started</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sessions-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── ENTITIES ─── -->
+            <div id="page-entities" class="page">
+                <div class="page-header">
+                    <h2>Entity Registry</h2>
+                    <p>Network entities and their security posture</p>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table class="data-table" id="entities-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Entity ID</th>
+                                        <th>Department</th>
+                                        <th>Clearance</th>
+                                        <th>Trust Avg</th>
+                                        <th>Sessions</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="entities-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── THREATS ─── -->
+            <div id="page-threats" class="page">
+                <div class="page-header flex justify-between items-center">
+                    <div>
+                        <h2>Threat Center</h2>
+                        <p>Security incidents and AI-generated investigation reports</p>
+                    </div>
+                    <div class="filter-bar">
+                        <button class="filter-btn active" onclick="filterThreats('all',this)">All</button>
+                        <button class="filter-btn" onclick="filterThreats('open',this)">Open</button>
+                        <button class="filter-btn" onclick="filterThreats('resolved',this)">Resolved</button>
+                    </div>
+                </div>
+                <div id="threats-list"></div>
+            </div>
+
+            <!-- ─── SENTINEL ─── -->
+            <div id="page-sentinel" class="page">
+                <div class="page-header">
+                    <h2>Sentinel Monitor</h2>
+                    <p>Behavioral anomaly detection and baseline learning</p>
+                </div>
+                <div class="stat-bar" id="sentinel-stats"></div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Anomalies (24h)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Entity</th>
+                                        <th>Type</th>
+                                        <th>Severity</th>
+                                        <th>Description</th>
+                                        <th>Confidence</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="anomalies-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h3>Entity Baselines</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Entity ID</th>
+                                        <th>Avg Sessions/hr</th>
+                                        <th>Avg Trust</th>
+                                        <th>Known Peers</th>
+                                        <th>Learning</th>
+                                        <th>Samples</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="baselines-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── CONFIG ─── -->
+            <div id="page-config" class="page">
+                <div class="page-header">
+                    <h2>Configuration</h2>
+                    <p>AI provider settings and security policies</p>
+                </div>
+                <div class="config-grid">
+                    <div class="config-section">
+                        <h3>Ollama AI Engine</h3>
+                        <div class="form-group">
+                            <label>Model</label>
+                            <select id="cfg-model" class="form-input form-select">
+                                <option value="gemma3:9b">Gemma 3:9b</option>
+                                <option value="gemma4:latest">Gemma 4 (latest)</option>
+                                <option value="llama3.2">Llama 3.2</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ollama Endpoint</label>
+                            <input type="text" id="cfg-apikey" class="form-input" placeholder="http://127.0.0.1:11434">
+                        </div>
+                        <div class="form-group">
+                            <label>Trust Mode</label>
+                            <select id="cfg-trustmode" class="form-input form-select">
+                                <option value="hybrid">Hybrid (Rules + AI)</option>
+                                <option value="rules">Rules Only</option>
+                                <option value="ai">AI Only</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="btn btn-primary" onclick="saveAiConfig()">Save</button>
+                            <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+                        </div>
+                        <div id="cfg-result" class="mt-3" style="font-family:var(--font-mono);font-size:11px;"></div>
+                    </div>
+                    <div class="config-section">
+                        <h3>Sentinel Settings</h3>
+                        <div class="toggle-row">
+                            <label>Sentinel Monitoring</label>
+                            <div class="toggle"><input type="checkbox" id="cfg-sentinel" checked><span
+                                    class="toggle-slider"></span></div>
+                        </div>
+                        <div class="toggle-row">
+                            <label>Auto-Quarantine</label>
+                            <div class="toggle"><input type="checkbox" id="cfg-autoquarantine"><span
+                                    class="toggle-slider"></span></div>
+                        </div>
+                        <div class="form-group mt-3">
+                            <label>Scan Interval (seconds)</label>
+                            <input type="number" id="cfg-interval" class="form-input" value="15" min="5" max="300">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        /* ═══════════════════════════════════════════════════════════════════════
+           AITP Admin Dashboard — Application Logic
+           ═══════════════════════════════════════════════════════════════════════ */
+
+        const S = {
+            token: null, ws: null, org: null,
+            termFilter: 'all', termLines: [],
+            threats: [], threatsFilter: 'all',
+        };
+
+        // ── Helpers ────────────────────────────────────────────────────────────
+        async function api(method, path, body) {
+            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            if (S.token) opts.headers['Authorization'] = 'Bearer ' + S.token;
+            if (body) opts.body = JSON.stringify(body);
+            const res = await fetch('/api' + path, opts);
+            if (res.status === 401) { doLogout(); throw new Error('Unauthorized'); }
+            if (!res.ok) { const t = await res.text(); throw new Error(t); }
+            return res.json();
+        }
+
+        function $(id) { return document.getElementById(id); }
+        function ts(epoch) { if (!epoch) return '—'; const d = new Date(epoch * 1000); return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+        function ago(epoch) { if (!epoch) return '—'; const s = Math.floor(Date.now() / 1000) - epoch; if (s < 60) return s + 's'; if (s < 3600) return Math.floor(s / 60) + 'm'; return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm'; }
+        function trunc(s, n = 12) { return s && s.length > n ? s.slice(0, n) + '…' : (s || '—'); }
+        function trustColor(v) { return v >= 180 ? 'green' : v >= 128 ? 'amber' : 'red'; }
+        function sevClass(s) { return ({ CRITICAL: 'critical', HIGH: 'amber', MEDIUM: 'blue', LOW: 'green', critical: 'critical', high: 'amber', warning: 'amber', alert: 'amber', info: 'blue' })[s] || 'info'; }
+
+        function formatUptime(secs) {
+            if (!secs) return '—';
+            const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+            return (h > 0 ? h + 'h ' : '') + m + 'm ' + s + 's';
+        }
+
+        // ── Auth ───────────────────────────────────────────────────────────────
+        function showSignup() { $('signup-fields').style.display = $('signup-fields').style.display === 'none' ? 'block' : 'none'; }
+
+        async function doLogin() {
+            $('login-error').textContent = '';
+            const email = $('login-email').value.trim(), pw = $('login-password').value;
+            if (!email || !pw) { $('login-error').textContent = 'Email and password required'; return; }
+            try {
+                const data = await api('POST', '/auth/signin', { email, password: pw });
+                S.token = data.token; S.org = data.org;
+                enterApp();
+            } catch (e) { $('login-error').textContent = e.message || 'Invalid credentials'; }
+        }
+
+        async function doSignup() {
+            $('login-error').textContent = '';
+            const email = $('login-email').value.trim(), pw = $('login-password').value, org = $('signup-org').value.trim();
+            if (!email || !pw || !org) { $('login-error').textContent = 'All fields required'; return; }
+            try {
+                const data = await api('POST', '/auth/signup', { email, password: pw, org_name: org });
+                S.token = data.token; S.org = data.org;
+                enterApp();
+            } catch (e) { $('login-error').textContent = e.message || 'Signup failed'; }
+        }
+
+        function doLogout() {
+            S.token = null; S.org = null;
+            if (S.ws) { S.ws.close(); S.ws = null; }
+            $('login-page').style.display = 'flex';
+            $('app-shell').style.display = 'none';
+            location.hash = '#login';
+        }
+
+        function enterApp() {
+            $('login-page').style.display = 'none';
+            $('app-shell').style.display = 'flex';
+            connectWebSocket();
+            navigate(location.hash.slice(1) || 'overview');
+        }
+
+        // ── WebSocket ─────────────────────────────────────────────────────────
+        function connectWebSocket() {
+            if (S.ws && S.ws.readyState <= 1) return;
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${proto}//${location.host}/ws?token=${S.token}`);
+            S.ws = ws;
+
+            ws.onopen = () => {
+                $('ws-dot').classList.add('connected');
+                $('ws-label').textContent = 'Connected';
+                addTermLine('info', 'session', 'WebSocket connected to Intelligence Core');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleWsMessage(msg);
+                } catch (e) { }
+            };
+
+            ws.onclose = () => {
+                $('ws-dot').classList.remove('connected');
+                $('ws-label').textContent = 'Reconnecting…';
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = () => ws.close();
+        }
+
+        function handleWsMessage(msg) {
+            switch (msg.type) {
+                case 'connected':
+                    addTermLine('info', 'session', `Authenticated as ${msg.org_name}`);
+                    break;
+                case 'stats':
+                    $('stat-sessions').textContent = msg.active_sessions ?? '—';
+                    $('stat-entities').textContent = msg.entities_online ?? '—';
+                    $('stat-threats').textContent = msg.threats_detected_today ?? '0';
+                    $('stat-ai').textContent = msg.ai_calls ?? '0';
+                    $('stat-trust').textContent = msg.avg_trust != null ? Math.round(msg.avg_trust) : '—';
+                    $('stat-uptime').textContent = formatUptime(msg.uptime_secs);
+                    break;
+                case 'session_new':
+                    addTermLine(msg.verdict === 'ALLOW' ? 'allow' : msg.verdict === 'DENY' ? 'deny' : 'monitor', 'session',
+                        `SESSION ${msg.verdict} │ ${trunc(msg.source_entity)} → ${trunc(msg.dest_entity)} │ ${msg.intent} │ trust:${msg.trust_score}`);
+                    break;
+                case 'session_killed':
+                    addTermLine('kill', 'session', `SESSION KILLED │ ${trunc(msg.session_id)} │ ${msg.reason}`);
+                    break;
+                case 'session_end':
+                    addTermLine('info', 'session', `SESSION END │ ${trunc(msg.session_id)} │ ${msg.close_reason} │ ${msg.bytes_tx}B tx`);
+                    break;
+                case 'anomaly_detected':
+                    addTermLine(msg.severity === 'critical' ? 'critical' : 'monitor', 'anomaly',
+                        `ANOMALY [${msg.severity.toUpperCase()}] │ ${msg.anomaly_type} │ ${trunc(msg.entity_id)} │ ${msg.description}`);
+                    break;
+                case 'entity_quarantined':
+                    addTermLine('critical', 'alert', `QUARANTINED │ ${trunc(msg.entity_id)} │ ${msg.reason} │ ${msg.active_sessions_killed} sessions killed`);
+                    break;
+                case 'threat_incident':
+                    addTermLine('critical', 'threat', `THREAT [${msg.severity}] │ ${msg.attack_type} │ ${msg.entities_affected} entities │ ${trunc(msg.summary, 60)}`);
+                    break;
+                case 'vulnerability_found':
+                    addTermLine('deny', 'alert', `VULN │ ${msg.cve || 'N/A'} │ ${trunc(msg.entity_id)} │ ${msg.description}`);
+                    break;
+                case 'alert':
+                    addTermLine(msg.severity === 'critical' ? 'critical' : 'monitor', 'alert',
+                        `ALERT [${msg.severity.toUpperCase()}] │ ${msg.alert_type} │ ${msg.description}`);
+                    break;
+                case 'log':
+                    const cls = msg.level === 'ERROR' || msg.level === 'CRITICAL' ? 'deny' : msg.level === 'WARN' ? 'monitor' : 'info';
+                    addTermLine(cls, 'alert', `${msg.level} │ ${msg.message}`);
+                    break;
+                case 'packet_flow':
+                    break; // too noisy for terminal
+            }
+        }
+
+        // ── Terminal ──────────────────────────────────────────────────────────
+        function addTermLine(cls, category, text) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            S.termLines.push({ cls, category, text, time });
+            if (S.termLines.length > 500) S.termLines.shift();
+            renderTerminal();
+        }
+
+        function renderTerminal() {
+            const term = $('event-terminal');
+            const filtered = S.termFilter === 'all' ? S.termLines : S.termLines.filter(l => {
+                if (S.termFilter === 'session') return l.category === 'session';
+                if (S.termFilter === 'alert') return l.category === 'alert';
+                if (S.termFilter === 'threat') return l.category === 'threat';
+                if (S.termFilter === 'anomaly') return l.category === 'anomaly';
+                return true;
+            });
+            term.innerHTML = filtered.map(l =>
+                `<div class="term-line ${l.cls}"><span class="ts">${l.time}</span>${escHtml(l.text)}</div>`
+            ).join('');
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function setTermFilter(f, btn) {
+            S.termFilter = f;
+            document.querySelectorAll('#page-overview .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTerminal();
+        }
+
+        function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+        // ── Navigation ────────────────────────────────────────────────────────
+        function navigate(page) {
+            page = page || 'overview';
+            if (page === 'login') return;
+            location.hash = '#' + page;
+
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+            const el = $('page-' + page);
+            if (el) el.classList.add('active');
+            const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+            if (nav) nav.classList.add('active');
+
+            // Load data on navigation
+            switch (page) {
+                case 'sessions': loadSessions('active'); break;
+                case 'entities': loadEntities(); break;
+                case 'threats': loadThreats(); break;
+                case 'sentinel': loadSentinel(); break;
+            }
+        }
+
+        window.addEventListener('hashchange', () => {
+            const h = location.hash.slice(1);
+            if (h && h !== 'login') navigate(h);
+        });
+
+        // ── Sessions Page ─────────────────────────────────────────────────────
+        async function loadSessions(status, btn) {
+            if (btn) {
+                document.querySelectorAll('#page-sessions .filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            try {
+                const q = status ? `?status=${status}&limit=100` : '?limit=100';
+                const sessions = await api('GET', '/sessions' + q);
+                const tbody = $('sessions-tbody');
+                if (!sessions.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sessions found</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = sessions.map(s => `<tr>
+      <td class="mono truncate" title="${s.source_entity_id}">${trunc(s.source_entity_id, 16)}</td>
+      <td class="mono truncate" title="${s.dest_entity_id}">${trunc(s.dest_entity_id, 16)}</td>
+      <td><span class="badge navy">${s.intent}</span></td>
+      <td class="mono"><span style="color:var(--${trustColor(s.trust_score)})">${s.trust_score}</span></td>
+      <td><span class="badge ${sevClass(s.verdict?.toLowerCase())}">${s.verdict || '—'}</span></td>
+      <td><span class="badge ${s.status === 'active' ? 'green' : 'info'}">${s.status}</span></td>
+      <td class="mono text-dim">${ts(s.started_at)}</td>
+      <td>${s.status === 'active' ? `<button class="btn btn-danger btn-sm" onclick="revokeSession('${s.id}')">Revoke</button>` : ''}</td>
+    </tr>`).join('');
+            } catch (e) { console.error('loadSessions:', e); }
+        }
+
+        async function revokeSession(id) {
+            if (!confirm('Revoke this session?')) return;
+            try {
+                await api('POST', `/sessions/${id}/revoke`);
+                addTermLine('kill', 'session', `Session ${trunc(id)} revoked by admin`);
+                loadSessions('active');
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        // ── Entities Page ─────────────────────────────────────────────────────
+        async function loadEntities() {
+            try {
+                const entities = await api('GET', '/entities');
+                const tbody = $('entities-tbody');
+                if (!entities.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No entities enrolled</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = entities.map(e => {
+                    const status = e.quarantined ? 'quarantined' : (e.last_seen && (Date.now() / 1000 - e.last_seen) < 300 ? 'online' : 'offline');
+                    return `<tr>
+        <td style="font-weight:500;color:var(--text-bright)">${escHtml(e.name)}</td>
+        <td><span class="badge navy">${e.entity_type}</span></td>
+        <td class="mono truncate" title="${e.id}">${trunc(e.id, 16)}</td>
+        <td>${e.department || '—'}</td>
+        <td class="mono">${e.clearance_level}</td>
+        <td class="mono"><span style="color:var(--${trustColor(e.trust_score_avg)})">${Math.round(e.trust_score_avg)}</span></td>
+        <td class="mono">${e.session_count}</td>
+        <td><span class="badge ${status}">${status}</span></td>
+        <td>${e.quarantined
+                            ? `<button class="btn btn-outline btn-sm" onclick="releaseEntity('${e.id}')">Release</button>`
+                            : `<button class="btn btn-danger btn-sm" onclick="quarantineEntity('${e.id}')">Quarantine</button>`
+                        }</td>
+      </tr>`;
+                }).join('');
+            } catch (e) { console.error('loadEntities:', e); }
+        }
+
+        async function quarantineEntity(id) {
+            if (!confirm('Quarantine this entity? All active sessions will be terminated.')) return;
+            try {
+                await api('PUT', `/entities/${id}/quarantine`);
+                addTermLine('critical', 'alert', `Entity ${trunc(id)} quarantined by admin`);
+                loadEntities();
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        async function releaseEntity(id) {
+            try {
+                await api('PUT', `/entities/${id}/release`);
+                addTermLine('info', 'alert', `Entity ${trunc(id)} released from quarantine`);
+                loadEntities();
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        // ── Threats Page ──────────────────────────────────────────────────────
+        async function loadThreats() {
+            try {
+                S.threats = await api('GET', '/threats');
+                renderThreats();
+            } catch (e) { console.error('loadThreats:', e); }
+        }
+
+        function renderThreats() {
+            const list = $('threats-list');
+            let threats = S.threats;
+            if (S.threatsFilter !== 'all') threats = threats.filter(t => t.status === S.threatsFilter);
+            if (!threats.length) {
+                list.innerHTML = '<div class="empty-state"><div class="icon">✦</div>No incidents found</div>';
+                return;
+            }
+            threats.sort((a, b) => (b.detected_at || 0) - (a.detected_at || 0));
+            list.innerHTML = threats.map((t, i) => {
+                const sev = (t.severity || 'medium').toLowerCase();
+                const ttps = t.mitre_ttps || [];
+                const timeline = t.attack_timeline || [];
+                const affected = t.affected_entities || [];
+                const remediation = t.remediation ? (typeof t.remediation === 'string' ? t.remediation.split('\n') : (Array.isArray(t.remediation) ? t.remediation : [])) : [];
+                return `<div class="incident-card" onclick="toggleIncident(${i})">
+      <div class="incident-header">
+        <div class="severity-dot ${sev}"></div>
+        <div class="info">
+          <h4>${escHtml(t.attack_type || 'Unknown')} <span class="badge ${sevClass(sev)}">${(t.severity || '').toUpperCase()}</span></h4>
+          <p>${escHtml(t.summary || t.description || '—')} · ${affected.length} entities · ${ago(t.detected_at)} ago</p>
+        </div>
+        <span class="badge ${t.status === 'open' ? 'red' : 'green'}">${t.status || 'open'}</span>
+        ${t.status !== 'resolved' ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();resolveThreat('${t.id}')">Resolve</button>` : ''}
+      </div>
+      <div class="incident-detail" id="incident-${i}">
+        ${timeline.length ? `<h5>Attack Timeline</h5><ul>${timeline.map(e => `<li>${ts(e.timestamp)} — ${escHtml(e.description || e.event_type || '')}</li>`).join('')}</ul>` : ''}
+        ${Array.isArray(ttps) && ttps.length ? `<h5>MITRE ATT&CK</h5><ul>${ttps.map(t => `<li>${typeof t === 'string' ? t : (t.id + ' — ' + t.name)}</li>`).join('')}</ul>` : ''}
+        ${t.vulnerability ? `<h5>Vulnerability</h5><p style="font-size:12px;color:var(--text)">${escHtml(t.vulnerability)}</p>` : ''}
+        ${remediation.length ? `<h5>Remediation Runbook</h5><ul>${remediation.map(r => `<li>${escHtml(r)}</li>`).join('')}</ul>` : ''}
+        ${t.entry_point_entity_id ? `<h5>Entry Point</h5><p class="mono" style="font-size:11px;color:var(--text)">${t.entry_point_entity_id}</p>` : ''}
+      </div>
+    </div>`;
+            }).join('');
+        }
+
+        function toggleIncident(i) {
+            const el = $('incident-' + i);
+            if (el) el.classList.toggle('open');
+        }
+
+        function filterThreats(f, btn) {
+            S.threatsFilter = f;
+            document.querySelectorAll('#page-threats .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderThreats();
+        }
+
+        async function resolveThreat(id) {
+            try {
+                await api('POST', `/threats/${id}/resolve`);
+                addTermLine('info', 'threat', `Incident ${trunc(id)} resolved`);
+                loadThreats();
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        // ── Sentinel Page ─────────────────────────────────────────────────────
+        async function loadSentinel() {
+            try {
+                const [status, anomalies, baselines] = await Promise.all([
+                    api('GET', '/sentinel/status'),
+                    api('GET', '/sentinel/anomalies'),
+                    api('GET', '/sentinel/baselines'),
+                ]);
+                // Stats bar
+                $('sentinel-stats').innerHTML = `
+      <div class="stat-card"><div class="label">Monitoring</div><div class="value ${status.monitoring ? 'green' : 'red'}">${status.monitoring ? 'Active' : 'Off'}</div></div>
+      <div class="stat-card"><div class="label">Entities Monitored</div><div class="value">${status.entities_monitored}</div></div>
+      <div class="stat-card"><div class="label">Learning</div><div class="value blue">${status.learning_count}</div></div>
+      <div class="stat-card"><div class="label">Anomalies (24h)</div><div class="value amber">${status.anomalies_24h}</div></div>
+      <div class="stat-card"><div class="label">Critical (24h)</div><div class="value red">${status.critical_24h}</div></div>
+      <div class="stat-card"><div class="label">Auto-Quarantine</div><div class="value ${status.auto_quarantine ? 'green' : 'red'}">${status.auto_quarantine ? 'On' : 'Off'}</div></div>
+    `;
+                // Anomalies table
+                const atb = $('anomalies-tbody');
+                if (!anomalies.length) {
+                    atb.innerHTML = '<tr><td colspan="6" class="empty-state">No anomalies detected</td></tr>';
+                } else {
+                    atb.innerHTML = anomalies.map(a => `<tr>
+        <td class="mono truncate">${trunc(a.entity_id, 16)}</td>
+        <td><span class="badge navy">${a.anomaly_type}</span></td>
+        <td><span class="badge ${sevClass(a.severity)}">${a.severity}</span></td>
+        <td style="max-width:300px">${escHtml(a.description)}</td>
+        <td class="mono">${(a.confidence * 100).toFixed(0)}%</td>
+        <td class="mono text-dim">${ts(a.detected_at)}</td>
+      </tr>`).join('');
+                }
+                // Baselines table
+                const btb = $('baselines-tbody');
+                if (!baselines.length) {
+                    btb.innerHTML = '<tr><td colspan="6" class="empty-state">No baselines established</td></tr>';
+                } else {
+                    btb.innerHTML = baselines.map(b => `<tr>
+        <td class="mono truncate">${trunc(b.entity_id, 16)}</td>
+        <td class="mono">${b.avg_sessions_per_hour?.toFixed(1) || '0'}</td>
+        <td class="mono"><span style="color:var(--${trustColor(b.avg_trust_score)})">${Math.round(b.avg_trust_score || 0)}</span></td>
+        <td class="mono">${JSON.parse(b.known_peers || '[]').length}</td>
+        <td><span class="badge ${b.learning_complete ? 'green' : 'learning'}">${b.learning_complete ? 'Complete' : 'Learning'}</span></td>
+        <td class="mono">${b.sample_count || 0}</td>
+      </tr>`).join('');
+                }
+            } catch (e) { console.error('loadSentinel:', e); }
+        }
+
+        // ── Config Page ───────────────────────────────────────────────────────
+        async function saveAiConfig() {
+            try {
+                const body = {
+                    provider: 'ollama',
+                    model: $('cfg-model').value,
+                    api_key: $('cfg-apikey').value || undefined,
+                    trust_mode: $('cfg-trustmode').value,
+                };
+                await api('POST', '/config/ai', body);
+                $('cfg-result').innerHTML = '<span style="color:var(--green)">✓ Configuration saved</span>';
+                addTermLine('info', 'alert', `AI config updated: ${body.model}, mode=${body.trust_mode}`);
+            } catch (e) { $('cfg-result').innerHTML = `<span style="color:var(--red)">✕ ${escHtml(e.message)}</span>`; }
+        }
+
+        async function testConnection() {
+            $('cfg-result').innerHTML = '<span style="color:var(--text-dim)">Testing…</span>';
+            try {
+                const body = {
+                    provider: 'ollama',
+                    model: $('cfg-model').value,
+                    api_key: $('cfg-apikey').value,
+                };
+                const result = await api('POST', '/config/verify-key', body);
+                const te = result.test_evaluation || {};
+                $('cfg-result').innerHTML = `
+      <div style="color:var(--green);margin-bottom:6px">✓ Connection verified</div>
+      <div>Trust Score: <strong>${te.trust_score}</strong></div>
+      <div>Verdict: <span class="badge ${sevClass(te.verdict?.toLowerCase())}">${te.verdict}</span></div>
+      <div>Reasoning: ${escHtml(te.reasoning || '')}</div>
+      <div>Latency: ${te.evaluation_ms?.toFixed(0) || '?'}ms</div>
+    `;
+            } catch (e) { $('cfg-result').innerHTML = `<span style="color:var(--red)">✕ ${escHtml(e.message)}</span>`; }
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            // Handle Enter key on login form
+            $('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+            $('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-password').focus(); });
+        });
+    </script>
+</body>
+
+</html>
