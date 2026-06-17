@@ -24,7 +24,7 @@ sqlalchemy[asyncio]==2.0.36
 alembic==1.14.0
 
 # ══ Cryptography (replaces kelan-crypto Rust crate) ══════════
-cryptography==49.0.0
+cryptography==48.0.1
 pynacl==1.6.2
 
 scapy==2.7.0
