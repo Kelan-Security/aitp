@@ -70,7 +70,9 @@ class EbpfBridge:
         if self._proc and self._proc.stdin:
             try:
                 line = json.dumps(payload).encode() + b"\n"
-                self._proc.stdin.write(line)
+                res = self._proc.stdin.write(line)
+                if asyncio.iscoroutine(res):
+                    await res
                 await self._proc.stdin.drain()
                 log.debug("ebpf_cmd", **payload)
             except Exception as exc:
