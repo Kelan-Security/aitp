@@ -56,7 +56,8 @@ async def test_ebpf_bridge_ebpf_mode_success():
     with patch("pathlib.Path.exists", return_value=True):
         mock_proc = MagicMock()
         mock_proc.pid = 9876
-        mock_proc.stdin = AsyncMock()
+        mock_proc.stdin = MagicMock()
+        mock_proc.stdin.drain = AsyncMock()
         mock_proc.wait = AsyncMock()
         
         with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as mock_exec:

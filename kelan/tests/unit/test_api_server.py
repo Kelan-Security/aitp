@@ -1,4 +1,5 @@
 """Unit tests for FastAPI server endpoints and lifecycle."""
+from __future__ import annotations
 from typing import Any
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,25 +13,25 @@ from kelan.api.server import (
 )
 
 @pytest.fixture(scope="module")
-def anyio_backend():
+def anyio_backend() -> str:
     return "asyncio"
 
 class MockWebSocket:
-    def __init__(self, received_messages=None):
+    def __init__(self, received_messages: list[Any] | None = None) -> None:
         self.client = MagicMock()
         self.client.host = "127.0.0.1"
         self.client.port = 12345
-        self.sent_messages = []
+        self.sent_messages: list[Any] = []
         self.received_messages = received_messages or [{"type": "ping"}]
         self.accepted = False
 
-    async def accept(self):
+    async def accept(self) -> None:
         self.accepted = True
 
-    async def send_json(self, data):
+    async def send_json(self, data: Any) -> None:
         self.sent_messages.append(data)
 
-    async def receive_json(self):
+    async def receive_json(self) -> Any:
         if not self.received_messages:
             raise WebSocketDisconnect()
         msg = self.received_messages.pop(0)
@@ -39,7 +40,7 @@ class MockWebSocket:
         return msg
 
 @pytest.mark.asyncio
-async def test_server_lifespan():
+async def test_server_lifespan() -> None:
     with patch("kelan.api.server.init_db", new_callable=AsyncMock) as mock_init_db, \
          patch("kelan.api.server.OllamaClient") as mock_ollama_class, \
          patch("kelan.api.server.EbpfBridge") as mock_ebpf_class:
@@ -63,7 +64,7 @@ async def test_server_lifespan():
          mock_ollama.close.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_on_verdict_broadcasting():
+async def test_on_verdict_broadcasting() -> None:
     import kelan.api.server as s
     s.ebpf = AsyncMock()
     
@@ -107,7 +108,7 @@ async def test_on_verdict_broadcasting():
     _ws_clients.discard(mock_ws)
 
 @pytest.mark.asyncio
-async def test_websocket_agent_disconnect():
+async def test_websocket_agent_disconnect() -> None:
     mock_ws: Any = MockWebSocket([{"type": "status"}, WebSocketDisconnect()])
     
     import kelan.api.server as s
@@ -124,14 +125,14 @@ async def test_websocket_agent_disconnect():
     assert mock_ws not in _ws_clients
 
 @pytest.mark.asyncio
-async def test_websocket_agent_error():
+async def test_websocket_agent_error() -> None:
     mock_ws: Any = MockWebSocket([Exception("WS Failure")])
     
     await ws_agent(mock_ws)
     assert mock_ws not in _ws_clients
 
 @pytest.mark.asyncio
-async def test_dashboard_endpoint():
+async def test_dashboard_endpoint() -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Mock FileResponse to avoid actual static file checking
@@ -145,7 +146,7 @@ async def test_dashboard_endpoint():
             assert r_dash.status_code == 200
 
 @pytest.mark.asyncio
-async def test_trust_evaluate_endpoint():
+async def test_trust_evaluate_endpoint() -> None:
     import kelan.api.server as s
     s.engine = AsyncMock()
     s.engine.evaluate.return_value = TrustVerdict(Verdict.ALLOW, 0.85, "clean trust")
@@ -164,7 +165,7 @@ async def test_trust_evaluate_endpoint():
         assert d["confidence"] == 0.85
 
 @pytest.mark.asyncio
-async def test_metrics_endpoint():
+async def test_metrics_endpoint() -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         r = await client.get("/metrics")
@@ -172,7 +173,7 @@ async def test_metrics_endpoint():
         assert "text/plain" in r.headers["content-type"]
 
 @pytest.mark.asyncio
-async def test_handshake_endpoint_errors():
+async def test_handshake_endpoint_errors() -> None:
     import kelan.api.server as s
     s.handshake_mgr = MagicMock()
     s.cfg = MagicMock()

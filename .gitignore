@@ -88,6 +88,8 @@ logs/
 *.swo
 .DS_Store
 Thumbs.db
+pyrightconfig.json
+**/pyrightconfig.json
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 .dockerignore
@@ -104,3 +106,8 @@ temp/
 # ── Tarpaulin coverage ────────────────────────────────────────────────────────
 tarpaulin-report.html
 tarpaulin_output.log
+
+# Archived experiments — do not re-add
+.rust_archive/
+archive/
+fuzz/

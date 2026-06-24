@@ -1,12 +1,8 @@
 {
-  "pythonVersion": "3.14",
-  "pythonPlatform": "Darwin",
-  "pythonPath": "/opt/homebrew/bin/python3",
-  "venvPath": null,
-  "venv": null,
-  "extraPaths": [
-    "/Users/wopsy/Library/Python/3.14/lib/python/site-packages"
-  ],
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Linux",
+  "venvPath": "/home/wop/startup/kelan-core",
+  "venv": ".venv",
   "exclude": [
     ".venv",
     "venv"

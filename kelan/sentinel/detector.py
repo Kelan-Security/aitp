@@ -1,10 +1,8 @@
-"""
-Sentinel — real-time behavioural anomaly detection.
-Feeds structured anomaly context into Ollama for better verdicts.
-"""
+from __future__ import annotations
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from typing import Any
 import structlog
 from ..db.database import save_anomaly
 
@@ -19,7 +17,7 @@ class AnomalyEvent:
     details:  dict
     ts:       float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {"source": self.source, "kind": self.kind,
                 "severity": self.severity, "details": self.details,
                 "ts": round(self.ts, 2)}
@@ -27,14 +25,14 @@ class AnomalyEvent:
 
 class SentinelDetector:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._enroll:  dict[str, deque]  = defaultdict(lambda: deque(maxlen=200))
         self._connect: dict[str, deque]  = defaultdict(lambda: deque(maxlen=1000))
         self._auth_fail: dict[str, list] = defaultdict(list)
         self._ports:   dict[str, set]    = defaultdict(set)
         self._events:  deque             = deque(maxlen=2000)
 
-    def analyze(self, entity_id: str, intent: str, source_ip: str = "") -> dict:
+    def analyze(self, entity_id: str, intent: str, source_ip: str = "") -> dict[str, Any]:
         now = time.time()
         key = source_ip or entity_id
         out: dict = {}
@@ -88,7 +86,7 @@ class SentinelDetector:
 
         return out
 
-    def record_port_probe(self, source_ip: str, port: int):
+    def record_port_probe(self, source_ip: str, port: int) -> None:
         self._ports[source_ip].add(port)
         n = len(self._ports[source_ip])
         thresholds = {100: 0.6, 500: 0.75, 1000: 0.85, 5000: 0.95}
@@ -100,7 +98,7 @@ class SentinelDetector:
                 ))
                 log.warning("port_scan", src=source_ip, ports=n)
 
-    def _emit_and_save(self, event: AnomalyEvent):
+    def _emit_and_save(self, event: AnomalyEvent) -> None:
         self._events.append(event)
         log.warning("sentinel", kind=event.kind,
                     severity=event.severity, src=event.source)
@@ -115,5 +113,5 @@ class SentinelDetector:
         except Exception:
             pass
 
-    def recent(self, n: int = 50) -> list[dict]:
+    def recent(self, n: int = 50) -> list[dict[str, Any]]:
         return [e.to_dict() for e in list(self._events)[-n:]]

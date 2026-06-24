@@ -1,8 +1,8 @@
 {
   "pythonVersion": "3.12",
-  "pythonPlatform": "Darwin",
-  "venvPath": "/Users/wopsy/programming/Project",
-  "venv": "venv",
+  "pythonPlatform": "Linux",
+  "venvPath": "/home/wop/startup/kelan-core",
+  "venv": ".venv",
   "exclude": [
     ".venv",
     "venv"
