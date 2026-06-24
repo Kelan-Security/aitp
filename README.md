@@ -28,10 +28,10 @@
 
 Kelan is an open-source **zero-trust security layer** that runs entirely on your infrastructure. It combines:
 
-- **eBPF/XDP kernel enforcement** (Rust) — packet-level traffic control at line rate, no kernel modules
-- **Local AI trust evaluation** (Python + Ollama) — every connection scored by a local LLM, no cloud calls
-- **Post-quantum cryptography** — ML-KEM-768 + Ed25519 + X25519 handshakes
-- **AITP protocol** — Adaptive Intent Transport Protocol, session-aware trust scoring
+- **eBPF/XDP kernel enforcement** (Rust) : packet-level traffic control at line rate, no kernel modules
+- **Local AI trust evaluation** (Python + Ollama) : every connection scored by a local LLM, no cloud calls
+- **Post-quantum cryptography**: ML-KEM-768 + Ed25519 + X25519 handshakes
+- **AITP protocol** : Adaptive Intent Transport Protocol, session aware trust scoring
 
 **Nothing leaves your network. No SaaS. No telemetry. Your keys, your data.**
 
@@ -56,10 +56,10 @@ Kelan is an open-source **zero-trust security layer** that runs entirely on your
 ```
 
 **Key properties:**
-- Kernel-level enforcement — can't be bypassed by userspace processes
-- Local-only AI — zero external API calls, works air-gapped
-- Post-quantum ready — safe against Harvest Now, Decrypt Later attacks
-- Session-aware — trust scores evolve over connection lifetime
+- Kernel level enforcement -> can't be bypassed by userspace processes
+- Local AI onl -> zero external API calls, works air-gapped
+- Post-quantum ready -> safe against Harvest Now, Decrypt Later attacks
+- Session-aware —> trust scores evolve over connection lifetime
 
 ---
 
@@ -105,7 +105,7 @@ Kelan starts on `http://localhost:3000`. Check `GET /health` to verify.
 
 ## Core Concepts
 
-### AITP — Adaptive Intent Transport Protocol
+### AITP : Adaptive Intent Transport Protocol
 
 Every network session goes through intent classification before data flows:
 
@@ -266,7 +266,7 @@ kelan-core/
 
 ## Security
 
-Kelan is a security tool — we take its own security seriously.
+AITP is an Agentic Security Platform and we take its own security seriously.
 
 - All secrets must be in `.env` (gitignored) — never hardcoded
 - Pre-commit hooks block accidental secret commits
