@@ -2,7 +2,11 @@
 
 <div align="center">
 
-<img src="docs/assets/kelan-banner.png" alt="Kelan Security" width="600" />
+<img 
+  src="https://github.com/user-attachments/assets/80b1d269-2b8a-4221-8c12-afdbccae6b3e"
+  alt="Kelan Security"
+  width="250"
+/>
 
 **Adaptive Intent Transport Protocol**  
 *Zero-Trust Network Security with Local AI + eBPF Enforcement*
