@@ -14,7 +14,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10--3.12-blue.svg)](https://python.org)
 [![Ollama](https://img.shields.io/badge/AI-Ollama%20%2B%20Gemma-green.svg)](https://ollama.com)
 
-[**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Docs**](docs/) · [**Contributing**](docs/CONTRIBUTING.md)
+[**Website**](https://kelansecurity.vercel.app/) · [**Quick Start**](#quick-start) · [**Architecture**](#architecture) · [**Docs**](docs/) · [**Contributing**](docs/CONTRIBUTING.md)
 
 </div>
 
